@@ -4,7 +4,7 @@ Generated from measured CSV files. Empty tables mean no run data was present.
 
 ## Latency Rows
 
-- rows: 48
+- rows: 11
 ## Retry Rows
 
-- rows: 8
+- rows: 2
