@@ -1,4 +1,26 @@
 services:
+  controller:
+    command:
+      - go
+      - run
+      - ./cmd/controller
+      - --addr
+      - 0.0.0.0:9000
+      - --http-addr
+      - 0.0.0.0:9100
+      - --health-degraded-threshold
+      - ${AEGIS_DEGRADED_THRESHOLD:-1.5}
+      - --health-eject-threshold
+      - ${AEGIS_EJECT_THRESHOLD:-2.5}
+      - --health-consecutive-windows
+      - ${AEGIS_CONSECUTIVE_WINDOWS:-3}
+      - --health-ejection-duration
+      - ${AEGIS_EJECTION_DURATION:-30s}
+      - --health-recovery-threshold
+      - ${AEGIS_RECOVERY_THRESHOLD:-1.0}
+      - --health-probe-success-threshold
+      - ${AEGIS_PROBE_SUCCESS_THRESHOLD:-0.95}
+
   frontend-direct:
     build:
       context: .

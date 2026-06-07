@@ -14,6 +14,7 @@ LOSS ?= 2
 CPUS ?= 0.25
 REQUESTS ?= 200
 CONCURRENCY ?= 16
+REPETITIONS ?= 5
 FRONTEND_URL ?= http://127.0.0.1:8080/checkout
 RESULTS_DIR ?= experiments/results
 RUNS_DIR ?= experiments/results/runs
@@ -63,6 +64,12 @@ bench:
 
 bench-required:
 	RESULTS_DIR=$(RESULTS_DIR) REQUESTS=$(REQUESTS) CONCURRENCY=$(CONCURRENCY) TARGET=$(TARGET) DEVICE=$(DEVICE) DELAY=$(DELAY) JITTER=$(JITTER) LOSS=$(LOSS) CPUS=$(CPUS) bash experiments/scripts/run_required_experiments.sh
+
+bench-retry-repeat:
+	RUN_ID=$(RUN_ID) RUNS_DIR=$(RUNS_DIR) REQUESTS=$(REQUESTS) CONCURRENCY=$(CONCURRENCY) REPETITIONS=$(REPETITIONS) bash experiments/scripts/run_retry_repetitions.sh
+
+bench-recovery-state:
+	RUN_ID=$(RUN_ID) RUNS_DIR=$(RUNS_DIR) REQUESTS=$(REQUESTS) CONCURRENCY=$(CONCURRENCY) TARGET=$(TARGET) DEVICE=$(DEVICE) DELAY=$(DELAY) JITTER=$(JITTER) RECOVERY_DURATION=90s bash experiments/scripts/run_recovery_state_experiment.sh
 
 bench-single-machine:
 	RUN_ID=$(RUN_ID) RUNS_DIR=$(RUNS_DIR) REQUESTS=$(REQUESTS) CONCURRENCY=$(CONCURRENCY) TARGET=$(TARGET) DEVICE=$(DEVICE) DELAY=$(DELAY) JITTER=$(JITTER) LOSS=$(LOSS) CPUS=$(CPUS) bash experiments/scripts/run_single_machine_experiments.sh

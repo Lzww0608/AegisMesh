@@ -116,7 +116,84 @@ python experiments/notebooks/plot_latency.py --results experiments/results/combi
 
 The existing flat files under `experiments/results/*.csv` are treated as `run_id=legacy`; each new timestamped run keeps its directory name as `run_id`.
 
-## 7. Reporting Rules
+## 7. Repeat Retry Budget Experiments
+
+Start the experiment stack first:
+
+```bash
+make experiments-up
+```
+
+Then run five retry-only repetitions:
+
+```bash
+RUNS_DIR=experiments/results/runs \
+RUN_ID=retry-$(date +%Y%m%d-%H%M%S) \
+REQUESTS=1000 \
+CONCURRENCY=32 \
+REPETITIONS=5 \
+make bench-retry-repeat
+```
+
+Expected direction:
+
+- `without_budget`: amplification should be close to `2.0x`
+- `with_budget`: amplification should be close to `1.15x`
+
+Merge and inspect:
+
+```bash
+make merge-results
+python experiments/scripts/check_results.py --results experiments/results/combined
+```
+
+For the final retry conclusion, prefer the retry-only runs over legacy rows where retry was not triggered.
+
+## 8. Single-Machine Recovery State Experiment
+
+Recovery state transitions are possible on one machine, but the default production thresholds are intentionally conservative. For a local demonstration, restart the experiment stack with lower thresholds:
+
+```bash
+make experiments-down
+
+AEGIS_DEGRADED_THRESHOLD=0.05 \
+AEGIS_EJECT_THRESHOLD=0.09 \
+AEGIS_CONSECUTIVE_WINDOWS=2 \
+AEGIS_EJECTION_DURATION=10s \
+AEGIS_RECOVERY_THRESHOLD=0.03 \
+make experiments-up
+```
+
+Then run the dedicated recovery-state experiment:
+
+```bash
+RUNS_DIR=experiments/results/runs \
+RUN_ID=recovery-$(date +%Y%m%d-%H%M%S) \
+CONCURRENCY=32 \
+DELAY=500ms \
+JITTER=100ms \
+PRE_DURATION=15s \
+FAULT_DURATION=60s \
+POST_DURATION=30s \
+RECOVERY_DURATION=90s \
+make bench-recovery-state
+```
+
+Expected evidence:
+
+- `recovery.csv` should include a nonzero slow_score for the delayed endpoint.
+- With the lowered thresholds, `state` should move beyond `HEALTHY`, ideally to `DEGRADED` or `EJECTED`, then toward `PROBING` / `HEALTHY` after reset.
+- `route_weight` should fall while the fault is active.
+
+Validate:
+
+```bash
+latest=$(ls -td experiments/results/runs/*recovery* | head -1)
+python experiments/scripts/check_results.py --results "$latest" --allow-partial
+grep -E 'DEGRADED|EJECTED|PROBING' "$latest/recovery.csv"
+```
+
+## 9. Reporting Rules
 
 - Report `round_robin` vs `adaptive_p2c` only after both rows exist for the same fault setup.
 - Report retry budget benefit only after both `without_budget` and `with_budget` rows exist.

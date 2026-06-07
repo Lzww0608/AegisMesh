@@ -20,8 +20,11 @@ func TestReproducibleExperimentAssetsExist(t *testing.T) {
 		"experiments/scripts/check_results.py",
 		"experiments/scripts/merge_results.py",
 		"experiments/scripts/run_required_experiments.sh",
+		"experiments/scripts/run_recovery_state_experiment.sh",
+		"experiments/scripts/run_retry_repetitions.sh",
 		"experiments/scripts/run_single_machine_experiments.sh",
 		"experiments/scripts/run_retry_amplification.py",
+		"experiments/scripts/run_sustained_load.py",
 		"scripts/run_demo.sh",
 		"scripts/run_fault_experiment.sh",
 		"scripts/reset_faults.sh",
@@ -59,6 +62,8 @@ func TestMakefileExposesDemoAndExperimentTargets(t *testing.T) {
 		"reset-faults:",
 		"bench:",
 		"bench-required:",
+		"bench-recovery-state:",
+		"bench-retry-repeat:",
 		"bench-single-machine:",
 		"check-results:",
 		"merge-results:",
@@ -100,6 +105,34 @@ func TestSingleMachineGuideExplainsMergeWorkflow(t *testing.T) {
 		"experiments/results/combined",
 	}
 	for _, want := range required {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("expected experiment guide to contain %q", want)
+		}
+	}
+}
+
+func TestRecoveryExperimentDocumentsAggressiveThresholds(t *testing.T) {
+	compose := readText(t, "docker-compose.experiments.yml")
+	requiredCompose := []string{
+		"AEGIS_DEGRADED_THRESHOLD",
+		"--health-degraded-threshold",
+		"--health-eject-threshold",
+		"--health-consecutive-windows",
+	}
+	for _, want := range requiredCompose {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("expected experiment compose to contain %q", want)
+		}
+	}
+
+	doc := readText(t, "docs/experiments.md")
+	requiredDoc := []string{
+		"bench-retry-repeat",
+		"bench-recovery-state",
+		"AEGIS_DEGRADED_THRESHOLD=0.05",
+		"RECOVERY_DURATION=90s",
+	}
+	for _, want := range requiredDoc {
 		if !strings.Contains(doc, want) {
 			t.Fatalf("expected experiment guide to contain %q", want)
 		}

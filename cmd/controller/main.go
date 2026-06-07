@@ -25,13 +25,28 @@ func main() {
 	lease := flag.Duration("lease", 30*time.Second, "default service instance lease")
 	sweepInterval := flag.Duration("sweep-interval", 5*time.Second, "expired instance sweep interval")
 	healthTickInterval := flag.Duration("health-tick-interval", time.Second, "endpoint health state-machine tick interval")
+	healthDegradedThreshold := flag.Float64("health-degraded-threshold", 0, "slow_score threshold for DEGRADED; 0 uses default")
+	healthEjectThreshold := flag.Float64("health-eject-threshold", 0, "slow_score threshold for EJECTED; 0 uses default")
+	healthConsecutiveWindows := flag.Int("health-consecutive-windows", 0, "consecutive windows before state transition; 0 uses default")
+	healthEjectionDuration := flag.Duration("health-ejection-duration", 0, "duration before EJECTED moves to PROBING; 0 uses default")
+	healthRecoveryThreshold := flag.Float64("health-recovery-threshold", 0, "slow_score threshold for recovery; 0 uses default")
+	healthProbeSuccessThreshold := flag.Float64("health-probe-success-threshold", 0, "success rate threshold during PROBING; 0 uses default")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	store := registry.NewMemoryRegistry(time.Now)
-	healthManager := fault.NewHealthManager(fault.HealthManagerConfig{})
+	healthManager := fault.NewHealthManager(fault.HealthManagerConfig{
+		StateMachine: buildStateMachineConfig(
+			*healthDegradedThreshold,
+			*healthEjectThreshold,
+			*healthConsecutiveWindows,
+			*healthEjectionDuration,
+			*healthRecoveryThreshold,
+			*healthProbeSuccessThreshold,
+		),
+	})
 	healthMetrics, err := fault.NewPrometheusHealthMetrics(prometheus.DefaultRegisterer)
 	if err != nil {
 		log.Fatalf("register health prometheus metrics: %v", err)
@@ -60,6 +75,17 @@ func main() {
 	log.Printf("aegis controller listening on %s", *addr)
 	if err := server.Serve(lis); err != nil {
 		log.Fatalf("serve controller: %v", err)
+	}
+}
+
+func buildStateMachineConfig(degradedThreshold float64, ejectThreshold float64, consecutiveWindows int, ejectionDuration time.Duration, recoveryThreshold float64, probeSuccessThreshold float64) fault.StateMachineConfig {
+	return fault.StateMachineConfig{
+		DegradedThreshold:     degradedThreshold,
+		EjectThreshold:        ejectThreshold,
+		ConsecutiveWindows:    consecutiveWindows,
+		EjectionDuration:      ejectionDuration,
+		RecoveryThreshold:     recoveryThreshold,
+		ProbeSuccessThreshold: probeSuccessThreshold,
 	}
 }
 
