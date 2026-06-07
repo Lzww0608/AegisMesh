@@ -1,0 +1,86 @@
+{
+  "defaults": {
+    "requests": 1000,
+    "concurrency": 32,
+    "repetitions": 5
+  },
+  "scenarios": [
+    {
+      "experiment": "baseline",
+      "variant": "no_mesh",
+      "url": "http://127.0.0.1:8081/checkout",
+      "description": "direct gRPC frontend without Aegis resolver, balancer, retry, or telemetry"
+    },
+    {
+      "experiment": "baseline",
+      "variant": "aegismesh",
+      "url": "http://127.0.0.1:8083/checkout",
+      "description": "AegisMesh adaptive P2C with retry budget and telemetry"
+    },
+    {
+      "experiment": "single_instance_delay",
+      "variant": "round_robin",
+      "url": "http://127.0.0.1:8082/checkout",
+      "fault": "delay",
+      "description": "200 ms network delay injected into user-b, round-robin routing"
+    },
+    {
+      "experiment": "single_instance_delay",
+      "variant": "adaptive_p2c",
+      "url": "http://127.0.0.1:8083/checkout",
+      "fault": "delay",
+      "record_recovery": true,
+      "description": "200 ms network delay injected into user-b, adaptive P2C routing"
+    },
+    {
+      "experiment": "cpu_throttle",
+      "variant": "static_threshold",
+      "url": "http://127.0.0.1:8082/checkout",
+      "fault": "cpu",
+      "description": "CPU-throttle baseline using non-adaptive routing; static threshold is evaluated from recorded samples"
+    },
+    {
+      "experiment": "cpu_throttle",
+      "variant": "slow_score",
+      "url": "http://127.0.0.1:8083/checkout",
+      "fault": "cpu",
+      "record_recovery": true,
+      "description": "CPU-throttle run with Aegis slow_score and adaptive routing"
+    },
+    {
+      "experiment": "retry_budget",
+      "variant": "without_budget",
+      "url": "http://127.0.0.1:8084/checkout",
+      "description": "retry-user-service always returns UNAVAILABLE; same retry policy without retry-budget admission"
+    },
+    {
+      "experiment": "retry_budget",
+      "variant": "with_budget",
+      "url": "http://127.0.0.1:8086/checkout",
+      "description": "retry-user-service always returns UNAVAILABLE; default bounded retry budget"
+    },
+    {
+      "experiment": "packet_loss",
+      "variant": "no_ebpf_network_score",
+      "url": "http://127.0.0.1:8083/checkout",
+      "fault": "loss",
+      "description": "packet-loss run without the eBPF agent reporting network_score"
+    },
+    {
+      "experiment": "packet_loss",
+      "variant": "ebpf_network_score",
+      "url": "http://127.0.0.1:8083/checkout",
+      "fault": "loss",
+      "requires": "Linux eBPF agent running with endpoint-map",
+      "description": "packet-loss run with eBPF retransmit/connect telemetry included"
+    },
+    {
+      "experiment": "recovery_curve",
+      "variant": "adaptive_p2c",
+      "url": "http://127.0.0.1:8083/checkout",
+      "fault": "delay",
+      "record_recovery": true,
+      "description": "time-series route weight, slow_score, p99 latency, and endpoint state during fault and reset"
+    }
+  ]
+}

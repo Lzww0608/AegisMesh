@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package aegis.v1;
+
+option go_package = "github.com/aegismesh/aegismesh/api/proto/aegis/v1;aegisv1";
+
+service RegistryService {
+  rpc RegisterInstance(RegisterInstanceRequest) returns (RegisterInstanceResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc ListInstances(ListInstancesRequest) returns (ListInstancesResponse);
+}
+
+message ServiceInstance {
+  string id = 1;
+  string service = 2;
+  string address = 3;
+  string status = 4;
+  map<string, string> labels = 5;
+  int64 last_seen_unix_millis = 6;
+  double slow_score = 7;
+}
+
+message RegisterInstanceRequest {
+  ServiceInstance instance = 1;
+  int64 lease_ttl_seconds = 2;
+}
+
+message RegisterInstanceResponse {
+  ServiceInstance instance = 1;
+}
+
+message HeartbeatRequest {
+  string service = 1;
+  string instance_id = 2;
+  int64 lease_ttl_seconds = 3;
+}
+
+message HeartbeatResponse {
+  ServiceInstance instance = 1;
+}
+
+message ListInstancesRequest {
+  string service = 1;
+}
+
+message ListInstancesResponse {
+  repeated ServiceInstance instances = 1;
+}

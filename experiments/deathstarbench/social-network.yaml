@@ -1,0 +1,20 @@
+benchmark: social-network
+repo: https://github.com/delimitrou/DeathStarBench
+compose_file: socialNetwork/docker-compose.yml
+controller: 127.0.0.1:9000
+frontend:
+  url: http://localhost:8080
+  workload: wrk2
+services:
+  nginx-thrift:
+    aegis_name: frontend
+    port: 8080
+  user-service:
+    aegis_name: user-service
+    port: 9090
+  post-storage-service:
+    aegis_name: post-storage-service
+    port: 9090
+  social-graph-service:
+    aegis_name: social-graph-service
+    port: 9090

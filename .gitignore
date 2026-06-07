@@ -1,0 +1,5 @@
+.runbin/
+.runlogs/
+*.exe
+*.test
+*.out

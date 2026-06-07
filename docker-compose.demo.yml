@@ -1,0 +1,122 @@
+services:
+  controller:
+    build:
+      context: .
+      dockerfile: docker/demo.Dockerfile
+    container_name: aegis-controller
+    command:
+      - go
+      - run
+      - ./cmd/controller
+      - --addr
+      - 0.0.0.0:9000
+      - --http-addr
+      - 0.0.0.0:9100
+    ports:
+      - "9000:9000"
+      - "9100:9100"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9100/healthz"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+
+  user-a:
+    build:
+      context: .
+      dockerfile: docker/demo.Dockerfile
+    container_name: aegis-user-a
+    command:
+      - go
+      - run
+      - ./cmd/demo-user
+      - --addr
+      - user-a:7001
+      - --controller
+      - controller:9000
+      - --instance
+      - user-a
+      - --version
+      - v1
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      controller:
+        condition: service_healthy
+    ports:
+      - "7001:7001"
+
+  user-b:
+    build:
+      context: .
+      dockerfile: docker/demo.Dockerfile
+    container_name: aegis-user-b
+    command:
+      - go
+      - run
+      - ./cmd/demo-user
+      - --addr
+      - user-b:7002
+      - --controller
+      - controller:9000
+      - --instance
+      - user-b
+      - --version
+      - v2
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      controller:
+        condition: service_healthy
+    ports:
+      - "7002:7002"
+
+  order-a:
+    build:
+      context: .
+      dockerfile: docker/demo.Dockerfile
+    container_name: aegis-order-a
+    command:
+      - go
+      - run
+      - ./cmd/demo-order
+      - --addr
+      - order-a:7101
+      - --controller
+      - controller:9000
+      - --instance
+      - order-a
+      - --version
+      - v1
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      controller:
+        condition: service_healthy
+    ports:
+      - "7101:7101"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/demo.Dockerfile
+    container_name: aegis-frontend
+    command:
+      - go
+      - run
+      - ./cmd/demo-frontend
+      - --addr
+      - 0.0.0.0:8080
+      - --controller
+      - controller:9000
+    depends_on:
+      - user-a
+      - user-b
+      - order-a
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 2s
+      retries: 20

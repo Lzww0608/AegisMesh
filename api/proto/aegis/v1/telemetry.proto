@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package aegis.v1;
+
+option go_package = "github.com/aegismesh/aegismesh/api/proto/aegis/v1;aegisv1";
+
+service TelemetryService {
+  rpc ReportEndpointStats(ReportEndpointStatsRequest) returns (ReportEndpointStatsResponse);
+  rpc ListEndpointHealth(ListEndpointHealthRequest) returns (ListEndpointHealthResponse);
+}
+
+message EndpointStatsSample {
+  string source = 1;
+  string service = 2;
+  string instance_id = 3;
+  string endpoint_address = 4;
+  string method = 5;
+  int64 request_count = 6;
+  int64 error_count = 7;
+  int64 timeout_count = 8;
+  int64 retry_count = 9;
+  int64 inflight = 10;
+  double latency_ewma_seconds = 11;
+  double latency_p95_seconds = 12;
+  int64 tcp_retransmit = 13;
+  int64 capacity = 14;
+  int64 window_start_unix_millis = 15;
+  int64 window_end_unix_millis = 16;
+  int64 connect_error = 17;
+}
+
+message ReportEndpointStatsRequest {
+  repeated EndpointStatsSample samples = 1;
+}
+
+message ReportEndpointStatsResponse {
+  repeated EndpointHealth endpoints = 1;
+}
+
+message EndpointHealth {
+  string service = 1;
+  string instance_id = 2;
+  string endpoint_address = 3;
+  string state = 4;
+  double slow_score = 5;
+  int64 consecutive_slow_windows = 6;
+  int64 consecutive_eject_windows = 7;
+}
+
+message ListEndpointHealthRequest {
+  string service = 1;
+}
+
+message ListEndpointHealthResponse {
+  repeated EndpointHealth endpoints = 1;
+}

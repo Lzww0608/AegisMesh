@@ -1,0 +1,171 @@
+services:
+  frontend-direct:
+    build:
+      context: .
+      dockerfile: docker/demo.Dockerfile
+    container_name: aegis-frontend-direct
+    command:
+      - go
+      - run
+      - ./cmd/demo-frontend
+      - --addr
+      - 0.0.0.0:8081
+      - --mesh-mode
+      - direct
+      - --user-target
+      - user-a:7001
+      - --order-target
+      - order-a:7101
+    depends_on:
+      - user-a
+      - order-a
+    ports:
+      - "8081:8081"
+
+  frontend-round-robin:
+    build:
+      context: .
+      dockerfile: docker/demo.Dockerfile
+    container_name: aegis-frontend-round-robin
+    command:
+      - go
+      - run
+      - ./cmd/demo-frontend
+      - --addr
+      - 0.0.0.0:8082
+      - --controller
+      - controller:9000
+      - --routing-policy
+      - round_robin
+      - --retry-mode
+      - budget
+    depends_on:
+      - user-a
+      - user-b
+      - order-a
+    ports:
+      - "8082:8082"
+
+  frontend-adaptive:
+    build:
+      context: .
+      dockerfile: docker/demo.Dockerfile
+    container_name: aegis-frontend-adaptive
+    command:
+      - go
+      - run
+      - ./cmd/demo-frontend
+      - --addr
+      - 0.0.0.0:8083
+      - --controller
+      - controller:9000
+      - --routing-policy
+      - adaptive_p2c
+      - --retry-mode
+      - budget
+    depends_on:
+      - user-a
+      - user-b
+      - order-a
+    ports:
+      - "8083:8083"
+
+  frontend-retry-unbudgeted:
+    build:
+      context: .
+      dockerfile: docker/demo.Dockerfile
+    container_name: aegis-frontend-retry-unbudgeted
+    command:
+      - go
+      - run
+      - ./cmd/demo-frontend
+      - --addr
+      - 0.0.0.0:8084
+      - --controller
+      - controller:9000
+      - --routing-policy
+      - adaptive_p2c
+      - --retry-mode
+      - without_budget
+      - --user-service
+      - retry-user-service
+    depends_on:
+      - retry-user
+      - order-a
+    ports:
+      - "8084:8084"
+
+  frontend-retry-budgeted:
+    build:
+      context: .
+      dockerfile: docker/demo.Dockerfile
+    container_name: aegis-frontend-retry-budgeted
+    command:
+      - go
+      - run
+      - ./cmd/demo-frontend
+      - --addr
+      - 0.0.0.0:8086
+      - --controller
+      - controller:9000
+      - --routing-policy
+      - adaptive_p2c
+      - --retry-mode
+      - budget
+      - --user-service
+      - retry-user-service
+    depends_on:
+      - retry-user
+      - order-a
+    ports:
+      - "8086:8086"
+
+  frontend-retry-off:
+    build:
+      context: .
+      dockerfile: docker/demo.Dockerfile
+    container_name: aegis-frontend-retry-off
+    command:
+      - go
+      - run
+      - ./cmd/demo-frontend
+      - --addr
+      - 0.0.0.0:8085
+      - --controller
+      - controller:9000
+      - --routing-policy
+      - adaptive_p2c
+      - --retry-mode
+      - off
+    depends_on:
+      - user-a
+      - user-b
+      - order-a
+    ports:
+      - "8085:8085"
+
+  retry-user:
+    build:
+      context: .
+      dockerfile: docker/demo.Dockerfile
+    container_name: aegis-retry-user
+    command:
+      - go
+      - run
+      - ./cmd/demo-user
+      - --addr
+      - retry-user:7201
+      - --controller
+      - controller:9000
+      - --service
+      - retry-user-service
+      - --instance
+      - retry-user-a
+      - --version
+      - retry-fault
+      - --error-probability
+      - "1"
+    depends_on:
+      - controller
+    ports:
+      - "7201:7201"

@@ -1,0 +1,79 @@
+{
+  "uid": "aegismesh-overview",
+  "title": "AegisMesh Overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "RPC throughput by destination",
+      "targets": [
+        {
+          "expr": "sum by (destination) (rate(aegis_rpc_requests_total[1m]))",
+          "legendFormat": "{{destination}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "p99 RPC latency",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, destination, upstream) (rate(aegis_rpc_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{destination}} {{upstream}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Endpoint EWMA latency",
+      "targets": [
+        {
+          "expr": "aegis_endpoint_latency_ewma_seconds",
+          "legendFormat": "{{destination}} {{upstream}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Endpoint slow score",
+      "targets": [
+        {
+          "expr": "aegis_endpoint_slow_score",
+          "legendFormat": "{{service}} {{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Endpoint state",
+      "targets": [
+        {
+          "expr": "aegis_endpoint_state",
+          "legendFormat": "{{service}} {{instance}} {{state}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "In-flight RPCs",
+      "targets": [
+        {
+          "expr": "aegis_endpoint_inflight",
+          "legendFormat": "{{destination}} {{upstream}}"
+        }
+      ]
+    }
+  ]
+}

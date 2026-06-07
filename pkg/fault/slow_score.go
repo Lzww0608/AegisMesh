@@ -1,0 +1,191 @@
+package fault
+
+import (
+	"math"
+	"sort"
+	"time"
+)
+
+const scoreEpsilon = 1e-9
+
+type ScoreWeights struct {
+	LatencyWeight    float64
+	ErrorWeight      float64
+	InflightWeight   float64
+	RetransmitWeight float64
+}
+
+func DefaultScoreWeights() ScoreWeights {
+	return ScoreWeights{
+		LatencyWeight:    0.45,
+		ErrorWeight:      0.25,
+		InflightWeight:   0.20,
+		RetransmitWeight: 0.10,
+	}
+}
+
+type EndpointSample struct {
+	Service       string
+	InstanceID    string
+	Address       string
+	Method        string
+	RequestCount  int64
+	ErrorCount    int64
+	TimeoutCount  int64
+	Inflight      int64
+	Capacity      int64
+	LatencyEWMA   time.Duration
+	LatencyP95    time.Duration
+	TCPRetransmit int64
+	ConnectError  int64
+}
+
+type EndpointScore struct {
+	Service         string
+	InstanceID      string
+	Address         string
+	Method          string
+	Score           float64
+	LatencyScore    float64
+	ErrorScore      float64
+	InflightScore   float64
+	RetransmitScore float64
+}
+
+type ScoreCalculator struct {
+	weights ScoreWeights
+}
+
+func NewScoreCalculator(weights ScoreWeights) *ScoreCalculator {
+	total := weights.LatencyWeight + weights.ErrorWeight + weights.InflightWeight + weights.RetransmitWeight
+	if total <= 0 || math.IsNaN(total) {
+		weights = DefaultScoreWeights()
+	}
+	return &ScoreCalculator{weights: weights}
+}
+
+func (c *ScoreCalculator) Calculate(samples []EndpointSample) map[string]EndpointScore {
+	byService := make(map[string][]EndpointSample)
+	for _, sample := range samples {
+		if sample.Service == "" || sample.InstanceID == "" {
+			continue
+		}
+		byService[sample.Service] = append(byService[sample.Service], sample)
+	}
+
+	out := make(map[string]EndpointScore)
+	for service, serviceSamples := range byService {
+		c.calculateService(service, serviceSamples, out)
+	}
+	return out
+}
+
+func (c *ScoreCalculator) calculateService(service string, samples []EndpointSample, out map[string]EndpointScore) {
+	latencies := make([]float64, 0, len(samples))
+	errorRates := make([]float64, 0, len(samples))
+	retransmitRates := make([]float64, 0, len(samples))
+	for _, sample := range samples {
+		latencies = append(latencies, sample.LatencyP95.Seconds())
+		errorRates = append(errorRates, rate(sample.ErrorCount, sample.RequestCount))
+		retransmitRates = append(retransmitRates, networkRate(sample.TCPRetransmit+sample.ConnectError, sample.RequestCount))
+	}
+
+	medianLatency := median(latencies)
+	madLatency := medianAbsoluteDeviation(latencies, medianLatency)
+	avgErrorRate := average(errorRates)
+	avgRetransmitRate := average(retransmitRates)
+
+	for _, sample := range samples {
+		latencyScore := math.Max(0, sample.LatencyP95.Seconds()-medianLatency) / math.Max(madLatency, 0.001)
+		errorScore := 0.0
+		if sample.ErrorCount > 0 {
+			errorScore = rate(sample.ErrorCount, sample.RequestCount) / math.Max(avgErrorRate, scoreEpsilon)
+		}
+		inflightScore := float64(sample.Inflight) / float64(capacity(sample.Capacity))
+		retransmitScore := 0.0
+		networkEvents := sample.TCPRetransmit + sample.ConnectError
+		if networkEvents > 0 {
+			retransmitScore = networkRate(networkEvents, sample.RequestCount) / math.Max(avgRetransmitRate, scoreEpsilon)
+		}
+
+		score := c.weights.LatencyWeight*latencyScore +
+			c.weights.ErrorWeight*errorScore +
+			c.weights.InflightWeight*inflightScore +
+			c.weights.RetransmitWeight*retransmitScore
+
+		out[ScoreKey(service, sample.InstanceID)] = EndpointScore{
+			Service:         service,
+			InstanceID:      sample.InstanceID,
+			Address:         sample.Address,
+			Method:          sample.Method,
+			Score:           score,
+			LatencyScore:    latencyScore,
+			ErrorScore:      errorScore,
+			InflightScore:   inflightScore,
+			RetransmitScore: retransmitScore,
+		}
+	}
+}
+
+func ScoreKey(service, instanceID string) string {
+	return service + "/" + instanceID
+}
+
+func rate(count, total int64) float64 {
+	if total <= 0 {
+		return 0
+	}
+	return float64(count) / float64(total)
+}
+
+func networkRate(count, total int64) float64 {
+	if count <= 0 {
+		return 0
+	}
+	if total <= 0 {
+		return float64(count)
+	}
+	return float64(count) / float64(total)
+}
+
+func capacity(value int64) int64 {
+	if value <= 0 {
+		return 100
+	}
+	return value
+}
+
+func median(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	sorted := append([]float64(nil), values...)
+	sort.Float64s(sorted)
+	mid := len(sorted) / 2
+	if len(sorted)%2 == 1 {
+		return sorted[mid]
+	}
+	return (sorted[mid-1] + sorted[mid]) / 2
+}
+
+func medianAbsoluteDeviation(values []float64, med float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	deviations := make([]float64, 0, len(values))
+	for _, value := range values {
+		deviations = append(deviations, math.Abs(value-med))
+	}
+	return median(deviations)
+}
+
+func average(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	sum := 0.0
+	for _, value := range values {
+		sum += value
+	}
+	return sum / float64(len(values))
+}

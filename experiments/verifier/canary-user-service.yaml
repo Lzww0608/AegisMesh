@@ -1,0 +1,14 @@
+test:
+  name: canary-user-service
+  service: frontend
+  method: /frontend.Frontend/GetUserPage
+  requests: 1000
+
+expect:
+  routes:
+    user-service:v1: 0.90
+    user-service:v2: 0.10
+  tolerance: 0.03
+  max_retry_attempts: 1
+  forbidden_edges:
+    - frontend->payment-service

@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package demo.shop.v1;
+
+option go_package = "github.com/aegismesh/aegismesh/api/proto/demo/shop/v1;shopv1";
+
+service UserService {
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+}
+
+service OrderService {
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  string user_id = 1;
+  string name = 2;
+  string version = 3;
+}
+
+message CreateOrderRequest {
+  string user_id = 1;
+  repeated string item_ids = 2;
+}
+
+message CreateOrderResponse {
+  string order_id = 1;
+  string user_id = 2;
+  repeated string item_ids = 3;
+  string status = 4;
+  string version = 5;
+}
