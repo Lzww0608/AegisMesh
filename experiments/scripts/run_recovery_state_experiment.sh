@@ -19,6 +19,21 @@ RECOVERY_DURATION="${RECOVERY_DURATION:-90s}"
 RECOVERY_INTERVAL="${RECOVERY_INTERVAL:-1s}"
 URL_ADAPTIVE="${URL_ADAPTIVE:-http://127.0.0.1:8083/checkout}"
 
+assert_recovery_rows() {
+  local path="$1"
+  if [[ ! -s "$path" ]]; then
+    echo "recovery recorder wrote no endpoint rows: $path is missing or empty" >&2
+    exit 1
+  fi
+  local rows
+  rows=$(tail -n +2 "$path" | wc -l)
+  if [[ "$rows" -le 0 ]]; then
+    echo "recovery recorder wrote no endpoint rows: Controller health is empty" >&2
+    echo "Check that frontend-adaptive is sending telemetry to controller and that controller is reachable at 127.0.0.1:9000." >&2
+    exit 1
+  fi
+}
+
 mkdir -p "$RESULTS_DIR"
 cat > "$RESULTS_DIR/run_meta.txt" <<EOF
 run_id=${RUN_ID}-recovery
@@ -64,6 +79,7 @@ python experiments/scripts/run_sustained_load.py \
   --variant adaptive_p2c \
   --latency-out "$RESULTS_DIR/latency.csv"
 
-wait "$recorder_pid" || true
+wait "$recorder_pid"
+assert_recovery_rows "$RESULTS_DIR/recovery.csv"
 python experiments/scripts/check_results.py --results "$RESULTS_DIR" --allow-partial
 echo "recovery state run written to $RESULTS_DIR"

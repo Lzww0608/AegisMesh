@@ -139,6 +139,47 @@ func TestRecoveryExperimentDocumentsAggressiveThresholds(t *testing.T) {
 	}
 }
 
+func TestRecoveryMakeTargetKeepsTimingConfigurable(t *testing.T) {
+	makefile := readText(t, "Makefile")
+	required := []string{
+		"RECOVERY_DURATION ?= 90s",
+		"RECOVERY_INTERVAL ?= 1s",
+		"PRE_DURATION ?= 15s",
+		"FAULT_DURATION ?= 60s",
+		"POST_DURATION ?= 30s",
+		"RECOVERY_DURATION=$(RECOVERY_DURATION)",
+		"RECOVERY_INTERVAL=$(RECOVERY_INTERVAL)",
+		"PRE_DURATION=$(PRE_DURATION)",
+		"FAULT_DURATION=$(FAULT_DURATION)",
+		"POST_DURATION=$(POST_DURATION)",
+	}
+	for _, want := range required {
+		if !strings.Contains(makefile, want) {
+			t.Fatalf("expected recovery make target to expose %q", want)
+		}
+	}
+	if strings.Contains(makefile, "RECOVERY_DURATION=90s bash experiments/scripts/run_recovery_state_experiment.sh") {
+		t.Fatalf("bench-recovery-state must not hard-code RECOVERY_DURATION")
+	}
+}
+
+func TestRecoveryScriptFailsFastWhenNoRecoveryRows(t *testing.T) {
+	script := readText(t, "experiments/scripts/run_recovery_state_experiment.sh")
+	required := []string{
+		"assert_recovery_rows",
+		"wait \"$recorder_pid\"",
+		"recovery recorder wrote no endpoint rows",
+	}
+	for _, want := range required {
+		if !strings.Contains(script, want) {
+			t.Fatalf("expected recovery script to contain %q", want)
+		}
+	}
+	if strings.Contains(script, "wait \"$recorder_pid\" || true") {
+		t.Fatalf("recovery script must not hide recorder failures")
+	}
+}
+
 func TestExperimentMatrixCoversRequiredComparisons(t *testing.T) {
 	var matrix struct {
 		Scenarios []struct {
