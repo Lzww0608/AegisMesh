@@ -93,6 +93,7 @@ make report
 
 The reproducible evaluation plan and CSV schemas live in `docs/evaluation.md` and `experiments/results/`. Checked-in schema files are not benchmark results.
 The full comparison matrix and operator guide live in `docs/experiments.md`.
+The final project report and resume-ready project wording live in `docs/project_report.md` and `docs/resume.md`.
 
 Manual local path:
 

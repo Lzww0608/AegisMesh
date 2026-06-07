@@ -129,8 +129,8 @@ func TestRecoveryExperimentDocumentsAggressiveThresholds(t *testing.T) {
 	requiredDoc := []string{
 		"bench-retry-repeat",
 		"bench-recovery-state",
-		"AEGIS_DEGRADED_THRESHOLD=0.05",
-		"RECOVERY_DURATION=90s",
+		"AEGIS_DEGRADED_THRESHOLD=0.5",
+		"RECOVERY_DURATION=190s",
 	}
 	for _, want := range requiredDoc {
 		if !strings.Contains(doc, want) {

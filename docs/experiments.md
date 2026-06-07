@@ -156,11 +156,11 @@ Recovery state transitions are possible on one machine, but the default producti
 ```bash
 make experiments-down
 
-AEGIS_DEGRADED_THRESHOLD=0.05 \
-AEGIS_EJECT_THRESHOLD=0.09 \
-AEGIS_CONSECUTIVE_WINDOWS=2 \
+AEGIS_DEGRADED_THRESHOLD=0.5 \
+AEGIS_EJECT_THRESHOLD=0.8 \
+AEGIS_CONSECUTIVE_WINDOWS=1 \
 AEGIS_EJECTION_DURATION=10s \
-AEGIS_RECOVERY_THRESHOLD=0.03 \
+AEGIS_RECOVERY_THRESHOLD=0.3 \
 make experiments-up
 ```
 
@@ -169,13 +169,13 @@ Then run the dedicated recovery-state experiment:
 ```bash
 RUNS_DIR=experiments/results/runs \
 RUN_ID=recovery-$(date +%Y%m%d-%H%M%S) \
-CONCURRENCY=32 \
-DELAY=500ms \
-JITTER=100ms \
-PRE_DURATION=15s \
-FAULT_DURATION=60s \
-POST_DURATION=30s \
-RECOVERY_DURATION=90s \
+CONCURRENCY=16 \
+DELAY=800ms \
+JITTER=150ms \
+PRE_DURATION=20s \
+FAULT_DURATION=120s \
+POST_DURATION=40s \
+RECOVERY_DURATION=190s \
 make bench-recovery-state
 ```
 
