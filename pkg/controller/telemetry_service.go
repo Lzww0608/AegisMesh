@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"net"
 	"time"
 
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
@@ -110,7 +111,30 @@ func (s *TelemetryService) resolveInstanceID(ctx context.Context, cache map[stri
 		}
 		cache[service] = byAddress
 	}
-	return byAddress[address], nil
+	if instanceID := byAddress[address]; instanceID != "" {
+		return instanceID, nil
+	}
+	return resolveInstanceIDByUniquePort(byAddress, address), nil
+}
+
+func resolveInstanceIDByUniquePort(byAddress map[string]string, observedAddress string) string {
+	_, observedPort, err := net.SplitHostPort(observedAddress)
+	if err != nil || observedPort == "" {
+		return ""
+	}
+
+	var match string
+	for registeredAddress, instanceID := range byAddress {
+		_, registeredPort, err := net.SplitHostPort(registeredAddress)
+		if err != nil || registeredPort != observedPort {
+			continue
+		}
+		if match != "" && match != instanceID {
+			return ""
+		}
+		match = instanceID
+	}
+	return match
 }
 
 func (s *TelemetryService) recordHealth(health []fault.EndpointHealth) {

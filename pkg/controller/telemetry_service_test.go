@@ -52,6 +52,29 @@ func TestTelemetryServiceReportsStatsAndReturnsHealth(t *testing.T) {
 	}
 }
 
+func TestTelemetryServiceResolvesDockerPeerAddressByUniquePort(t *testing.T) {
+	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	store := registry.NewMemoryRegistry(func() time.Time { return now })
+	registerTestInstance(t, store, "user-service", "user-a", "user-a:7001")
+
+	service := NewTelemetryService(store, fault.NewHealthManager(fault.HealthManagerConfig{
+		Now: func() time.Time { return now },
+	}), nil)
+
+	resp, err := service.ReportEndpointStats(context.Background(), &aegisv1.ReportEndpointStatsRequest{
+		Samples: []*aegisv1.EndpointStatsSample{
+			{Service: "user-service", EndpointAddress: "172.20.0.4:7001", RequestCount: 10, LatencyP95Seconds: 0.050},
+		},
+	})
+	if err != nil {
+		t.Fatalf("report endpoint stats: %v", err)
+	}
+
+	if got := findHealth(resp.Endpoints, "user-a"); got == nil {
+		t.Fatalf("expected Docker peer address to resolve to user-a, got %+v", resp.Endpoints)
+	}
+}
+
 func TestRegistryServiceOverlaysHealthStateOnDiscoveredInstances(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
