@@ -18,6 +18,7 @@ AegisMesh is an adaptive RPC governance system for microservice slow-fault scena
 14. Prometheus scrape config and Grafana dashboard
 15. eBPF telemetry interface with TCP event aggregation
 16. DeathStarBench Social Network integration plan
+17. file-backed persistent Registry and PolicyService YAML snapshots
 
 ## Layout
 
@@ -37,6 +38,7 @@ demo/shop/runtime/         registration and heartbeat helper
 dashboard/grafana/         importable Grafana dashboard
 dashboard/prometheus/      local Prometheus scrape config
 experiments/verifier/      verifier examples
+experiments/traces/        runtime SDK trace JSONL output for real verifier runs
 experiments/deathstarbench/ DeathStarBench adapter config
 pkg/controller/            RegistryService implementation
 pkg/circuitbreaker/        endpoint in-flight circuit breaker
@@ -45,6 +47,7 @@ pkg/faultinjector/         tc netem and Docker fault command builders
 pkg/deathstarbench/        DeathStarBench integration planning
 pkg/verifier/              MeshTest-style verifier parser and oracle
 pkg/registry/              in-memory service registry with TTL leases
+pkg/policy/                YAML-backed dynamic policy snapshots for PolicyService
 pkg/retry/                 retry budget window accounting
 pkg/routing/               basic routing primitives
 pkg/telemetry/             EWMA, SDK metrics recorder, Prometheus RPC metrics
@@ -169,6 +172,36 @@ aegis_endpoint_state{service,instance,endpoint,state}
 
 `RegistryService.ListInstances` overlays the Controller health state onto discovered instances. The SDK resolver keeps `HEALTHY`, `DEGRADED`, and `PROBING` endpoints routable, and removes `EJECTED` or `DEAD` endpoints from the gRPC address list.
 
+The slow_score latency component can combine relative peer-outlier scoring with an optional absolute p95 latency SLO:
+
+```bash
+go run ./cmd/controller --health-latency-slo 150ms
+```
+
+When this is enabled, latency scoring uses `max(relative_median_mad_score, p95_latency / latency_slo)`, so a one-instance service or an all-slow service can still be marked slow instead of hiding behind a service-wide relative median.
+
+## Persistent Registry And PolicyService
+
+The Controller defaults to the in-memory registry for fast local demos. For restart recovery of registered instances, use the file-backed registry:
+
+```bash
+go run ./cmd/controller \
+  --registry-backend file \
+  --registry-file data/aegis-registry.json
+```
+
+The file backend persists registered instances and lease expiry timestamps to a JSON snapshot. On restart, unexpired instances are restored and expired instances remain hidden.
+
+Controller-side dynamic policy snapshots can be loaded from YAML and served through `PolicyService.GetPolicy` / `PolicyService.WatchPolicy`:
+
+```bash
+go run ./cmd/controller \
+  --policy-file experiments/policy/demo-policy.yaml \
+  --policy-reload-interval 3s
+```
+
+The experiment compose stack mounts `experiments/policy/demo-policy.yaml` into the controller and enables `PolicyService` by default. SDK clients call `GetPolicy` during dial, then keep a `WatchPolicy` stream open. The initial snapshot selects the routing policy, and live snapshots are applied to service-level retry settings, retry budget windows, per-method timeout, and idempotency-aware retry behavior. For example, `GetUser` can remain retryable while `CreateOrder` is configured as non-idempotent and forced to a single attempt.
+
 ## Routing, Retry, And Breakers
 
 The SDK now defaults to the `aegis_adaptive_p2c` gRPC balancer. For each request it picks two ready endpoints and chooses the lower-cost endpoint:
@@ -182,7 +215,7 @@ cost(endpoint) =
 effective_weight = base_weight / (1 + slow_score)
 ```
 
-The balancer reads `status` and `slow_score` from Registry resolver attributes, keeps local in-flight/EWMA state from completed calls, and applies a per-endpoint circuit breaker with a default in-flight cap of `128`.
+The balancer reads `status` and `slow_score` from Registry resolver attributes, keeps local in-flight/EWMA state from completed calls, and applies a per-endpoint circuit breaker with a default in-flight cap of `128`. `PROBING` endpoints are not treated as normal traffic candidates while healthy or degraded endpoints exist; adaptive P2C admits them only through a small probe ratio, defaulting to `2%`, so recovery checks do not immediately restore full load to a recently ejected instance.
 
 Unary SDK calls also use a bounded retry policy:
 
@@ -238,6 +271,17 @@ Trace JSONL records use this shape:
 ```
 
 The sample trace file uses a 9/1 split and should pass the 90/10 canary check. Real runs should feed traces collected from SDK metadata or request logs.
+
+For a real SDK trace smoke run, `frontend-adaptive` in the experiment compose writes JSONL traces to `experiments/traces/frontend-adaptive.jsonl`:
+
+```bash
+rm -f experiments/traces/frontend-adaptive.jsonl
+make experiments-up
+curl 'http://127.0.0.1:8083/checkout'
+go run ./cmd/verifier --spec experiments/verifier/real-trace-smoke.yaml --traces experiments/traces/frontend-adaptive.jsonl
+```
+
+Each SDK trace event includes `x-aegis-trace-id`, `x-aegis-span-id`, `x-aegis-attempt`, route, path, upstream, status, and retry-attempt count. This turns the verifier from a sample-only checker into a verifier that can validate real SDK runtime traces.
 
 ## Dashboard
 

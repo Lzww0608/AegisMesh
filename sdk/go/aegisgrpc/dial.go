@@ -43,6 +43,14 @@ func DialServiceFromWithOptions(ctx context.Context, source, controllerAddr, ser
 	registerDefaultBalancer()
 	options = normalizeDialOptions(options)
 
+	policies := &policyManager{}
+	if !options.DisablePolicy {
+		if snapshot := loadInitialPolicy(ctx, controllerAddr, service, policies); snapshot != nil {
+			options = applyPolicySnapshotToDialOptions(options, snapshot)
+		}
+		startPolicyWatcher(ctx, controllerAddr, service, policies)
+	}
+
 	serviceConfig, err := serviceConfigForRoutingPolicy(options.RoutingPolicy)
 	if err != nil {
 		return nil, err
@@ -53,14 +61,18 @@ func DialServiceFromWithOptions(ctx context.Context, source, controllerAddr, ser
 		recorder = telemetry.NewRecorder(source, telemetry.DefaultPrometheusMetrics())
 		startReporter(ctx, controllerAddr, recorder)
 	}
-	retryPolicy, budget := retryComponentsForDialOptions(options)
+	tracer, err := traceWriterFromOptions(options)
+	if err != nil {
+		return nil, err
+	}
+	retrySource := newDynamicRetrySource(options, policies)
 
 	dialOptions := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultServiceConfig(serviceConfig),
 		grpc.WithChainUnaryInterceptor(
-			newRetryUnaryInterceptor(retryPolicy, budget),
-			newTelemetryUnaryInterceptor(service, recorder),
+			newRetryUnaryInterceptorFromSource(retrySource),
+			newTelemetryUnaryInterceptor(source, service, recorder, tracer),
 		),
 	}
 	dialOptions = append(dialOptions, opts...)

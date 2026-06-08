@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"testing"
 	"time"
 )
@@ -25,5 +26,46 @@ func TestBuildStateMachineConfigPreservesExperimentThresholds(t *testing.T) {
 	}
 	if cfg.ProbeSuccessThreshold != 0.90 {
 		t.Fatalf("expected probe threshold 0.90, got %v", cfg.ProbeSuccessThreshold)
+	}
+}
+
+func TestBuildHealthManagerConfigPreservesLatencySLO(t *testing.T) {
+	cfg := buildHealthManagerConfig(0.05, 0.09, 2, 5*time.Second, 0.03, 0.90, 250*time.Millisecond)
+
+	if cfg.LatencySLO != 250*time.Millisecond {
+		t.Fatalf("expected latency SLO 250ms, got %s", cfg.LatencySLO)
+	}
+	if cfg.StateMachine.DegradedThreshold != 0.05 || cfg.StateMachine.EjectThreshold != 0.09 {
+		t.Fatalf("expected state-machine thresholds to be preserved, got %+v", cfg.StateMachine)
+	}
+}
+
+func TestBuildRegistryFromFlagsSelectsFileBackend(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	cfg := registerRegistryFlags(fs)
+	if err := fs.Parse([]string{"--registry-backend", "file", "--registry-file", t.TempDir() + "/registry.json"}); err != nil {
+		t.Fatalf("parse flags: %v", err)
+	}
+
+	store, err := buildRegistry(cfg, time.Now)
+	if err != nil {
+		t.Fatalf("build registry: %v", err)
+	}
+	if _, ok := store.(interface{ PersistencePath() string }); !ok {
+		t.Fatalf("expected persistent registry backend, got %T", store)
+	}
+}
+
+func TestRegisterPolicyFlags(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	cfg := registerPolicyFlags(fs)
+	if err := fs.Parse([]string{"--policy-file", "policy.yaml", "--policy-reload-interval", "2s"}); err != nil {
+		t.Fatalf("parse flags: %v", err)
+	}
+	if *cfg.file != "policy.yaml" {
+		t.Fatalf("expected policy file flag, got %q", *cfg.file)
+	}
+	if *cfg.reloadInterval != 2*time.Second {
+		t.Fatalf("expected 2s reload interval, got %s", *cfg.reloadInterval)
 	}
 }

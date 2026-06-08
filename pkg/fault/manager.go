@@ -8,6 +8,7 @@ import (
 
 type HealthManagerConfig struct {
 	Weights      ScoreWeights
+	LatencySLO   time.Duration
 	StateMachine StateMachineConfig
 	Now          func() time.Time
 }
@@ -29,7 +30,7 @@ func NewHealthManager(cfg HealthManagerConfig) *HealthManager {
 	}
 	return &HealthManager{
 		now:        cfg.Now,
-		calculator: NewScoreCalculator(cfg.Weights),
+		calculator: NewScoreCalculatorWithConfig(ScoreCalculatorConfig{Weights: cfg.Weights, LatencySLO: cfg.LatencySLO}),
 		machine:    NewStateMachine(cfg.StateMachine),
 		health:     make(map[string]EndpointHealth),
 	}

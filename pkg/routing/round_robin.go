@@ -94,6 +94,7 @@ type AdaptiveP2CConfig struct {
 	Random           RandomSource
 	LatencyPenalty   float64
 	SlowPenalty      float64
+	ProbeRatio       float64
 	LeastBadFallback bool
 }
 
@@ -114,6 +115,12 @@ func NewAdaptiveP2CPicker(endpoints []Endpoint, cfg AdaptiveP2CConfig) *Adaptive
 	if cfg.SlowPenalty <= 0 {
 		cfg.SlowPenalty = 1
 	}
+	if cfg.ProbeRatio <= 0 {
+		cfg.ProbeRatio = 0.02
+	}
+	if cfg.ProbeRatio > 1 {
+		cfg.ProbeRatio = 1
+	}
 	p := &AdaptiveP2CPicker{random: cfg.Random, cfg: cfg}
 	p.Update(endpoints)
 	return p
@@ -129,7 +136,7 @@ func (p *AdaptiveP2CPicker) Pick(ctx context.Context) (Endpoint, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	candidates := routableEndpoints(p.endpoints)
+	candidates := p.pickCandidates(p.endpoints)
 	if len(candidates) == 0 {
 		return Endpoint{}, ErrNoEndpoint
 	}
@@ -165,6 +172,27 @@ func routableEndpoints(endpoints []Endpoint) []Endpoint {
 		}
 	}
 	return out
+}
+
+func (p *AdaptiveP2CPicker) pickCandidates(endpoints []Endpoint) []Endpoint {
+	normal := make([]Endpoint, 0, len(endpoints))
+	probing := make([]Endpoint, 0, len(endpoints))
+	for _, endpoint := range endpoints {
+		switch endpoint.Status {
+		case "", EndpointHealthy, EndpointDegraded:
+			normal = append(normal, endpoint)
+		case EndpointProbing:
+			probing = append(probing, endpoint)
+		}
+	}
+	if len(probing) == 0 || len(normal) == 0 {
+		return append(normal, probing...)
+	}
+	threshold := int(p.cfg.ProbeRatio * 100)
+	if threshold > 0 && p.random.Intn(100) < threshold {
+		return probing
+	}
+	return normal
 }
 
 func endpointCost(endpoint Endpoint, cfg AdaptiveP2CConfig) float64 {

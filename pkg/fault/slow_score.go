@@ -15,6 +15,11 @@ type ScoreWeights struct {
 	RetransmitWeight float64
 }
 
+type ScoreCalculatorConfig struct {
+	Weights    ScoreWeights
+	LatencySLO time.Duration
+}
+
 func DefaultScoreWeights() ScoreWeights {
 	return ScoreWeights{
 		LatencyWeight:    0.45,
@@ -53,15 +58,24 @@ type EndpointScore struct {
 }
 
 type ScoreCalculator struct {
-	weights ScoreWeights
+	weights    ScoreWeights
+	latencySLO time.Duration
 }
 
 func NewScoreCalculator(weights ScoreWeights) *ScoreCalculator {
+	return NewScoreCalculatorWithConfig(ScoreCalculatorConfig{Weights: weights})
+}
+
+func NewScoreCalculatorWithConfig(cfg ScoreCalculatorConfig) *ScoreCalculator {
+	weights := cfg.Weights
 	total := weights.LatencyWeight + weights.ErrorWeight + weights.InflightWeight + weights.RetransmitWeight
 	if total <= 0 || math.IsNaN(total) {
 		weights = DefaultScoreWeights()
 	}
-	return &ScoreCalculator{weights: weights}
+	if cfg.LatencySLO < 0 {
+		cfg.LatencySLO = 0
+	}
+	return &ScoreCalculator{weights: weights, latencySLO: cfg.LatencySLO}
 }
 
 func (c *ScoreCalculator) Calculate(samples []EndpointSample) map[string]EndpointScore {
@@ -96,7 +110,9 @@ func (c *ScoreCalculator) calculateService(service string, samples []EndpointSam
 	avgRetransmitRate := average(retransmitRates)
 
 	for _, sample := range samples {
-		latencyScore := math.Max(0, sample.LatencyP95.Seconds()-medianLatency) / math.Max(madLatency, 0.001)
+		relativeLatencyScore := math.Max(0, sample.LatencyP95.Seconds()-medianLatency) / math.Max(madLatency, 0.001)
+		absoluteLatencyScore := c.absoluteLatencyScore(sample.LatencyP95)
+		latencyScore := math.Max(relativeLatencyScore, absoluteLatencyScore)
 		errorScore := 0.0
 		if sample.ErrorCount > 0 {
 			errorScore = rate(sample.ErrorCount, sample.RequestCount) / math.Max(avgErrorRate, scoreEpsilon)
@@ -125,6 +141,13 @@ func (c *ScoreCalculator) calculateService(service string, samples []EndpointSam
 			RetransmitScore: retransmitScore,
 		}
 	}
+}
+
+func (c *ScoreCalculator) absoluteLatencyScore(latency time.Duration) float64 {
+	if c.latencySLO <= 0 || latency <= 0 {
+		return 0
+	}
+	return latency.Seconds() / c.latencySLO.Seconds()
 }
 
 func ScoreKey(service, instanceID string) string {

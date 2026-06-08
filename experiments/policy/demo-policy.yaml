@@ -1,0 +1,52 @@
+services:
+  user-service:
+    routing_policy: adaptive_p2c
+    retry:
+      enabled: true
+      max_attempts: 2
+      budget_ratio: 0.15
+      min_budget: 10
+      window_seconds: 10
+      per_try_timeout_millis: 750
+    outlier_detection:
+      degraded_threshold: 1.5
+      eject_threshold: 2.5
+      consecutive_windows: 3
+      ejection_duration_seconds: 30
+      recovery_threshold: 1.0
+      probe_success_threshold: 0.95
+    circuit_breaker:
+      max_inflight_per_endpoint: 128
+    methods:
+      /demo.shop.v1.UserService/GetUser:
+        idempotent: true
+        timeout_millis: 150
+        retry:
+          enabled: true
+          max_attempts: 2
+
+  order-service:
+    routing_policy: adaptive_p2c
+    retry:
+      enabled: false
+      max_attempts: 1
+      budget_ratio: 0
+      min_budget: 0
+      window_seconds: 10
+      per_try_timeout_millis: 750
+    outlier_detection:
+      degraded_threshold: 1.5
+      eject_threshold: 2.5
+      consecutive_windows: 3
+      ejection_duration_seconds: 30
+      recovery_threshold: 1.0
+      probe_success_threshold: 0.95
+    circuit_breaker:
+      max_inflight_per_endpoint: 128
+    methods:
+      /demo.shop.v1.OrderService/CreateOrder:
+        idempotent: false
+        timeout_millis: 300
+        retry:
+          enabled: false
+          max_attempts: 1

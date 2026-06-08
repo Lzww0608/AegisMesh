@@ -85,3 +85,39 @@ func TestScoreCalculatorUsesNetworkSignalWithoutRequestCount(t *testing.T) {
 		t.Fatalf("expected network-only signal to affect slow score: %+v", scores["user-service/user-b"])
 	}
 }
+
+func TestScoreCalculatorUsesAbsoluteSLOWhenAllEndpointsAreSlow(t *testing.T) {
+	calculator := NewScoreCalculatorWithConfig(ScoreCalculatorConfig{
+		Weights:    ScoreWeights{LatencyWeight: 1},
+		LatencySLO: 100 * time.Millisecond,
+	})
+
+	scores := calculator.Calculate([]EndpointSample{
+		{Service: "payment-service", InstanceID: "payment-a", RequestCount: 100, LatencyP95: 450 * time.Millisecond, Capacity: 100},
+		{Service: "payment-service", InstanceID: "payment-b", RequestCount: 100, LatencyP95: 430 * time.Millisecond, Capacity: 100},
+	})
+
+	for id, score := range scores {
+		if score.LatencyScore < 4.0 {
+			t.Fatalf("expected %s absolute SLO latency score around 4x, got %+v", id, score)
+		}
+		if score.Score < 4.0 {
+			t.Fatalf("expected %s total score to reflect absolute SLO breach, got %+v", id, score)
+		}
+	}
+}
+
+func TestScoreCalculatorLeavesAbsoluteSLODisabledByDefault(t *testing.T) {
+	calculator := NewScoreCalculator(ScoreWeights{LatencyWeight: 1})
+
+	scores := calculator.Calculate([]EndpointSample{
+		{Service: "payment-service", InstanceID: "payment-a", RequestCount: 100, LatencyP95: 450 * time.Millisecond, Capacity: 100},
+		{Service: "payment-service", InstanceID: "payment-b", RequestCount: 100, LatencyP95: 430 * time.Millisecond, Capacity: 100},
+	})
+
+	for id, score := range scores {
+		if score.LatencyScore >= 4.0 {
+			t.Fatalf("expected %s to rely on relative score without configured SLO, got %+v", id, score)
+		}
+	}
+}

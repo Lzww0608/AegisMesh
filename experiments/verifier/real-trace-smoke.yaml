@@ -1,0 +1,10 @@
+test:
+  name: real-sdk-trace-smoke
+  service: frontend
+  method: /checkout
+  requests: 10
+expect:
+  tolerance: 0.03
+  max_retry_attempts: 1
+  forbidden_edges:
+    - frontend->payment-service

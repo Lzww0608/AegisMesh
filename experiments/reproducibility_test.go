@@ -12,6 +12,7 @@ import (
 func TestReproducibleExperimentAssetsExist(t *testing.T) {
 	root := repoRoot(t)
 	requiredFiles := []string{
+		".github/workflows/ci.yml",
 		"docker-compose.demo.yml",
 		"docker-compose.experiments.yml",
 		"docker-compose.observability.yml",
@@ -31,6 +32,9 @@ func TestReproducibleExperimentAssetsExist(t *testing.T) {
 		"experiments/scripts/run_baseline.sh",
 		"experiments/scripts/run_slow_fault.sh",
 		"experiments/scripts/run_retry_budget.sh",
+		"experiments/verifier/real-trace-smoke.yaml",
+		"experiments/traces/README.md",
+		"experiments/policy/demo-policy.yaml",
 		"experiments/results/README.md",
 		"experiments/results/latency_schema.csv",
 		"experiments/results/recovery_schema.csv",
@@ -47,6 +51,22 @@ func TestReproducibleExperimentAssetsExist(t *testing.T) {
 		}
 		if info.IsDir() {
 			t.Fatalf("expected %s to be a file", rel)
+		}
+	}
+}
+
+func TestCIWorkflowRunsCoreChecks(t *testing.T) {
+	workflow := readText(t, ".github/workflows/ci.yml")
+	required := []string{
+		"actions/checkout@v4",
+		"actions/setup-go@v5",
+		"go test ./...",
+		"go vet ./...",
+		"python experiments/scripts/check_results.py --results experiments/results/combined --allow-partial",
+	}
+	for _, want := range required {
+		if !strings.Contains(workflow, want) {
+			t.Fatalf("expected CI workflow to contain %q", want)
 		}
 	}
 }
@@ -96,6 +116,52 @@ func TestExperimentComposeDefinesRetryFaultTopology(t *testing.T) {
 	}
 }
 
+func TestExperimentComposeEnablesRealTraceOutput(t *testing.T) {
+	compose := readText(t, "docker-compose.experiments.yml")
+	required := []string{
+		"--trace-log",
+		"/traces/frontend-adaptive.jsonl",
+		"./experiments/traces:/traces",
+	}
+	for _, want := range required {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("expected experiment compose to contain %q", want)
+		}
+	}
+
+	spec := readText(t, "experiments/verifier/real-trace-smoke.yaml")
+	if !strings.Contains(spec, "real-sdk-trace-smoke") || !strings.Contains(spec, "max_retry_attempts: 1") {
+		t.Fatalf("expected real trace verifier smoke spec, got:\n%s", spec)
+	}
+}
+
+func TestExperimentComposeEnablesPolicyServiceAndPersistentRegistry(t *testing.T) {
+	compose := readText(t, "docker-compose.experiments.yml")
+	required := []string{
+		"--registry-backend",
+		"AEGIS_REGISTRY_BACKEND",
+		"--registry-file",
+		"/data/aegis-registry.json",
+		"--policy-file",
+		"/config/demo-policy.yaml",
+		"AEGIS_POLICY_RELOAD_INTERVAL",
+		"./experiments/policy:/config:ro",
+		"aegis-controller-data:/data",
+	}
+	for _, want := range required {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("expected experiment compose to contain %q", want)
+		}
+	}
+
+	policy := readText(t, "experiments/policy/demo-policy.yaml")
+	for _, want := range []string{"user-service:", "order-service:", "idempotent: false", "budget_ratio: 0.15"} {
+		if !strings.Contains(policy, want) {
+			t.Fatalf("expected demo policy to contain %q", want)
+		}
+	}
+}
+
 func TestSingleMachineGuideExplainsMergeWorkflow(t *testing.T) {
 	doc := readText(t, "docs/experiments.md")
 	required := []string{
@@ -118,6 +184,8 @@ func TestRecoveryExperimentDocumentsAggressiveThresholds(t *testing.T) {
 		"--health-degraded-threshold",
 		"--health-eject-threshold",
 		"--health-consecutive-windows",
+		"--health-latency-slo",
+		"AEGIS_HEALTH_LATENCY_SLO",
 	}
 	for _, want := range requiredCompose {
 		if !strings.Contains(compose, want) {
@@ -129,6 +197,9 @@ func TestRecoveryExperimentDocumentsAggressiveThresholds(t *testing.T) {
 	requiredDoc := []string{
 		"bench-retry-repeat",
 		"bench-recovery-state",
+		"AEGIS_HEALTH_LATENCY_SLO",
+		"PROBING",
+		"probe ratio",
 		"AEGIS_DEGRADED_THRESHOLD=0.5",
 		"RECOVERY_DURATION=190s",
 	}

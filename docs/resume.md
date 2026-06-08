@@ -4,7 +4,7 @@
 
 **AegisMesh：面向微服务慢故障的自适应 RPC 治理系统**
 
-- 设计并实现 Go/gRPC 数据面 SDK 与 Controller 控制面，支持服务注册与 TTL 心跳、gRPC resolver/balancer、Prometheus/Grafana 可观测性、EWMA 延迟窗口、slow_score 慢故障评分、`HEALTHY/DEGRADED/EJECTED/PROBING` endpoint 状态机、adaptive P2C 路由、retry budget、endpoint circuit breaker、故障注入器、eBPF TCP telemetry 和 MeshTest-style 离线 verifier。
+- 设计并实现 Go/gRPC 数据面 SDK 与 Controller 控制面，支持服务注册与 TTL 心跳、gRPC resolver/balancer、Prometheus/Grafana 可观测性、EWMA 延迟窗口、relative + absolute SLO slow_score 慢故障评分、`HEALTHY/DEGRADED/EJECTED/PROBING` endpoint 状态机、PROBING probe ratio、adaptive P2C 路由、retry budget、endpoint circuit breaker、故障注入器、eBPF TCP telemetry 和可读取真实 SDK JSONL trace 的 MeshTest-style verifier。
 - 针对 fail-slow 场景构建可复现实验矩阵，在单机 Docker benchmark 中注入网络延迟、CPU throttle、packet loss 和强制失败上游；`check_results` 汇总 67 条 latency、18 条 retry、1344 条 recovery 记录，覆盖 baseline、慢实例、CPU 慢故障、retry budget、eBPF 网络信号和恢复曲线。
 - 在单实例 800ms delay/慢实例场景下，相比 round-robin，adaptive P2C 将 median p99 latency 从 348.682 ms 降至 32.712 ms，降低 90.62%；CPU throttle 场景下，slow_score 相比 static threshold 将 median p99 从 46.596 ms 降至 26.559 ms，降低 43.00%。
 - 实现 retry budget 抑制 retry storm：在 1000 个原始请求、上游持续 `UNAVAILABLE` 的压力实验中，将 retry amplification 从无预算的 2.000x 控制到 1.150x，额外 retry 次数从 1000 降至 150。
@@ -14,7 +14,7 @@
 
 **AegisMesh：面向微服务慢故障的自适应 RPC 治理系统**
 
-- 基于 Go/gRPC 实现 Controller + SDK 架构，支持服务发现、Prometheus telemetry、EWMA 延迟统计、slow_score 慢故障检测、endpoint 状态机、adaptive P2C、retry budget、circuit breaker、故障注入、eBPF TCP telemetry 和离线 verifier。
+- 基于 Go/gRPC 实现 Controller + SDK 架构，支持服务发现、Prometheus telemetry、EWMA 延迟统计、relative + absolute SLO slow_score 慢故障检测、带 probe ratio 的 endpoint 状态机、adaptive P2C、retry budget、circuit breaker、故障注入、eBPF TCP telemetry 和真实 SDK trace verifier。
 - 构建单机 Docker benchmark 矩阵并完成实验汇总；相比 round-robin，adaptive P2C 在慢实例场景将 median p99 从 348.682 ms 降至 32.712 ms，降低 90.62%；slow_score 在 CPU throttle 场景将 p99 降低 43.00%。
 - 通过 retry budget 将持续失败上游下的 retry amplification 从 2.000x 控制到 1.150x；recovery 实验中 endpoint 完成 `HEALTHY -> DEGRADED -> EJECTED -> PROBING -> HEALTHY` 状态闭环，max slow_score 为 0.95。
 
@@ -22,7 +22,7 @@
 
 **AegisMesh: Adaptive RPC governance system for fail-slow microservices**
 
-- Designed and implemented a Go/gRPC control-plane and data-plane system with service discovery, TTL heartbeats, SDK resolver/balancer, Prometheus/Grafana telemetry, EWMA latency windows, slow_score fail-slow detection, endpoint state machine, adaptive P2C routing, retry budgets, circuit breaker, fault injector, eBPF TCP telemetry, and an offline MeshTest-style verifier.
+- Designed and implemented a Go/gRPC control-plane and data-plane system with service discovery, TTL heartbeats, SDK resolver/balancer, Prometheus/Grafana telemetry, EWMA latency windows, relative + absolute SLO slow_score fail-slow detection, endpoint state machine with PROBING probe ratio, adaptive P2C routing, retry budgets, circuit breaker, fault injector, eBPF TCP telemetry, and a MeshTest-style verifier over real SDK JSONL traces.
 - Built a reproducible single-machine Docker benchmark matrix covering no-fault baseline, single slow instance, CPU throttle, retry amplification, packet loss, and recovery curves. Adaptive P2C reduced median p99 latency from 348.682 ms to 32.712 ms versus round-robin under a slow-instance fault, a 90.62% reduction.
 - Bounded retry amplification from 2.000x to 1.150x under an always-unavailable upstream using a 15% retry budget, and demonstrated a full endpoint recovery loop from `HEALTHY` through `DEGRADED/EJECTED/PROBING` back to `HEALTHY`.
 
@@ -38,4 +38,4 @@ Be careful with eBPF and DeathStarBench claims. The project includes Linux eBPF 
 
 ## Claims To Avoid
 
-Do not call the system production-grade. The Controller registry is currently in-memory and the policy layer is mostly static SDK defaults. Do not claim high availability for the control plane. Do not claim online verifier closure unless SDK trace collection is wired into the verifier. Do not claim DeathStarBench evaluation until a real DeathStarBench workload has produced measured results. Do not present the packet-loss eBPF result as a major win; the measured single-machine delta is 3.93% p99 improvement, which should be described as a small positive result.
+Do not call the system production-grade. The Controller now has a file-backed registry option, but it is local restart recovery rather than high availability. The PolicyService layer supports YAML snapshots and SDK-side application of routing initialization, retry budget, method timeout, and idempotency-aware retry control; do not claim full dynamic application of every outlier-detection and circuit-breaker field yet. The verifier can validate real SDK JSONL traces, but do not call it a central online trace collector. Do not claim DeathStarBench evaluation until a real DeathStarBench workload has produced measured results. Do not present the packet-loss eBPF result as a major win; the measured single-machine delta is 3.93% p99 improvement, which should be described as a small positive result.

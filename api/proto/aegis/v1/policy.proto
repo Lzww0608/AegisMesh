@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package aegis.v1;
+
+option go_package = "github.com/aegismesh/aegismesh/api/proto/aegis/v1;aegisv1";
+
+service PolicyService {
+  rpc GetPolicy(GetPolicyRequest) returns (PolicySnapshot);
+  rpc WatchPolicy(WatchPolicyRequest) returns (stream PolicySnapshot);
+}
+
+message GetPolicyRequest {
+  string service = 1;
+}
+
+message WatchPolicyRequest {
+  string service = 1;
+}
+
+message PolicySnapshot {
+  string service = 1;
+  int64 version = 2;
+  string routing_policy = 3;
+  RetryPolicy retry = 4;
+  OutlierDetectionPolicy outlier_detection = 5;
+  CircuitBreakerPolicy circuit_breaker = 6;
+  map<string, MethodPolicy> methods = 7;
+}
+
+message RetryPolicy {
+  bool enabled = 1;
+  int32 max_attempts = 2;
+  double budget_ratio = 3;
+  int32 min_budget = 4;
+  int64 window_seconds = 5;
+  int64 per_try_timeout_millis = 6;
+}
+
+message OutlierDetectionPolicy {
+  double degraded_threshold = 1;
+  double eject_threshold = 2;
+  int32 consecutive_windows = 3;
+  int64 ejection_duration_seconds = 4;
+  double recovery_threshold = 5;
+  double probe_success_threshold = 6;
+}
+
+message CircuitBreakerPolicy {
+  int64 max_inflight_per_endpoint = 1;
+}
+
+message MethodPolicy {
+  string method = 1;
+  bool idempotent = 2;
+  int64 timeout_millis = 3;
+  RetryPolicy retry = 4;
+}

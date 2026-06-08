@@ -20,6 +20,19 @@ services:
       - ${AEGIS_RECOVERY_THRESHOLD:-1.0}
       - --health-probe-success-threshold
       - ${AEGIS_PROBE_SUCCESS_THRESHOLD:-0.95}
+      - --health-latency-slo
+      - ${AEGIS_HEALTH_LATENCY_SLO:-0s}
+      - --registry-backend
+      - ${AEGIS_REGISTRY_BACKEND:-memory}
+      - --registry-file
+      - /data/aegis-registry.json
+      - --policy-file
+      - /config/demo-policy.yaml
+      - --policy-reload-interval
+      - ${AEGIS_POLICY_RELOAD_INTERVAL:-3s}
+    volumes:
+      - ./experiments/policy:/config:ro
+      - aegis-controller-data:/data
 
   frontend-direct:
     build:
@@ -85,10 +98,14 @@ services:
       - adaptive_p2c
       - --retry-mode
       - budget
+      - --trace-log
+      - /traces/frontend-adaptive.jsonl
     depends_on:
       - user-a
       - user-b
       - order-a
+    volumes:
+      - ./experiments/traces:/traces
     ports:
       - "8083:8083"
 
@@ -191,3 +208,6 @@ services:
       - controller
     ports:
       - "7201:7201"
+
+volumes:
+  aegis-controller-data:

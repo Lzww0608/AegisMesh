@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
 	retrypkg "github.com/aegismesh/aegismesh/pkg/retry"
 )
 
@@ -28,6 +29,8 @@ type DialOptions struct {
 	RetryPolicy      RetryPolicy
 	RetryBudget      retrypkg.BudgetConfig
 	DisableTelemetry bool
+	DisablePolicy    bool
+	TraceLogPath     string
 }
 
 func DefaultDialOptions() DialOptions {
@@ -90,4 +93,70 @@ func retryComponentsForDialOptions(options DialOptions) (RetryPolicy, *retrypkg.
 	default:
 		return policy, retrypkg.NewBudget(options.RetryBudget)
 	}
+}
+
+func applyPolicySnapshotToDialOptions(options DialOptions, snapshot *aegisv1.PolicySnapshot) DialOptions {
+	if snapshot == nil {
+		return options
+	}
+	if snapshot.RoutingPolicy != "" {
+		options.RoutingPolicy = RoutingPolicy(snapshot.RoutingPolicy)
+	}
+	return applyRetryPolicyToDialOptions(options, snapshot.Retry)
+}
+
+func applyMethodPolicyToDialOptions(options DialOptions, method *aegisv1.MethodPolicy) DialOptions {
+	if method == nil {
+		return options
+	}
+	if method.TimeoutMillis > 0 {
+		options.RetryPolicy.PerTryTimeout = time.Duration(method.TimeoutMillis) * time.Millisecond
+	}
+	if policyRetryHasAnyField(method.Retry) {
+		return applyRetryPolicyToDialOptions(options, method.Retry)
+	}
+	if !method.Idempotent {
+		options.RetryMode = RetryOff
+		options.RetryPolicy.MaxAttempts = 1
+	}
+	return options
+}
+
+func applyRetryPolicyToDialOptions(options DialOptions, policy *aegisv1.RetryPolicy) DialOptions {
+	if !policyRetryHasAnyField(policy) {
+		return options
+	}
+	if !policy.Enabled {
+		options.RetryMode = RetryOff
+		options.RetryPolicy.MaxAttempts = 1
+		return options
+	}
+
+	options.RetryMode = RetryBudget
+	if policy.MaxAttempts > 0 {
+		options.RetryPolicy.MaxAttempts = int(policy.MaxAttempts)
+	}
+	if policy.PerTryTimeoutMillis > 0 {
+		options.RetryPolicy.PerTryTimeout = time.Duration(policy.PerTryTimeoutMillis) * time.Millisecond
+	}
+	if policy.BudgetRatio > 0 {
+		options.RetryBudget.BudgetRatio = policy.BudgetRatio
+	}
+	if policy.MinBudget > 0 {
+		options.RetryBudget.MinBudget = int64(policy.MinBudget)
+	}
+	if policy.WindowSeconds > 0 {
+		options.RetryBudget.Window = time.Duration(policy.WindowSeconds) * time.Second
+	}
+	return options
+}
+
+func policyRetryHasAnyField(policy *aegisv1.RetryPolicy) bool {
+	return policy != nil &&
+		(policy.Enabled ||
+			policy.MaxAttempts != 0 ||
+			policy.BudgetRatio != 0 ||
+			policy.MinBudget != 0 ||
+			policy.WindowSeconds != 0 ||
+			policy.PerTryTimeoutMillis != 0)
 }

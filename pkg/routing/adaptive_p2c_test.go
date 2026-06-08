@@ -59,6 +59,42 @@ func TestAdaptiveP2CPickerFallsBackToLeastBadDegradedEndpoint(t *testing.T) {
 	}
 }
 
+func TestAdaptiveP2CPickerKeepsProbingEndpointOutOfNormalTraffic(t *testing.T) {
+	picker := NewAdaptiveP2CPicker([]Endpoint{
+		{ID: "healthy", Address: "127.0.0.1:7001", Status: EndpointHealthy, LatencyEWMA: 20 * time.Millisecond},
+		{ID: "probe", Address: "127.0.0.1:7002", Status: EndpointProbing, LatencyEWMA: 1 * time.Millisecond},
+	}, AdaptiveP2CConfig{
+		ProbeRatio: 0.01,
+		Random:     &sequenceRandom{values: []int{99}},
+	})
+
+	got, err := picker.Pick(context.Background())
+	if err != nil {
+		t.Fatalf("pick endpoint: %v", err)
+	}
+	if got.ID != "healthy" {
+		t.Fatalf("expected normal traffic to avoid probing endpoint, got %+v", got)
+	}
+}
+
+func TestAdaptiveP2CPickerAllowsConfiguredProbeSample(t *testing.T) {
+	picker := NewAdaptiveP2CPicker([]Endpoint{
+		{ID: "healthy", Address: "127.0.0.1:7001", Status: EndpointHealthy, LatencyEWMA: 20 * time.Millisecond},
+		{ID: "probe", Address: "127.0.0.1:7002", Status: EndpointProbing, LatencyEWMA: 1 * time.Millisecond},
+	}, AdaptiveP2CConfig{
+		ProbeRatio: 0.50,
+		Random:     &sequenceRandom{values: []int{0}},
+	})
+
+	got, err := picker.Pick(context.Background())
+	if err != nil {
+		t.Fatalf("pick endpoint: %v", err)
+	}
+	if got.ID != "probe" {
+		t.Fatalf("expected configured probe sample to select probing endpoint, got %+v", got)
+	}
+}
+
 type sequenceRandom struct {
 	values []int
 	next   int

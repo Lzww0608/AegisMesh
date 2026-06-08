@@ -33,6 +33,7 @@ func main() {
 	orderService := flag.String("order-service", "order-service", "Aegis order service name")
 	userTarget := flag.String("user-target", "127.0.0.1:7001", "direct user-service target for --mesh-mode=direct")
 	orderTarget := flag.String("order-target", "127.0.0.1:7101", "direct order-service target for --mesh-mode=direct")
+	traceLog := flag.String("trace-log", "", "JSONL path for real SDK trace records")
 	timeout := flag.Duration("timeout", 2*time.Second, "per request timeout")
 	flag.Parse()
 
@@ -46,6 +47,7 @@ func main() {
 		DirectTarget:  *userTarget,
 		RoutingPolicy: *routingPolicy,
 		RetryMode:     *retryMode,
+		TraceLogPath:  *traceLog,
 	})
 	if err != nil {
 		log.Fatalf("dial user-service: %v", err)
@@ -59,6 +61,7 @@ func main() {
 		DirectTarget:  *orderTarget,
 		RoutingPolicy: *routingPolicy,
 		RetryMode:     *retryMode,
+		TraceLogPath:  *traceLog,
 	})
 	if err != nil {
 		log.Fatalf("dial order-service: %v", err)
@@ -96,6 +99,7 @@ type frontendDialConfig struct {
 	DirectTarget  string
 	RoutingPolicy string
 	RetryMode     string
+	TraceLogPath  string
 }
 
 func dialService(ctx context.Context, cfg frontendDialConfig) (*grpc.ClientConn, error) {
@@ -105,6 +109,7 @@ func dialService(ctx context.Context, cfg frontendDialConfig) (*grpc.ClientConn,
 	options := aegisgrpc.DefaultDialOptions()
 	options.RoutingPolicy = aegisgrpc.RoutingPolicy(cfg.RoutingPolicy)
 	options.RetryMode = aegisgrpc.RetryMode(cfg.RetryMode)
+	options.TraceLogPath = cfg.TraceLogPath
 	return aegisgrpc.DialServiceFromWithOptions(ctx, "frontend", cfg.Controller, cfg.Service, options)
 }
 
@@ -118,6 +123,11 @@ func checkoutHandler(userClient shopv1.UserServiceClient, orderClient shopv1.Ord
 
 		reqCtx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
+		if traceID := r.Header.Get("x-aegis-trace-id"); traceID != "" {
+			reqCtx = aegisgrpc.ContextWithTraceID(reqCtx, traceID)
+		} else {
+			reqCtx = aegisgrpc.ContextWithNewTraceID(reqCtx)
+		}
 
 		user, err := userClient.GetUser(reqCtx, &shopv1.GetUserRequest{UserId: userID})
 		if err != nil {
