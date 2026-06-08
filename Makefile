@@ -7,6 +7,7 @@ EXP_COMPOSE := -f docker-compose.demo.yml -f docker-compose.experiments.yml
 EXP_OBS_COMPOSE := -f docker-compose.demo.yml -f docker-compose.experiments.yml -f docker-compose.observability.yml
 
 TARGET ?= aegis-user-b
+TARGETS ?= aegis-user-a aegis-user-b
 DEVICE ?= eth0
 DELAY ?= 200ms
 JITTER ?= 50ms
@@ -21,12 +22,18 @@ POST_DURATION ?= 30s
 RECOVERY_DURATION ?= 90s
 RECOVERY_INTERVAL ?= 1s
 FRONTEND_URL ?= http://127.0.0.1:8080/checkout
+URL_ADAPTIVE ?= http://127.0.0.1:8083/checkout
+TRACE_LOG ?= experiments/traces/frontend-adaptive.jsonl
+PROBING_PORT ?= 7002
+MAX_PROBE_RATIO ?= 0.10
+VARIANT ?= with_absolute_slo
+MIN_SCORE ?= 1.0
 RESULTS_DIR ?= experiments/results
 RUNS_DIR ?= experiments/results/runs
 COMBINED_DIR ?= experiments/results/combined
 RUN_ID ?= $(shell date +%Y%m%d-%H%M%S)
 
-.PHONY: demo-up demo-down observability-up dashboard experiments-up experiments-down load inject-delay inject-loss inject-cpu reset-faults bench bench-required check-results record-recovery report test
+.PHONY: demo-up demo-down observability-up dashboard experiments-up experiments-down load inject-delay inject-loss inject-cpu reset-faults bench bench-required bench-probe-ratio bench-absolute-slo summarize-probe-slo check-results record-recovery report test
 
 demo-up:
 	$(COMPOSE) $(DEMO_COMPOSE) up -d --build
@@ -75,6 +82,15 @@ bench-retry-repeat:
 
 bench-recovery-state:
 	RUN_ID=$(RUN_ID) RUNS_DIR=$(RUNS_DIR) REQUESTS=$(REQUESTS) CONCURRENCY=$(CONCURRENCY) TARGET=$(TARGET) DEVICE=$(DEVICE) DELAY=$(DELAY) JITTER=$(JITTER) PRE_DURATION=$(PRE_DURATION) FAULT_DURATION=$(FAULT_DURATION) POST_DURATION=$(POST_DURATION) RECOVERY_DURATION=$(RECOVERY_DURATION) RECOVERY_INTERVAL=$(RECOVERY_INTERVAL) bash experiments/scripts/run_recovery_state_experiment.sh
+
+bench-probe-ratio:
+	RUN_ID=$(RUN_ID) RUNS_DIR=$(RUNS_DIR) CONCURRENCY=$(CONCURRENCY) TARGET=$(TARGET) DEVICE=$(DEVICE) DELAY=$(DELAY) JITTER=$(JITTER) PRE_DURATION=$(PRE_DURATION) FAULT_DURATION=$(FAULT_DURATION) POST_DURATION=$(POST_DURATION) RECOVERY_DURATION=$(RECOVERY_DURATION) RECOVERY_INTERVAL=$(RECOVERY_INTERVAL) URL_ADAPTIVE=$(URL_ADAPTIVE) TRACE_LOG=$(TRACE_LOG) PROBING_PORT=$(PROBING_PORT) MAX_PROBE_RATIO=$(MAX_PROBE_RATIO) bash experiments/scripts/run_probe_ratio_experiment.sh
+
+bench-absolute-slo:
+	RUN_ID=$(RUN_ID) RUNS_DIR=$(RUNS_DIR) VARIANT=$(VARIANT) CONCURRENCY=$(CONCURRENCY) TARGETS="$(TARGETS)" DEVICE=$(DEVICE) DELAY=$(DELAY) JITTER=$(JITTER) PRE_DURATION=$(PRE_DURATION) FAULT_DURATION=$(FAULT_DURATION) POST_DURATION=$(POST_DURATION) RECOVERY_DURATION=$(RECOVERY_DURATION) RECOVERY_INTERVAL=$(RECOVERY_INTERVAL) URL_ADAPTIVE=$(URL_ADAPTIVE) MIN_SCORE=$(MIN_SCORE) bash experiments/scripts/run_absolute_slo_experiment.sh
+
+summarize-probe-slo:
+	python experiments/scripts/summarize_probe_slo.py --runs-dir $(RUNS_DIR) --out experiments/results/probe_slo_summary.md
 
 bench-single-machine:
 	RUN_ID=$(RUN_ID) RUNS_DIR=$(RUNS_DIR) REQUESTS=$(REQUESTS) CONCURRENCY=$(CONCURRENCY) TARGET=$(TARGET) DEVICE=$(DEVICE) DELAY=$(DELAY) JITTER=$(JITTER) LOSS=$(LOSS) CPUS=$(CPUS) bash experiments/scripts/run_single_machine_experiments.sh

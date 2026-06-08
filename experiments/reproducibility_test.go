@@ -22,6 +22,11 @@ func TestReproducibleExperimentAssetsExist(t *testing.T) {
 		"experiments/scripts/merge_results.py",
 		"experiments/scripts/run_required_experiments.sh",
 		"experiments/scripts/run_recovery_state_experiment.sh",
+		"experiments/scripts/run_probe_ratio_experiment.sh",
+		"experiments/scripts/run_absolute_slo_experiment.sh",
+		"experiments/scripts/analyze_probe_ratio.py",
+		"experiments/scripts/analyze_absolute_slo.py",
+		"experiments/scripts/summarize_probe_slo.py",
 		"experiments/scripts/run_retry_repetitions.sh",
 		"experiments/scripts/run_single_machine_experiments.sh",
 		"experiments/scripts/run_retry_amplification.py",
@@ -83,6 +88,9 @@ func TestMakefileExposesDemoAndExperimentTargets(t *testing.T) {
 		"bench:",
 		"bench-required:",
 		"bench-recovery-state:",
+		"bench-probe-ratio:",
+		"bench-absolute-slo:",
+		"summarize-probe-slo:",
 		"bench-retry-repeat:",
 		"bench-single-machine:",
 		"check-results:",
@@ -231,6 +239,29 @@ func TestRecoveryMakeTargetKeepsTimingConfigurable(t *testing.T) {
 	}
 	if strings.Contains(makefile, "RECOVERY_DURATION=90s bash experiments/scripts/run_recovery_state_experiment.sh") {
 		t.Fatalf("bench-recovery-state must not hard-code RECOVERY_DURATION")
+	}
+}
+
+func TestProbeRatioAndAbsoluteSLOExperimentEntrypointsExist(t *testing.T) {
+	makefile := readText(t, "Makefile")
+	for _, want := range []string{"bench-probe-ratio", "run_probe_ratio_experiment.sh", "bench-absolute-slo", "run_absolute_slo_experiment.sh", "summarize_probe_slo.py"} {
+		if !strings.Contains(makefile, want) {
+			t.Fatalf("expected Makefile to expose %q", want)
+		}
+	}
+
+	probeScript := readText(t, "experiments/scripts/run_probe_ratio_experiment.sh")
+	for _, want := range []string{"analyze_probe_ratio.py", "TRACE_LOG", "MAX_PROBE_RATIO", "PROBING_PORT"} {
+		if !strings.Contains(probeScript, want) {
+			t.Fatalf("expected probe-ratio script to contain %q", want)
+		}
+	}
+
+	sloScript := readText(t, "experiments/scripts/run_absolute_slo_experiment.sh")
+	for _, want := range []string{"analyze_absolute_slo.py", "TARGETS", "MIN_SCORE", "absolute_slo_summary.json"} {
+		if !strings.Contains(sloScript, want) {
+			t.Fatalf("expected absolute-SLO script to contain %q", want)
+		}
 	}
 }
 

@@ -167,11 +167,11 @@ AEGIS_EJECT_THRESHOLD=0.8 \
 AEGIS_CONSECUTIVE_WINDOWS=1 \
 AEGIS_EJECTION_DURATION=10s \
 AEGIS_RECOVERY_THRESHOLD=0.3 \
-AEGIS_HEALTH_LATENCY_SLO=150ms \
+AEGIS_HEALTH_LATENCY_SLO=0s \
 make experiments-up
 ```
 
-`AEGIS_HEALTH_LATENCY_SLO` enables the absolute p95 latency component in slow_score. With it enabled, a single-instance or all-slow service can still breach its SLO even when there is no relative peer outlier. During recovery, `PROBING` endpoints are routed through the adaptive P2C probe ratio instead of receiving normal traffic immediately; the default probe ratio is 2%.
+`AEGIS_HEALTH_LATENCY_SLO=0s` keeps the recovery experiment focused on relative slow_score and endpoint-state behavior. Dedicated probe-ratio and absolute-SLO experiments are listed below.
 
 Then run the dedicated recovery-state experiment:
 
@@ -202,7 +202,139 @@ python experiments/scripts/check_results.py --results "$latest" --allow-partial
 grep -E 'DEGRADED|EJECTED|PROBING' "$latest/recovery.csv"
 ```
 
-## 9. Reporting Rules
+## 9. PROBING Probe-Ratio Experiment
+
+This validates that a `PROBING` endpoint is not immediately returned to normal traffic. The experiment uses the real SDK trace file from `frontend-adaptive` plus Controller health samples.
+The measured probe ratio is calculated from trace rows that fall inside the Controller's `PROBING` state window.
+
+Start the stack with aggressive local thresholds so the endpoint reaches `PROBING` in a short run:
+
+```bash
+make experiments-down
+
+AEGIS_DEGRADED_THRESHOLD=0.5 \
+AEGIS_EJECT_THRESHOLD=0.8 \
+AEGIS_CONSECUTIVE_WINDOWS=1 \
+AEGIS_EJECTION_DURATION=10s \
+AEGIS_RECOVERY_THRESHOLD=0.3 \
+AEGIS_HEALTH_LATENCY_SLO=0s \
+make experiments-up
+```
+
+Run the probe-ratio benchmark:
+
+```bash
+RUN_ID=probe-ratio-$(date +%Y%m%d-%H%M%S) \
+RUNS_DIR=experiments/results/runs \
+CONCURRENCY=32 \
+DELAY=800ms \
+JITTER=150ms \
+PRE_DURATION=20s \
+FAULT_DURATION=80s \
+POST_DURATION=70s \
+RECOVERY_DURATION=180s \
+MAX_PROBE_RATIO=0.10 \
+make bench-probe-ratio
+```
+
+Inspect:
+
+```bash
+latest=$(ls -td experiments/results/runs/*probe-ratio* | head -1)
+cat "$latest/probe_ratio_summary.json"
+grep PROBING "$latest/recovery.csv"
+```
+
+Expected evidence:
+
+- `recovery.csv` contains `PROBING` rows for the delayed endpoint, usually port `7002`.
+- `probe_ratio_summary.json` reports `within_expected_bound: true`.
+- `probe_ratio` should be small. The implementation default is 2%, but this experiment uses `MAX_PROBE_RATIO=0.10` as a tolerant upper bound because sampling windows and resolver refresh timing are coarse on one machine.
+
+If there are no `PROBING` rows, increase `FAULT_DURATION` or confirm the lowered thresholds are active. If there are no trace rows, check that `frontend-adaptive` is running with `--trace-log /traces/frontend-adaptive.jsonl`.
+
+## 10. Absolute SLO Slow-Score Experiment
+
+This validates that slow_score can detect a one-instance or all-slow service even when there is no relative peer outlier. Run it twice: once with absolute SLO disabled, then once with it enabled.
+
+Disabled run:
+
+```bash
+make experiments-down
+
+AEGIS_DEGRADED_THRESHOLD=1.0 \
+AEGIS_EJECT_THRESHOLD=1.8 \
+AEGIS_CONSECUTIVE_WINDOWS=1 \
+AEGIS_EJECTION_DURATION=10s \
+AEGIS_RECOVERY_THRESHOLD=0.3 \
+AEGIS_HEALTH_LATENCY_SLO=0s \
+make experiments-up
+
+RUN_ID=absolute-slo-disabled-$(date +%Y%m%d-%H%M%S) \
+VARIANT=without_absolute_slo \
+RUNS_DIR=experiments/results/runs \
+TARGETS="aegis-user-a aegis-user-b" \
+CONCURRENCY=24 \
+DELAY=500ms \
+JITTER=0ms \
+FAULT_DURATION=70s \
+RECOVERY_DURATION=110s \
+MIN_SCORE=1.0 \
+make bench-absolute-slo || true
+```
+
+The disabled run may fail the analyzer because no state transition is expected when relative scores stay low. Keep its output directory as negative-control evidence.
+
+Enabled run:
+
+```bash
+make experiments-down
+
+AEGIS_DEGRADED_THRESHOLD=1.0 \
+AEGIS_EJECT_THRESHOLD=1.8 \
+AEGIS_CONSECUTIVE_WINDOWS=1 \
+AEGIS_EJECTION_DURATION=10s \
+AEGIS_RECOVERY_THRESHOLD=0.3 \
+AEGIS_HEALTH_LATENCY_SLO=100ms \
+make experiments-up
+
+RUN_ID=absolute-slo-enabled-$(date +%Y%m%d-%H%M%S) \
+VARIANT=with_absolute_slo \
+RUNS_DIR=experiments/results/runs \
+TARGETS="aegis-user-a aegis-user-b" \
+CONCURRENCY=24 \
+DELAY=500ms \
+JITTER=0ms \
+FAULT_DURATION=70s \
+RECOVERY_DURATION=110s \
+MIN_SCORE=1.0 \
+make bench-absolute-slo
+```
+
+Inspect:
+
+```bash
+latest=$(ls -td experiments/results/runs/*absolute-slo*with_absolute_slo* | head -1)
+cat "$latest/absolute_slo_summary.json"
+cut -d, -f8 "$latest/recovery.csv" | sort | uniq -c
+```
+
+Expected evidence:
+
+- Disabled run: max slow_score should be lower or no degraded/ejected/probing state should appear.
+- Enabled run: `absolute_slo_summary.json` should report `score_pass: true` and `state_pass: true`.
+- Both `user-a` and `user-b` can show elevated slow_score because both are delayed; this is the point of the all-slow absolute SLO test.
+
+After the probe-ratio run and the two absolute-SLO runs finish, generate a compact Markdown summary:
+
+```bash
+make summarize-probe-slo
+cat experiments/results/probe_slo_summary.md
+```
+
+Keep this file together with the JSON summaries when updating the project report. The existing benchmark report remains based on `experiments/results/combined`; these new runs add validation evidence for the two recently added mechanisms rather than replacing the earlier latency/retry/recovery matrix.
+
+## 11. Reporting Rules
 
 - Report `round_robin` vs `adaptive_p2c` only after both rows exist for the same fault setup.
 - Report retry budget benefit only after both `without_budget` and `with_budget` rows exist.
@@ -210,7 +342,7 @@ grep -E 'DEGRADED|EJECTED|PROBING' "$latest/recovery.csv"
 - Report eBPF benefit only when `cmd/agent` was running for the `ebpf_network_score` variant.
 - Do not use checked-in schema files as results.
 
-## 10. Real SDK Trace Verifier
+## 12. Real SDK Trace Verifier
 
 The verifier can read trace JSONL generated by the SDK rather than only hand-written examples. `frontend-adaptive` in `docker-compose.experiments.yml` starts `demo-frontend` with:
 

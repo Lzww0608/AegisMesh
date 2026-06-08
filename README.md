@@ -217,6 +217,16 @@ effective_weight = base_weight / (1 + slow_score)
 
 The balancer reads `status` and `slow_score` from Registry resolver attributes, keeps local in-flight/EWMA state from completed calls, and applies a per-endpoint circuit breaker with a default in-flight cap of `128`. `PROBING` endpoints are not treated as normal traffic candidates while healthy or degraded endpoints exist; adaptive P2C admits them only through a small probe ratio, defaulting to `2%`, so recovery checks do not immediately restore full load to a recently ejected instance.
 
+The two newer routing/scoring mechanisms have dedicated experiment targets:
+
+```bash
+make bench-probe-ratio
+make bench-absolute-slo
+make summarize-probe-slo
+```
+
+See `docs/experiments.md` for the required controller thresholds and the recommended disabled/enabled absolute-SLO comparison.
+
 Unary SDK calls also use a bounded retry policy:
 
 ```text
