@@ -1,6 +1,7 @@
 import argparse
 import concurrent.futures
 import csv
+import http.client
 import math
 import os
 import threading
@@ -58,7 +59,7 @@ def request_once(url):
         with urllib.request.urlopen(url, timeout=5) as resp:
             ok = 200 <= resp.status < 500
             resp.read()
-    except (urllib.error.URLError, TimeoutError):
+    except (urllib.error.URLError, TimeoutError, ConnectionError, OSError, http.client.HTTPException):
         ok = False
     return (time.perf_counter() - started) * 1000.0, ok
 

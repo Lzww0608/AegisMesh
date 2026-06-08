@@ -52,6 +52,8 @@ created_at=$(date -Is)
 host=$(hostname)
 EOF
 
+python experiments/scripts/wait_for_http.py --url "$URL_ADAPTIVE" --timeout 90s --interval 1s
+
 go run ./cmd/experiment-recorder \
   --experiment probe_ratio \
   --variant adaptive_p2c \

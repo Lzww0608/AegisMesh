@@ -237,6 +237,8 @@ MAX_PROBE_RATIO=0.10 \
 make bench-probe-ratio
 ```
 
+The script waits for `frontend-adaptive` before starting the recorder and load generator. If an old copy of the script fails with `ConnectionResetError: [Errno 104] Connection reset by peer`, sync the latest `run_sustained_load.py`, `wait_for_http.py`, and experiment shell scripts; connection resets during startup are now counted as failed requests instead of aborting the run.
+
 Inspect:
 
 ```bash

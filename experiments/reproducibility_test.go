@@ -27,6 +27,7 @@ func TestReproducibleExperimentAssetsExist(t *testing.T) {
 		"experiments/scripts/analyze_probe_ratio.py",
 		"experiments/scripts/analyze_absolute_slo.py",
 		"experiments/scripts/summarize_probe_slo.py",
+		"experiments/scripts/wait_for_http.py",
 		"experiments/scripts/run_retry_repetitions.sh",
 		"experiments/scripts/run_single_machine_experiments.sh",
 		"experiments/scripts/run_retry_amplification.py",
@@ -251,14 +252,14 @@ func TestProbeRatioAndAbsoluteSLOExperimentEntrypointsExist(t *testing.T) {
 	}
 
 	probeScript := readText(t, "experiments/scripts/run_probe_ratio_experiment.sh")
-	for _, want := range []string{"analyze_probe_ratio.py", "TRACE_LOG", "MAX_PROBE_RATIO", "PROBING_PORT"} {
+	for _, want := range []string{"wait_for_http.py", "analyze_probe_ratio.py", "TRACE_LOG", "MAX_PROBE_RATIO", "PROBING_PORT"} {
 		if !strings.Contains(probeScript, want) {
 			t.Fatalf("expected probe-ratio script to contain %q", want)
 		}
 	}
 
 	sloScript := readText(t, "experiments/scripts/run_absolute_slo_experiment.sh")
-	for _, want := range []string{"analyze_absolute_slo.py", "TARGETS", "MIN_SCORE", "absolute_slo_summary.json"} {
+	for _, want := range []string{"wait_for_http.py", "analyze_absolute_slo.py", "TARGETS", "MIN_SCORE", "absolute_slo_summary.json"} {
 		if !strings.Contains(sloScript, want) {
 			t.Fatalf("expected absolute-SLO script to contain %q", want)
 		}
