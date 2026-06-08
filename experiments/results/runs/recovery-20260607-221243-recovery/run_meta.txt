@@ -1,7 +1,0 @@
-run_id=recovery-20260607-221243-recovery
-kind=recovery_state
-concurrency=32
-delay=500ms
-jitter=100ms
-created_at=2026-06-07T22:12:43+08:00
-host=lab2439

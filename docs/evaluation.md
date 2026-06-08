@@ -68,7 +68,7 @@ Output: `experiments/results/retry.csv`.
 
 ## Measured Results
 
-The final merged CSV files contain 67 latency rows, 18 retry rows, and 1344 recovery rows. `check_results.py` reports that all required experiment comparisons have evidence rows.
+The final merged CSV files contain 61 latency rows, 18 retry rows, and 747 recovery rows after obsolete intermediate recovery runs were removed. `check_results.py` reports that all required experiment comparisons have evidence rows.
 
 | Experiment | Baseline variant | Baseline median p99 | AegisMesh variant | Variant median p99 | Delta |
 | --- | --- | ---: | --- | ---: | ---: |
@@ -88,7 +88,7 @@ Recovery comparison:
 
 | Run | Fault setup | Max slow_score | Observed states |
 | --- | --- | ---: | --- |
-| recovery-20260607-224400-recovery | 800 ms delay, 150 ms jitter, concurrency 16 | 0.950000 | HEALTHY, DEGRADED, EJECTED, PROBING |
+| recovery-state-final | 800 ms delay, 150 ms jitter, concurrency 16 | 0.950000 | HEALTHY, DEGRADED, EJECTED, PROBING |
 
 Quantitative conclusions:
 
@@ -112,6 +112,34 @@ Metrics:
 - state
 
 Output: `experiments/results/recovery.csv`.
+
+## Supplemental PROBING And Absolute-SLO Validation
+
+Goal: validate the two later mechanisms that are not part of the original latency/retry matrix:
+
+- `PROBING` endpoints should receive only limited probe traffic before returning to normal routing.
+- absolute SLO scoring should detect all-slow or single-instance slow services that relative peer-outlier scoring can miss.
+
+Output:
+
+- `experiments/results/probe_slo_summary.md`
+- `experiments/results/runs/probe-ratio/probe_ratio_summary.json`
+- `experiments/results/runs/absolute-slo-enabled/absolute_slo_summary.json`
+- `experiments/results/runs/absolute-slo-disabled/absolute_slo_summary.json`
+
+Measured supplemental results:
+
+| Mechanism | Run | Measurement | Result |
+| --- | --- | ---: | --- |
+| PROBING probe ratio | probe-ratio | 0.2177% traffic to probing endpoint | PASS |
+| Absolute SLO disabled | absolute-slo-disabled | max slow_score 0.377401, states HEALTHY only | Negative control |
+| Absolute SLO enabled | absolute-slo-enabled | max slow_score 1.007183, states DEGRADED and HEALTHY | PASS |
+
+Supplemental conclusions:
+
+- During the PROBING window, endpoint `172.18.0.5:7002` received 560 of 257258 user-service trace rows, or 0.2177%, below the 10% experiment bound.
+- Without absolute SLO scoring, the all-slow delay run stayed healthy and max slow_score remained 0.377401.
+- With `AEGIS_HEALTH_LATENCY_SLO=100ms`, max slow_score rose to 1.007183 and the controller produced 75 `DEGRADED` samples.
 
 ## Ablation Matrix
 

@@ -1,0 +1,3 @@
+experiment,variant,window_start_unix_ms,original_requests,retry_attempts,total_attempts,retry_amplification,error_rate
+retry_budget,without_budget,1780841435608,1000,1000,2000,2.000000,1.0
+retry_budget,with_budget,1780841436098,1000,150,1150,1.150000,1.0

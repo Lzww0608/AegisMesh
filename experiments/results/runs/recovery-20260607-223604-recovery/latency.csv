@@ -1,4 +1,0 @@
-experiment,variant,window_start_unix_ms,window_end_unix_ms,requests,throughput_rps,latency_p50_ms,latency_p95_ms,latency_p99_ms,error_rate
-recovery_curve,adaptive_p2c,1780842964116,1780842984121,54708,2734.716,5.641,9.979,12.106,0.0
-recovery_curve,adaptive_p2c,1780842984273,1780843104282,318933,2657.576,4.397,8.257,10.568,1.6e-05
-recovery_curve,adaptive_p2c,1780843104599,1780843144606,109045,2725.648,5.651,10.088,12.277,0.0

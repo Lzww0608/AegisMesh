@@ -336,6 +336,12 @@ cat experiments/results/probe_slo_summary.md
 
 Keep this file together with the JSON summaries when updating the project report. The existing benchmark report remains based on `experiments/results/combined`; these new runs add validation evidence for the two recently added mechanisms rather than replacing the earlier latency/retry/recovery matrix.
 
+The checked-in supplemental evidence currently records:
+
+- `probe-ratio`: measured probe ratio `0.002177`, or `0.2177%`, with 560 probing-endpoint traces out of 257258 user-service traces.
+- `absolute-slo-disabled`: max slow_score `0.377401`, all samples `HEALTHY`.
+- `absolute-slo-enabled`: max slow_score `1.007183`, states `DEGRADED` and `HEALTHY`.
+
 ## 11. Reporting Rules
 
 - Report `round_robin` vs `adaptive_p2c` only after both rows exist for the same fault setup.

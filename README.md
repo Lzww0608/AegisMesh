@@ -225,7 +225,7 @@ make bench-absolute-slo
 make summarize-probe-slo
 ```
 
-See `docs/experiments.md` for the required controller thresholds and the recommended disabled/enabled absolute-SLO comparison.
+See `docs/experiments.md` for the required controller thresholds and the recommended disabled/enabled absolute-SLO comparison. The checked-in supplemental result summary is `experiments/results/probe_slo_summary.md`: the measured PROBING traffic ratio was `0.2177%`, and enabling absolute SLO scoring raised max slow_score from `0.377401` to `1.007183`, triggering `DEGRADED` only in the SLO-enabled run.
 
 Unary SDK calls also use a bounded retry policy:
 

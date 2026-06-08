@@ -1,0 +1,19 @@
+{
+  "conclusion": "PASS: PROBING endpoint traffic stayed within the configured probe-ratio bound.",
+  "destination": "user-service",
+  "max_expected_probe_ratio": 0.1,
+  "probe_ratio": 0.002177,
+  "probing_port": "7002",
+  "probing_state_rows": 9,
+  "probing_trace_rows": 560,
+  "probing_window_end_unix_ms": 1780905717158,
+  "probing_window_start_unix_ms": 1780905622158,
+  "recovery_path": "experiments/results/runs/probe-ratio/recovery.csv",
+  "trace_path": "experiments/traces/frontend-adaptive.jsonl",
+  "trace_rows_by_upstream": {
+    "172.18.0.4:7001": 256698,
+    "172.18.0.5:7002": 560
+  },
+  "trace_rows_in_window": 257258,
+  "within_expected_bound": true
+}

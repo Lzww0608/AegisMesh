@@ -18,14 +18,19 @@ def main():
     retry_rows = read_rows(results_dir / "retry.csv")
 
     write_summary(out_dir / "summary.md", latency_rows, retry_rows)
+    latency_plot = out_dir / "latency_p99.png"
     try:
         import matplotlib.pyplot as plt
     except ImportError:
+        if latency_plot.exists():
+            latency_plot.unlink()
         print("matplotlib is not installed; wrote markdown summary only")
         return
 
     if latency_rows:
-        plot_latency(plt, latency_rows, out_dir / "latency_p99.png")
+        plot_latency(plt, latency_rows, latency_plot)
+    elif latency_plot.exists():
+        latency_plot.unlink()
 
 
 def read_rows(path):
@@ -46,11 +51,17 @@ def write_summary(path, latency_rows, retry_rows):
 
 
 def plot_latency(plt, rows, path):
-    labels = [f"{row['experiment']}:{row['variant']}" for row in rows]
-    values = [float(row["latency_p99_ms"]) for row in rows if row.get("latency_p99_ms")]
-    labels = labels[: len(values)]
-    if not values:
+    points = [
+        (f"{row['experiment']}:{row['variant']}", float(row["latency_p99_ms"]))
+        for row in rows
+        if row.get("latency_p99_ms")
+    ]
+    if not points:
+        if path.exists():
+            path.unlink()
         return
+    labels = [label for label, _ in points]
+    values = [value for _, value in points]
     plt.figure(figsize=(max(8, len(values) * 1.4), 4))
     plt.bar(labels, values)
     plt.ylabel("p99 latency (ms)")

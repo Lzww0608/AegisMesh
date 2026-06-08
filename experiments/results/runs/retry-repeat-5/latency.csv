@@ -1,0 +1,3 @@
+experiment,variant,window_start_unix_ms,window_end_unix_ms,requests,throughput_rps,latency_p50_ms,latency_p95_ms,latency_p99_ms,error_rate
+retry_budget,without_budget,1780841438853,1780841439238,1000,2597.403,,,,1.0
+retry_budget,with_budget,1780841439296,1780841439755,1000,2178.649,,,,1.0
