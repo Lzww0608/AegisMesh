@@ -2,7 +2,7 @@
 
 This directory is used by the Docker experiment stack when `demo-frontend` is started with `--trace-log`.
 
-Generated JSONL files are runtime artifacts and should not be hand-written. A typical verification flow is:
+Generated JSONL files are runtime artifacts. Do not hand-write them. A typical check looks like this:
 
 ```bash
 rm -f experiments/traces/frontend-adaptive.jsonl

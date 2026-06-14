@@ -13,7 +13,7 @@
 | `absolute-slo-disabled` | 0.377401 | FAIL | FAIL | HEALTHY |
 | `absolute-slo-enabled` | 1.007183 | PASS | PASS | DEGRADED, HEALTHY |
 
-## Suggested Conclusion Template
+## Notes For Reporting
 
 - PROBING probe ratio: report the measured `probe_ratio` and whether it stayed below the configured bound.
 - Absolute SLO score: compare `without_absolute_slo` and `with_absolute_slo`; report max slow_score and whether degraded/ejected/probing states appeared only when SLO scoring was enabled.

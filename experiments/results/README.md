@@ -1,6 +1,6 @@
 # Experiment Results
 
-This directory stores generated experiment outputs. The checked-in `*_schema.csv` files define the expected columns only; they are not benchmark results.
+This directory stores experiment outputs. The checked-in `*_schema.csv` files define columns only; they are not benchmark results.
 
 Generated files:
 
@@ -8,7 +8,7 @@ Generated files:
 - `recovery.csv`: time-series recovery samples from Prometheus or Controller health snapshots
 - `retry.csv`: retry amplification windows
 - `figures/`: summary files and optional plots generated from measured CSV files
-- `probe_slo_summary.md`: supplemental measured summary for PROBING probe-ratio and absolute-SLO validation
-- `runs/*/probe_ratio_summary.json` and `runs/*/absolute_slo_summary.json`: per-run supplemental validation summaries
+- `probe_slo_summary.md`: measured summary for PROBING probe-ratio and absolute-SLO runs
+- `runs/*/probe_ratio_summary.json` and `runs/*/absolute_slo_summary.json`: per-run probe-ratio and absolute-SLO summaries
 
 Do not fill result rows by hand. Generate them from scripts or a real benchmark run and include the run environment in `docs/evaluation.md`.

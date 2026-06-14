@@ -2,15 +2,15 @@
 
 ## Abstract
 
-AegisMesh is a Go/gRPC adaptive RPC governance system designed for fail-slow microservice scenarios. The project implements a Controller control plane, memory and file-backed registries, PolicyService YAML snapshots, a Go gRPC SDK data plane, Prometheus/Grafana observability, endpoint telemetry windows, slow-fault scoring, an endpoint state machine, adaptive P2C routing, retry budgets, circuit breaking, fault injection, CI checks, a verifier that can read real SDK trace JSONL, eBPF TCP telemetry, and a DeathStarBench integration planner. The central design goal is to detect slow endpoints that still pass ordinary health checks, route traffic away from them without causing retry amplification, and recover them through a controlled probing path after the fault is removed.
+AegisMesh is a Go/gRPC RPC governance system for fail-slow microservices. It includes a Controller, memory and file-backed registries, PolicyService YAML snapshots, a Go gRPC SDK, Prometheus/Grafana metrics, endpoint telemetry windows, slow-fault scoring, an endpoint state machine, adaptive P2C routing, retry budgets, circuit breaking, fault injection, CI checks, a verifier for real SDK trace JSONL, eBPF TCP telemetry, and a DeathStarBench integration planner. The system targets a common failure mode: an endpoint still passes health checks, but its latency is high enough to hurt p99. AegisMesh detects that endpoint, shifts normal traffic away from it, limits retries, and brings it back through probing after the fault is removed.
 
-The final single-machine benchmark matrix was generated from `experiments/results/combined`. The matrix contains 61 latency rows, 18 retry rows, and 747 recovery rows after obsolete intermediate recovery runs were removed, and `experiments/scripts/check_results.py --results experiments/results/combined` reports that all required comparison pairs have evidence. In the slow-instance delay experiment, adaptive P2C reduced median p99 latency from 348.682 ms under round-robin routing to 32.712 ms, a 90.62% reduction. Under CPU throttle, slow_score reduced median p99 latency from 46.596 ms to 26.559 ms, a 43.00% reduction. The retry budget experiment reduced retry amplification from 2.000x without a budget to 1.150x with a budget. In the dedicated recovery run `recovery-state-final`, the delayed endpoint reached `slow_score=0.95`, transitioned through `DEGRADED`, `EJECTED`, and `PROBING`, and returned to stable `HEALTHY` after the fault was reset. Supplemental validation runs also confirmed that PROBING traffic stayed at 0.2177% of user-service trace rows during the probing window and that enabling absolute SLO scoring raised max slow_score from 0.377401 to 1.007183, triggering `DEGRADED` only in the SLO-enabled run.
+The final single-machine benchmark matrix comes from `experiments/results/combined`. It contains 61 latency rows, 18 retry rows, and 747 recovery rows after obsolete intermediate recovery runs were removed. `experiments/scripts/check_results.py --results experiments/results/combined` reports evidence for every required comparison. In the slow-instance delay experiment, adaptive P2C reduced median p99 latency from 348.682 ms with round-robin to 32.712 ms, a 90.62% reduction. Under CPU throttle, slow_score reduced median p99 latency from 46.596 ms to 26.559 ms, a 43.00% reduction. Retry budget reduced amplification from 2.000x to 1.150x. In the `recovery-state-final` run, the delayed endpoint reached `slow_score=0.95`, moved through `DEGRADED`, `EJECTED`, and `PROBING`, then returned to `HEALTHY` after the fault reset. Two later runs cover narrower checks: PROBING traffic stayed at 0.2177% of user-service trace rows, and absolute SLO scoring raised max slow_score from 0.377401 to 1.007183, with `DEGRADED` appearing only in the SLO-enabled run.
 
 ## Problem Statement
 
 Traditional service health checks are effective for fail-stop faults, but they are weak against fail-slow behavior. A microservice instance can keep accepting TCP connections and returning responses while its latency becomes high enough to dominate user-facing tail latency. Static outlier thresholds are also fragile because latency distributions vary by service, method, workload intensity, and deployment environment. A fixed timeout or a fixed p99 threshold can either miss a slow instance or eject healthy instances during legitimate workload changes.
 
-AegisMesh focuses on this gap. It treats slow fault handling as an online control problem: the SDK records per-endpoint RPC behavior, the Controller scores endpoints relative to peer behavior, the state machine applies hysteresis and ejection windows, and the data plane uses adaptive routing and bounded retries to keep request amplification under control.
+AegisMesh treats slow fault handling as an online control problem. The SDK records per-endpoint RPC behavior. The Controller scores endpoints against their peers, applies hysteresis and ejection windows, and returns health state to the data plane. The SDK then uses that state for adaptive routing and bounded retries.
 
 ## System Design
 
@@ -53,9 +53,9 @@ The required matrix contains six comparisons. Baseline compares direct/no-mesh c
 | CPU throttle | `static_threshold` | 46.596 ms | `slow_score` | 26.559 ms | 43.00% lower | 2092.132 vs 2652.539 RPS |
 | Packet loss | `no_ebpf_network_score` | 27.539 ms | `ebpf_network_score` | 26.456 ms | 3.93% lower | 2262.316 vs 2183.219 RPS |
 
-The no-fault baseline shows the expected cost of the governance layer: AegisMesh adds a 13.48% p99 latency overhead in the merged median, while throughput remains close to the no-mesh path. This is an acceptable tradeoff for a governance system whose value appears under fault. The slow-instance delay experiment is the strongest result: round-robin continues to send traffic to the delayed instance and reaches 348.682 ms median p99, while adaptive P2C keeps median p99 at 32.712 ms. CPU throttle also benefits from slow_score because the scoring path detects the degraded endpoint and reduces its effective routing weight.
+The no-fault baseline gives the cost of the extra layer: AegisMesh adds 13.48% p99 latency in the merged median, while throughput stays close to the no-mesh path. The value shows up under fault. In the slow-instance delay experiment, round-robin keeps sending traffic to the delayed instance and reaches 348.682 ms median p99. Adaptive P2C keeps median p99 at 32.712 ms. CPU throttle also improves with slow_score because the degraded endpoint gets a lower effective routing weight.
 
-The packet-loss result is positive but modest. The median p99 improvement is 3.93%, which is directionally useful but not strong enough to claim a major eBPF-driven win on this single-machine setup. The correct interpretation is that the eBPF path is integrated and can feed network signals into scoring, while larger multi-host or namespace-isolated experiments would be needed to quantify stronger network-fault benefits.
+The packet-loss result is small: median p99 improves by 3.93%. I would not present this as a major eBPF performance win. The fair claim is narrower: the eBPF path is wired into scoring, and a larger multi-host or namespace-isolated setup is needed before making stronger claims about network faults.
 
 ### Retry Amplification
 
@@ -64,7 +64,7 @@ The packet-loss result is positive but modest. The median p99 improvement is 3.9
 | `without_budget` | 1000 | 1000 | 2000 | 2.000x |
 | `with_budget` | 1000 | 150 | 1150 | 1.150x |
 
-The retry experiment demonstrates the main safety property of retry budgets. Without a budget, every original request is retried once, doubling the number of attempts. With the default 15% budget, 1000 original requests produce 150 retries and 1150 total attempts. This reduces extra retry attempts by 85% and reduces total downstream attempts by 42.5% compared with the unbudgeted case. The experiment uses a synthetic always-unavailable upstream, so the measured `error_rate=1.0` is expected and should not be interpreted as an availability result.
+The retry experiment isolates retry amplification. Without a budget, every original request is retried once, so attempts double. With the default 15% budget, 1000 original requests produce 150 retries and 1150 total attempts. Extra retry attempts drop by 85%, and total downstream attempts drop by 42.5% compared with the unbudgeted case. The upstream is synthetic and always returns `UNAVAILABLE`, so `error_rate=1.0` is expected. It is not an availability result.
 
 ### Recovery Curve
 
@@ -79,11 +79,11 @@ The final recovery run is `experiments/results/runs/recovery-state-final`. It us
 
 The affected endpoint was `172.18.0.5:7002`. Its maximum slow_score was 0.95 and its route weight fell to 0.512821 while slow. The unaffected endpoint `172.18.0.6:7001` stayed healthy with max slow_score 0.0. Relative to the recorder start, the affected endpoint first entered `DEGRADED` at about 23 s and first entered `EJECTED` at about 28 s. Because the fault was injected after the 20 s pre-fault phase, the first degraded transition happened about 3 s after injection and the first ejection happened about 8 s after injection. After the fault reset around the end of the 120 s fault phase, the endpoint returned to `HEALTHY` in the first sampled post-reset window and the final 30 sampled rows were all `HEALTHY`.
 
-This completes the recovery loop required for the project report: `HEALTHY -> DEGRADED -> EJECTED -> PROBING -> HEALTHY`. It demonstrates that AegisMesh can detect a slow endpoint, reduce its routing weight, eject it, periodically probe it, and return it to service after recovery.
+This run captures the recovery path needed for the report: `HEALTHY -> DEGRADED -> EJECTED -> PROBING -> HEALTHY`. The important part is not the state names themselves, but the behavior behind them: weight drops while the endpoint is slow, normal traffic stops during ejection, small probe traffic is allowed later, and the endpoint returns after the fault clears.
 
-### Supplemental Probe And SLO Validation
+### Supplemental Probe And SLO Checks
 
-The supplemental validation results are stored in `experiments/results/probe_slo_summary.md` and the corresponding run summary JSON files under `experiments/results/runs/`. These runs validate two mechanisms added after the main benchmark matrix: restricted traffic during `PROBING`, and absolute SLO scoring for all-slow or single-instance services.
+The supplemental results are stored in `experiments/results/probe_slo_summary.md` and the corresponding JSON files under `experiments/results/runs/`. These runs cover two mechanisms added after the main benchmark matrix: restricted traffic during `PROBING`, and absolute SLO scoring for all-slow or single-instance services.
 
 | Mechanism | Run | Key Measurement | Result |
 | --- | --- | ---: | --- |
@@ -93,7 +93,7 @@ The supplemental validation results are stored in `experiments/results/probe_slo
 
 The probe-ratio result shows that a recovering endpoint was not immediately restored to normal traffic. During the `PROBING` window, endpoint `172.18.0.5:7002` received only 560 of 257258 traced user-service calls, or 0.2177%, while the healthy peer received the remaining 256698 calls. This is below the configured 10% experiment bound and is consistent with the intended small-probe behavior.
 
-The absolute-SLO result demonstrates why relative scoring alone is insufficient when all endpoints are slow. With `AEGIS_HEALTH_LATENCY_SLO=0s`, the all-slow run stayed healthy and max slow_score was 0.377401. With `AEGIS_HEALTH_LATENCY_SLO=100ms`, max slow_score rose to 1.007183 and the controller observed 75 `DEGRADED` samples. This validates the `max(relative_score, p95_latency / latency_slo)` design without changing the main latency/retry/recovery benchmark conclusions.
+The absolute-SLO result shows the weakness of relative scoring when every endpoint is slow. With `AEGIS_HEALTH_LATENCY_SLO=0s`, the all-slow run stayed healthy and max slow_score was 0.377401. With `AEGIS_HEALTH_LATENCY_SLO=100ms`, max slow_score rose to 1.007183 and the controller observed 75 `DEGRADED` samples. That supports the `max(relative_score, p95_latency / latency_slo)` design without changing the main latency, retry, or recovery conclusions.
 
 ## Reproducibility
 
@@ -130,7 +130,7 @@ RECOVERY_DURATION=190s \
 make bench-recovery-state
 ```
 
-Supplemental probe-ratio and absolute-SLO validation can be reproduced with:
+Supplemental probe-ratio and absolute-SLO checks can be reproduced with:
 
 ```bash
 make bench-probe-ratio
@@ -158,10 +158,10 @@ max slow_score: 0.950000
 
 ## Limitations
 
-The current evaluation is a single-machine simulation. It is useful for demonstrating system behavior and comparing routing policies under controlled faults, but it does not replace a multi-node production-like benchmark. Docker networking, local CPU scheduling, and co-located containers can influence latency and recovery timing. The Controller now supports a file-backed registry snapshot, but this is local restart recovery rather than a replicated high-availability control plane. The policy layer exposes dynamic YAML snapshots through PolicyService, and the SDK applies the most important client-side fields for routing initialization, retry budgets, method timeout, and idempotency-aware retry control; broader online application of every outlier-detection and circuit-breaker field remains future work. The verifier now supports real SDK JSONL trace output, but it is still a file-based verification loop rather than a central online trace collector. The DeathStarBench component is a plan generator rather than a completed DeathStarBench benchmark result, so the project should not claim DeathStarBench evaluation until that experiment is actually run.
+The current evaluation is a single-machine simulation. It is useful for checking system behavior and comparing routing policies under controlled faults, but it does not replace a multi-node production-like benchmark. Docker networking, local CPU scheduling, and co-located containers can influence latency and recovery timing. The Controller now supports a file-backed registry snapshot, but this is local restart recovery rather than a replicated high-availability control plane. The policy layer exposes dynamic YAML snapshots through PolicyService, and the SDK applies the most important client-side fields for routing initialization, retry budgets, method timeout, and idempotency-aware retry control; broader online application of every outlier-detection and circuit-breaker field remains future work. The verifier now supports real SDK JSONL trace output, but it is still a file-based verification loop rather than a central online trace collector. The DeathStarBench component is a plan generator rather than a completed DeathStarBench benchmark result, so the project should not claim DeathStarBench evaluation until that experiment is actually run.
 
 The eBPF experiment should also be described conservatively. The code path exists and the merged packet-loss comparison shows a small p99 improvement, but the measured effect on one machine is modest. A stronger claim would require a more realistic network-fault setup and automated endpoint mapping from Controller registry state.
 
 ## Conclusion
 
-AegisMesh reaches the intended project milestone. It is no longer only a runnable RPC demo; it now has a reproducible experiment matrix and quantitative evidence for the core claims. The strongest results are adaptive P2C under slow-instance delay, slow_score under CPU throttle, bounded retry amplification, full endpoint state recovery, controlled PROBING traffic, and absolute-SLO slow-score detection. The project is ready to be summarized in a resume as an adaptive RPC governance system for fail-slow microservices, with honest caveats around single-machine evaluation, local file-backed rather than replicated control-plane persistence, file-based trace verification, and DeathStarBench integration status.
+AegisMesh has moved past the demo stage. It now has a runnable control plane and SDK, a single-machine experiment matrix, and measured results for the main claims. The clearest evidence is adaptive P2C under slow-instance delay, slow_score under CPU throttle, bounded retry amplification, endpoint recovery through probing, restricted PROBING traffic, and absolute-SLO detection. The resume version should still keep the caveats: the evaluation is single-machine, the file-backed registry is not a replicated control plane, the verifier is file-based, and DeathStarBench is an integration planner rather than a measured benchmark.

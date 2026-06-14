@@ -1,6 +1,6 @@
 # AegisMesh Evaluation Plan
 
-This document is the reproducible evaluation entrypoint. It records what was measured, how to collect it again, and where generated data belongs. The final project report is `docs/project_report.md`.
+This document records what was measured, how to collect it again, and where generated data belongs. The final project report is `docs/project_report.md`.
 
 ## Run Environment
 
@@ -96,7 +96,7 @@ Quantitative conclusions:
 - In the single slow instance experiment, adaptive P2C reduces median p99 latency by 90.62% compared with round-robin.
 - In the CPU throttle experiment, slow_score reduces median p99 latency by 43.00% compared with the static-threshold baseline.
 - In the retry experiment, retry budget reduces extra retry attempts from 1000 to 150 per 1000 original requests, limiting amplification from 2.000x to 1.150x.
-- In the recovery experiment, the delayed endpoint completes the state loop `HEALTHY -> DEGRADED -> EJECTED -> PROBING -> HEALTHY`; the final sampled rows return to `HEALTHY`.
+- In the recovery experiment, the delayed endpoint moves through `HEALTHY -> DEGRADED -> EJECTED -> PROBING -> HEALTHY`; the final sampled rows return to `HEALTHY`.
 
 ## Fault Recovery Curve
 
@@ -113,9 +113,9 @@ Metrics:
 
 Output: `experiments/results/recovery.csv`.
 
-## Supplemental PROBING And Absolute-SLO Validation
+## Supplemental PROBING And Absolute-SLO Checks
 
-Goal: validate the two later mechanisms that are not part of the original latency/retry matrix:
+Goal: check the two later mechanisms that are not part of the original latency/retry matrix:
 
 - `PROBING` endpoints should receive only limited probe traffic before returning to normal routing.
 - absolute SLO scoring should detect all-slow or single-instance slow services that relative peer-outlier scoring can miss.
@@ -135,7 +135,7 @@ Measured supplemental results:
 | Absolute SLO disabled | absolute-slo-disabled | max slow_score 0.377401, states HEALTHY only | Negative control |
 | Absolute SLO enabled | absolute-slo-enabled | max slow_score 1.007183, states DEGRADED and HEALTHY | PASS |
 
-Supplemental conclusions:
+Supplemental notes:
 
 - During the PROBING window, endpoint `172.18.0.5:7002` received 560 of 257258 user-service trace rows, or 0.2177%, below the 10% experiment bound.
 - Without absolute SLO scoring, the all-slow delay run stayed healthy and max slow_score remained 0.377401.
@@ -143,7 +143,7 @@ Supplemental conclusions:
 
 ## Ablation Matrix
 
-Recommended variants:
+Useful variants:
 
 | Variant | Purpose |
 | --- | --- |

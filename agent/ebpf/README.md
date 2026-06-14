@@ -1,6 +1,6 @@
 # AegisMesh eBPF Agent
 
-The eBPF agent observes kernel TCP signals and reports them to the Aegis Controller as endpoint telemetry samples. It currently emits:
+The eBPF agent reads kernel TCP signals and reports them to the Aegis Controller as endpoint telemetry samples. It currently emits:
 
 - `tcp_retransmit` from `tcp_retransmit_skb`
 - `connect_error` and `connect_latency` from `tcp_v4_connect`
@@ -22,7 +22,7 @@ agent/ebpf/bpf/tcp_metrics.bpf.o
 
 ## Run
 
-Start the Controller first, then run the agent with endpoint mappings that bind observed `ip:port` tuples to Aegis service instances:
+Start the Controller first, then run the agent with endpoint mappings that bind observed `ip:port` pairs to Aegis service instances:
 
 ```bash
 sudo go run ./cmd/agent \

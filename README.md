@@ -1,6 +1,6 @@
 # AegisMesh
 
-AegisMesh is an adaptive RPC governance system for microservice slow-fault scenarios. This first milestone implements the runnable foundation:
+AegisMesh is an adaptive RPC governance system for microservice slow-fault scenarios. The current codebase includes:
 
 1. demo microservice system
 2. Controller + in-memory Registry
@@ -87,16 +87,16 @@ make inject-delay TARGET=aegis-user-b DELAY=200ms JITTER=50ms
 make reset-faults TARGET=aegis-user-b
 ```
 
-Run the benchmark scaffolding and generate local reports:
+Run the benchmark scripts and write local reports:
 
 ```bash
 make bench
 make report
 ```
 
-The reproducible evaluation plan and CSV schemas live in `docs/evaluation.md` and `experiments/results/`. Checked-in schema files are not benchmark results.
-The full comparison matrix and operator guide live in `docs/experiments.md`.
-The final project report and resume-ready project wording live in `docs/project_report.md` and `docs/resume.md`.
+The evaluation plan and CSV schemas are in `docs/evaluation.md` and `experiments/results/`. Checked-in schema files are column definitions, not benchmark results.
+The comparison matrix and run guide are in `docs/experiments.md`.
+The project report and resume wording are in `docs/project_report.md` and `docs/resume.md`.
 
 Manual local path:
 
@@ -140,7 +140,7 @@ Call the frontend:
 Invoke-RestMethod 'http://127.0.0.1:8080/checkout?user_id=u-42&items=sku-9,sku-10'
 ```
 
-With two `user-service` instances running, repeated requests should alternate between `version: v1` and `version: v2`, showing that service discovery and basic load balancing are active.
+With two `user-service` instances running, repeated requests should alternate between `version: v1` and `version: v2`. That confirms service discovery and basic load balancing are working.
 
 Application-level slow calls and errors can be injected directly into demo services:
 
@@ -200,7 +200,7 @@ go run ./cmd/controller \
   --policy-reload-interval 3s
 ```
 
-The experiment compose stack mounts `experiments/policy/demo-policy.yaml` into the controller and enables `PolicyService` by default. SDK clients call `GetPolicy` during dial, then keep a `WatchPolicy` stream open. The initial snapshot selects the routing policy, and live snapshots are applied to service-level retry settings, retry budget windows, per-method timeout, and idempotency-aware retry behavior. For example, `GetUser` can remain retryable while `CreateOrder` is configured as non-idempotent and forced to a single attempt.
+The experiment compose stack mounts `experiments/policy/demo-policy.yaml` into the controller and enables `PolicyService` by default. SDK clients call `GetPolicy` during dial, then keep a `WatchPolicy` stream open. The first snapshot selects the routing policy. Later snapshots update service-level retry settings, retry budget windows, per-method timeout, and idempotency-aware retry behavior. For example, `GetUser` can remain retryable while `CreateOrder` is marked non-idempotent and kept to one attempt.
 
 ## Routing, Retry, And Breakers
 
@@ -225,7 +225,7 @@ make bench-absolute-slo
 make summarize-probe-slo
 ```
 
-See `docs/experiments.md` for the required controller thresholds and the recommended disabled/enabled absolute-SLO comparison. The checked-in supplemental result summary is `experiments/results/probe_slo_summary.md`: the measured PROBING traffic ratio was `0.2177%`, and enabling absolute SLO scoring raised max slow_score from `0.377401` to `1.007183`, triggering `DEGRADED` only in the SLO-enabled run.
+See `docs/experiments.md` for the controller thresholds and the disabled/enabled absolute-SLO comparison. The checked-in supplemental summary is `experiments/results/probe_slo_summary.md`: PROBING traffic was `0.2177%`, and enabling absolute SLO scoring raised max slow_score from `0.377401` to `1.007183`, with `DEGRADED` appearing only in the SLO-enabled run.
 
 Unary SDK calls also use a bounded retry policy:
 
@@ -268,7 +268,7 @@ go run ./cmd/fault-injector --kind reset --container user-v2
 
 ## Verifier
 
-The verifier checks whether observed traces match an expected traffic policy. It validates route distribution, retry attempts, and forbidden service-call edges.
+The verifier checks whether observed traces match an expected traffic policy. It checks route distribution, retry attempts, and forbidden service-call edges.
 
 ```powershell
 go run ./cmd/verifier --spec experiments/verifier/canary-user-service.yaml --traces experiments/verifier/sample-traces.jsonl
@@ -291,7 +291,7 @@ curl 'http://127.0.0.1:8083/checkout'
 go run ./cmd/verifier --spec experiments/verifier/real-trace-smoke.yaml --traces experiments/traces/frontend-adaptive.jsonl
 ```
 
-Each SDK trace event includes `x-aegis-trace-id`, `x-aegis-span-id`, `x-aegis-attempt`, route, path, upstream, status, and retry-attempt count. This turns the verifier from a sample-only checker into a verifier that can validate real SDK runtime traces.
+Each SDK trace event includes `x-aegis-trace-id`, `x-aegis-span-id`, `x-aegis-attempt`, route, path, upstream, status, and retry-attempt count. The verifier can use those files directly, so it is no longer limited to hand-written samples.
 
 ## Dashboard
 
@@ -319,7 +319,7 @@ The BPF program lives under:
 agent/ebpf/bpf/tcp_metrics.bpf.c
 ```
 
-Current eBPF signals wired into telemetry:
+Current eBPF signals sent into telemetry:
 
 ```text
 tcp_retransmit
@@ -354,4 +354,4 @@ AegisMesh includes a Social Network adapter config and plan generator:
 go run ./cmd/deathstarbench-adapter --config experiments/deathstarbench/social-network.yaml
 ```
 
-The generated plan includes the Docker Compose command, Aegis controller environment, service mapping, and workload command. This keeps the benchmark integration explicit without cloning or mutating the external DeathStarBench repo from this workspace.
+The generated plan includes the Docker Compose command, Aegis controller environment, service mapping, and workload command. The adapter does not clone or modify the external DeathStarBench repo.
