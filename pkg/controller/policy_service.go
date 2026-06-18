@@ -54,8 +54,8 @@ func (s *PolicyService) WatchPolicy(req *aegisv1.WatchPolicyRequest, stream aegi
 		return status.Error(codes.NotFound, "policy store is not configured")
 	}
 
-	var lastVersion int64
-	if err := s.sendIfChanged(req.Service, &lastVersion, stream); err != nil {
+	var lastRevision int64
+	if err := s.sendIfChanged(req.Service, &lastRevision, stream); err != nil {
 		return err
 	}
 
@@ -72,21 +72,21 @@ func (s *PolicyService) WatchPolicy(req *aegisv1.WatchPolicyRequest, stream aegi
 					return status.Error(codes.Internal, err.Error())
 				}
 			}
-			if err := s.sendIfChanged(req.Service, &lastVersion, stream); err != nil {
+			if err := s.sendIfChanged(req.Service, &lastRevision, stream); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-func (s *PolicyService) sendIfChanged(service string, lastVersion *int64, stream aegisv1.PolicyService_WatchPolicyServer) error {
+func (s *PolicyService) sendIfChanged(service string, lastRevision *int64, stream aegisv1.PolicyService_WatchPolicyServer) error {
 	snapshot, ok := s.store.Get(service)
 	if !ok {
 		return status.Error(codes.NotFound, "policy not found")
 	}
-	if snapshot.Version == *lastVersion {
+	if snapshot.Revision == *lastRevision {
 		return nil
 	}
-	*lastVersion = snapshot.Version
+	*lastRevision = snapshot.Revision
 	return stream.Send(proto.Clone(snapshot).(*aegisv1.PolicySnapshot))
 }

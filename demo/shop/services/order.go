@@ -13,20 +13,20 @@ import (
 type OrderServer struct {
 	shopv1.UnimplementedOrderServiceServer
 
-	version string
+	variant string
 	fault   FaultProfile
 	nextID  atomic.Uint64
 }
 
-func NewOrderServer(version string) *OrderServer {
-	return NewOrderServerWithFault(version, FaultProfile{})
+func NewOrderServer(variant string) *OrderServer {
+	return NewOrderServerWithFault(variant, FaultProfile{})
 }
 
-func NewOrderServerWithFault(version string, fault FaultProfile) *OrderServer {
-	if version == "" {
-		version = "v1"
+func NewOrderServerWithFault(variant string, fault FaultProfile) *OrderServer {
+	if variant == "" {
+		variant = "primary"
 	}
-	return &OrderServer{version: version, fault: fault}
+	return &OrderServer{variant: variant, fault: fault}
 }
 
 func (s *OrderServer) CreateOrder(ctx context.Context, req *shopv1.CreateOrderRequest) (*shopv1.CreateOrderResponse, error) {
@@ -39,6 +39,6 @@ func (s *OrderServer) CreateOrder(ctx context.Context, req *shopv1.CreateOrderRe
 		UserId:  req.UserId,
 		ItemIds: append([]string(nil), req.ItemIds...),
 		Status:  "CREATED",
-		Version: s.version,
+		Variant: s.variant,
 	}, nil
 }

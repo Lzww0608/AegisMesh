@@ -19,7 +19,7 @@ message GetUserRequest {
 message GetUserResponse {
   string user_id = 1;
   string name = 2;
-  string version = 3;
+  string variant = 3;
 }
 
 message CreateOrderRequest {
@@ -32,5 +32,5 @@ message CreateOrderResponse {
   string user_id = 2;
   repeated string item_ids = 3;
   string status = 4;
-  string version = 5;
+  string variant = 5;
 }

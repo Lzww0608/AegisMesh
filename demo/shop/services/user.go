@@ -11,19 +11,19 @@ import (
 type UserServer struct {
 	shopv1.UnimplementedUserServiceServer
 
-	version string
+	variant string
 	fault   FaultProfile
 }
 
-func NewUserServer(version string) *UserServer {
-	return NewUserServerWithFault(version, FaultProfile{})
+func NewUserServer(variant string) *UserServer {
+	return NewUserServerWithFault(variant, FaultProfile{})
 }
 
-func NewUserServerWithFault(version string, fault FaultProfile) *UserServer {
-	if version == "" {
-		version = "v1"
+func NewUserServerWithFault(variant string, fault FaultProfile) *UserServer {
+	if variant == "" {
+		variant = "primary"
 	}
-	return &UserServer{version: version, fault: fault}
+	return &UserServer{variant: variant, fault: fault}
 }
 
 func (s *UserServer) GetUser(ctx context.Context, req *shopv1.GetUserRequest) (*shopv1.GetUserResponse, error) {
@@ -33,6 +33,6 @@ func (s *UserServer) GetUser(ctx context.Context, req *shopv1.GetUserRequest) (*
 	return &shopv1.GetUserResponse{
 		UserId:  req.UserId,
 		Name:    "user-" + req.UserId,
-		Version: s.version,
+		Variant: s.variant,
 	}, nil
 }

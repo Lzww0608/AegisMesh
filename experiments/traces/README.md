@@ -1,8 +1,8 @@
 # Runtime Trace Output
 
-This directory is used by the Docker experiment stack when `demo-frontend` is started with `--trace-log`.
+The Docker experiment stack writes SDK trace JSONL here when `demo-frontend` starts with `--trace-log`.
 
-Generated JSONL files are runtime artifacts. Do not hand-write them. A typical check looks like this:
+The JSONL files are runtime artifacts. Do not hand-write them. A typical check:
 
 ```bash
 rm -f experiments/traces/frontend-adaptive.jsonl

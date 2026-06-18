@@ -109,7 +109,7 @@ func (s *FileStore) Reload() error {
 	}
 
 	policies := make(map[string]*aegisv1.PolicySnapshot, len(cfg.Services))
-	version := info.ModTime().UnixNano()
+	revision := info.ModTime().UnixNano()
 	for service, serviceCfg := range cfg.Services {
 		methods := make(map[string]*aegisv1.MethodPolicy, len(serviceCfg.Methods))
 		for method, methodCfg := range serviceCfg.Methods {
@@ -122,7 +122,7 @@ func (s *FileStore) Reload() error {
 		}
 		policies[service] = &aegisv1.PolicySnapshot{
 			Service:          service,
-			Version:          version,
+			Revision:         revision,
 			RoutingPolicy:    serviceCfg.RoutingPolicy,
 			Retry:            retryToProto(serviceCfg.Retry),
 			OutlierDetection: outlierToProto(serviceCfg.OutlierDetection),
@@ -133,7 +133,7 @@ func (s *FileStore) Reload() error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.modTime = version
+	s.modTime = revision
 	s.policies = policies
 	return nil
 }

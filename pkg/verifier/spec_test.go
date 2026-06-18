@@ -11,8 +11,8 @@ test:
   requests: 1000
 expect:
   routes:
-    user-service:v1: 0.90
-    user-service:v2: 0.10
+    user-service:primary: 0.90
+    user-service:secondary: 0.10
   tolerance: 0.03
   max_retry_attempts: 1
   forbidden_edges:
@@ -24,8 +24,8 @@ expect:
 	if spec.Test.Name != "canary-user-service" || spec.Test.Requests != 1000 {
 		t.Fatalf("unexpected test section: %+v", spec.Test)
 	}
-	if spec.Expect.Routes["user-service:v2"] != 0.10 {
-		t.Fatalf("expected route split for v2, got %+v", spec.Expect.Routes)
+	if spec.Expect.Routes["user-service:secondary"] != 0.10 {
+		t.Fatalf("expected route split for secondary, got %+v", spec.Expect.Routes)
 	}
 	if spec.Expect.MaxRetryAttempts != 1 {
 		t.Fatalf("expected max retry attempts 1, got %d", spec.Expect.MaxRetryAttempts)
@@ -36,8 +36,8 @@ func TestVerifyTraceDistributionPassesWithinTolerance(t *testing.T) {
 	spec := Spec{
 		Expect: ExpectSpec{
 			Routes: map[string]float64{
-				"user-service:v1": 0.75,
-				"user-service:v2": 0.25,
+				"user-service:primary":   0.75,
+				"user-service:secondary": 0.25,
 			},
 			Tolerance:        0.01,
 			MaxRetryAttempts: 1,
@@ -45,17 +45,17 @@ func TestVerifyTraceDistributionPassesWithinTolerance(t *testing.T) {
 	}
 
 	report := Verify(spec, []TraceRecord{
-		{TraceID: "1", Route: "user-service:v1", Path: []string{"frontend", "user-service:v1"}, RetryAttempts: 0},
-		{TraceID: "2", Route: "user-service:v1", Path: []string{"frontend", "user-service:v1"}, RetryAttempts: 1},
-		{TraceID: "3", Route: "user-service:v1", Path: []string{"frontend", "user-service:v1"}, RetryAttempts: 0},
-		{TraceID: "4", Route: "user-service:v2", Path: []string{"frontend", "user-service:v2"}, RetryAttempts: 0},
+		{TraceID: "1", Route: "user-service:primary", Path: []string{"frontend", "user-service:primary"}, RetryAttempts: 0},
+		{TraceID: "2", Route: "user-service:primary", Path: []string{"frontend", "user-service:primary"}, RetryAttempts: 1},
+		{TraceID: "3", Route: "user-service:primary", Path: []string{"frontend", "user-service:primary"}, RetryAttempts: 0},
+		{TraceID: "4", Route: "user-service:secondary", Path: []string{"frontend", "user-service:secondary"}, RetryAttempts: 0},
 	})
 
 	if !report.Passed {
 		t.Fatalf("expected report to pass, got %+v", report.Checks)
 	}
-	if report.RouteDistribution["user-service:v2"] != 0.25 {
-		t.Fatalf("expected v2 distribution 0.25, got %+v", report.RouteDistribution)
+	if report.RouteDistribution["user-service:secondary"] != 0.25 {
+		t.Fatalf("expected secondary distribution 0.25, got %+v", report.RouteDistribution)
 	}
 }
 
@@ -63,8 +63,8 @@ func TestVerifyTraceDistributionFailsOutsideToleranceAndForbiddenEdge(t *testing
 	spec := Spec{
 		Expect: ExpectSpec{
 			Routes: map[string]float64{
-				"user-service:v1": 0.50,
-				"user-service:v2": 0.50,
+				"user-service:primary":   0.50,
+				"user-service:secondary": 0.50,
 			},
 			Tolerance:        0.05,
 			MaxRetryAttempts: 1,
@@ -73,14 +73,14 @@ func TestVerifyTraceDistributionFailsOutsideToleranceAndForbiddenEdge(t *testing
 	}
 
 	report := Verify(spec, []TraceRecord{
-		{TraceID: "1", Route: "user-service:v1", Path: []string{"frontend", "payment-service"}, RetryAttempts: 2},
-		{TraceID: "2", Route: "user-service:v1", Path: []string{"frontend", "user-service:v1"}, RetryAttempts: 0},
+		{TraceID: "1", Route: "user-service:primary", Path: []string{"frontend", "payment-service"}, RetryAttempts: 2},
+		{TraceID: "2", Route: "user-service:primary", Path: []string{"frontend", "user-service:primary"}, RetryAttempts: 0},
 	})
 
 	if report.Passed {
 		t.Fatalf("expected report to fail")
 	}
-	if !report.HasFailedCheck("route_distribution:user-service:v1") {
+	if !report.HasFailedCheck("route_distribution:user-service:primary") {
 		t.Fatalf("expected route distribution failure, got %+v", report.Checks)
 	}
 	if !report.HasFailedCheck("retry_budget") {

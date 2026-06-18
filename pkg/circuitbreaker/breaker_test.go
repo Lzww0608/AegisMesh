@@ -45,3 +45,22 @@ func TestBreakerTracksEndpointsIndependently(t *testing.T) {
 	}
 	releaseB()
 }
+
+func TestBreakerTryAcquireAndRelease(t *testing.T) {
+	breaker := NewBreaker(Config{MaxInflightPerEndpoint: 1})
+
+	if err := breaker.TryAcquire("user-a"); err != nil {
+		t.Fatalf("first try-acquire: %v", err)
+	}
+	if err := breaker.TryAcquire("user-a"); !errors.Is(err, ErrOpen) {
+		t.Fatalf("expected ErrOpen after max inflight is reached, got %v", err)
+	}
+
+	breaker.Release("user-a")
+	if got := breaker.Inflight("user-a"); got != 0 {
+		t.Fatalf("expected inflight to drop to 0 after release, got %d", got)
+	}
+	if err := breaker.TryAcquire("user-a"); err != nil {
+		t.Fatalf("try-acquire after release: %v", err)
+	}
+}

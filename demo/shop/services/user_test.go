@@ -7,8 +7,8 @@ import (
 	shopv1 "github.com/aegismesh/aegismesh/api/proto/demo/shop/v1"
 )
 
-func TestUserServerReturnsUserAndVersion(t *testing.T) {
-	server := NewUserServer("v1")
+func TestUserServerReturnsUserAndVariant(t *testing.T) {
+	server := NewUserServer("primary")
 
 	got, err := server.GetUser(context.Background(), &shopv1.GetUserRequest{UserId: "u-100"})
 	if err != nil {
@@ -20,7 +20,7 @@ func TestUserServerReturnsUserAndVersion(t *testing.T) {
 	if got.Name != "user-u-100" {
 		t.Fatalf("expected generated user name, got %s", got.Name)
 	}
-	if got.Version != "v1" {
-		t.Fatalf("expected version v1, got %s", got.Version)
+	if got.Variant != "primary" {
+		t.Fatalf("expected variant primary, got %s", got.Variant)
 	}
 }

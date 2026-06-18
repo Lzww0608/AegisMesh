@@ -16,7 +16,7 @@ type Registration struct {
 	Service        string
 	InstanceID     string
 	Address        string
-	Version        string
+	Variant        string
 	TTL            time.Duration
 }
 
@@ -37,7 +37,7 @@ func StartRegistration(ctx context.Context, cfg Registration) error {
 		Address: cfg.Address,
 		Status:  string(registry.InstanceHealthy),
 		Labels: map[string]string{
-			"version": cfg.Version,
+			"variant": cfg.Variant,
 		},
 	}
 	if _, err := client.RegisterInstance(ctx, &aegisv1.RegisterInstanceRequest{

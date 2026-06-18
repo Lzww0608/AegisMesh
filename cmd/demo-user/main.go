@@ -20,7 +20,7 @@ func main() {
 	controllerAddr := flag.String("controller", "127.0.0.1:9000", "aegis controller address")
 	serviceName := flag.String("service", "user-service", "registered service name")
 	instanceID := flag.String("instance", "user-1", "service instance id")
-	version := flag.String("version", "v1", "service version label")
+	variant := flag.String("variant", "primary", "service variant label")
 	ttl := flag.Duration("ttl", 15*time.Second, "registry lease TTL")
 	slowProbability := flag.Float64("slow-probability", 0, "probability of injecting application-level slow calls")
 	slowDuration := flag.Duration("slow-duration", 0, "application-level injected slow call duration")
@@ -40,14 +40,14 @@ func main() {
 		Service:        *serviceName,
 		InstanceID:     *instanceID,
 		Address:        *addr,
-		Version:        *version,
+		Variant:        *variant,
 		TTL:            *ttl,
 	}); err != nil {
 		log.Fatalf("register user-service: %v", err)
 	}
 
 	server := grpc.NewServer()
-	shopv1.RegisterUserServiceServer(server, services.NewUserServerWithFault(*version, services.FaultProfile{
+	shopv1.RegisterUserServiceServer(server, services.NewUserServerWithFault(*variant, services.FaultProfile{
 		SlowProbability:  *slowProbability,
 		SlowDuration:     *slowDuration,
 		ErrorProbability: *errorProbability,

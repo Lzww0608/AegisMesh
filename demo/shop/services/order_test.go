@@ -8,7 +8,7 @@ import (
 )
 
 func TestOrderServerCreatesOrderWithRequestItems(t *testing.T) {
-	server := NewOrderServer("v2")
+	server := NewOrderServer("secondary")
 
 	got, err := server.CreateOrder(context.Background(), &shopv1.CreateOrderRequest{
 		UserId:  "u-100",
@@ -23,8 +23,8 @@ func TestOrderServerCreatesOrderWithRequestItems(t *testing.T) {
 	if got.Status != "CREATED" {
 		t.Fatalf("expected CREATED status, got %s", got.Status)
 	}
-	if got.Version != "v2" {
-		t.Fatalf("expected version v2, got %s", got.Version)
+	if got.Variant != "secondary" {
+		t.Fatalf("expected variant secondary, got %s", got.Variant)
 	}
 	if len(got.ItemIds) != 2 || got.ItemIds[0] != "sku-1" || got.ItemIds[1] != "sku-2" {
 		t.Fatalf("unexpected item ids: %+v", got.ItemIds)

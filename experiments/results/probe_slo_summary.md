@@ -1,6 +1,6 @@
-# PROBING Probe Ratio And Absolute SLO Summary
+# PROBING probe ratio and absolute SLO summary
 
-## PROBING Probe Ratio
+## PROBING probe ratio
 
 | Run | Probe Ratio | Bound | Pass | Trace Rows | PROBING Rows |
 | --- | ---: | ---: | --- | ---: | ---: |
@@ -13,7 +13,7 @@
 | `absolute-slo-disabled` | 0.377401 | FAIL | FAIL | HEALTHY |
 | `absolute-slo-enabled` | 1.007183 | PASS | PASS | DEGRADED, HEALTHY |
 
-## Notes For Reporting
+## Notes for reporting
 
 - PROBING probe ratio: report the measured `probe_ratio` and whether it stayed below the configured bound.
-- Absolute SLO score: compare `without_absolute_slo` and `with_absolute_slo`; report max slow_score and whether degraded/ejected/probing states appeared only when SLO scoring was enabled.
+- Absolute SLO score: compare `without_absolute_slo` and `with_absolute_slo`; report max slow_score and whether degraded/ejected/probing states appeared only with SLO scoring enabled.

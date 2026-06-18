@@ -36,8 +36,8 @@ services:
       - controller:9000
       - --instance
       - user-a
-      - --version
-      - v1
+      - --variant
+      - primary
     cap_add:
       - NET_ADMIN
     depends_on:
@@ -61,8 +61,8 @@ services:
       - controller:9000
       - --instance
       - user-b
-      - --version
-      - v2
+      - --variant
+      - secondary
     cap_add:
       - NET_ADMIN
     depends_on:
@@ -86,8 +86,8 @@ services:
       - controller:9000
       - --instance
       - order-a
-      - --version
-      - v1
+      - --variant
+      - primary
     cap_add:
       - NET_ADMIN
     depends_on:

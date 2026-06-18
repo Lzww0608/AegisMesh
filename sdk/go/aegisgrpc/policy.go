@@ -47,11 +47,11 @@ func (m *policyManager) Snapshot() *aegisv1.PolicySnapshot {
 }
 
 type dynamicRetrySource struct {
-	mu             sync.Mutex
-	defaults       DialOptions
-	manager        *policyManager
-	budgets        map[string]*retrypkg.Budget
-	budgetVersions map[string]int64
+	mu              sync.Mutex
+	defaults        DialOptions
+	manager         *policyManager
+	budgets         map[string]*retrypkg.Budget
+	budgetRevisions map[string]int64
 }
 
 func newDynamicRetrySource(defaults DialOptions, manager *policyManager) *dynamicRetrySource {
@@ -59,10 +59,10 @@ func newDynamicRetrySource(defaults DialOptions, manager *policyManager) *dynami
 		manager = &policyManager{}
 	}
 	return &dynamicRetrySource{
-		defaults:       normalizeDialOptions(defaults),
-		manager:        manager,
-		budgets:        make(map[string]*retrypkg.Budget),
-		budgetVersions: make(map[string]int64),
+		defaults:        normalizeDialOptions(defaults),
+		manager:         manager,
+		budgets:         make(map[string]*retrypkg.Budget),
+		budgetRevisions: make(map[string]int64),
 	}
 }
 
@@ -85,23 +85,23 @@ func (s *dynamicRetrySource) PolicyForMethod(method string) (RetryPolicy, *retry
 		return policy, nil
 	}
 
-	version := int64(0)
+	revision := int64(0)
 	if snapshot != nil {
-		version = snapshot.Version
+		revision = snapshot.Revision
 	}
-	budget := s.budgetForMethod(method, version, budgetCfg)
+	budget := s.budgetForMethod(method, revision, budgetCfg)
 	return policy, budget
 }
 
-func (s *dynamicRetrySource) budgetForMethod(method string, version int64, cfg retrypkg.BudgetConfig) *retrypkg.Budget {
+func (s *dynamicRetrySource) budgetForMethod(method string, revision int64, cfg retrypkg.BudgetConfig) *retrypkg.Budget {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	budget := s.budgets[method]
-	if budget == nil || s.budgetVersions[method] != version {
+	if budget == nil || s.budgetRevisions[method] != revision {
 		budget = retrypkg.NewBudget(cfg)
 		s.budgets[method] = budget
-		s.budgetVersions[method] = version
+		s.budgetRevisions[method] = revision
 	}
 	return budget
 }

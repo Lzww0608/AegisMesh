@@ -15,7 +15,7 @@ func TestMemoryRegistryRegistersAndListsLiveInstances(t *testing.T) {
 		Service: "user-service",
 		Address: "127.0.0.1:7001",
 		Status:  InstanceHealthy,
-		Labels:  map[string]string{"version": "v1"},
+		Labels:  map[string]string{"variant": "primary"},
 	}, 10*time.Second)
 	if err != nil {
 		t.Fatalf("register instance: %v", err)
@@ -31,7 +31,7 @@ func TestMemoryRegistryRegistersAndListsLiveInstances(t *testing.T) {
 	if got[0].ID != "user-1" || got[0].Address != "127.0.0.1:7001" {
 		t.Fatalf("unexpected instance: %+v", got[0])
 	}
-	if got[0].Labels["version"] != "v1" {
+	if got[0].Labels["variant"] != "primary" {
 		t.Fatalf("expected labels to round-trip, got %+v", got[0].Labels)
 	}
 }

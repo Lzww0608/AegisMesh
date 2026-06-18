@@ -12,7 +12,7 @@ func TestPolicyServiceReturnsSnapshot(t *testing.T) {
 	service := NewPolicyService(staticPolicyStore{
 		snapshot: &aegisv1.PolicySnapshot{
 			Service:       "user-service",
-			Version:       7,
+			Revision:      7,
 			RoutingPolicy: "adaptive_p2c",
 			Retry: &aegisv1.RetryPolicy{
 				Enabled:       true,
@@ -28,7 +28,7 @@ func TestPolicyServiceReturnsSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get policy: %v", err)
 	}
-	if resp.Service != "user-service" || resp.Version != 7 || resp.Retry.GetBudgetRatio() != 0.15 {
+	if resp.Service != "user-service" || resp.Revision != 7 || resp.Retry.GetBudgetRatio() != 0.15 {
 		t.Fatalf("unexpected policy snapshot: %+v", resp)
 	}
 }

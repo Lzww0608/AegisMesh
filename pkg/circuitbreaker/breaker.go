@@ -27,31 +27,41 @@ func NewBreaker(cfg Config) *Breaker {
 	}
 }
 
-func (b *Breaker) Acquire(endpoint string) (func(), error) {
-	if endpoint == "" {
-		endpoint = "unknown"
-	}
+func (b *Breaker) TryAcquire(endpoint string) error {
+	endpoint = normalizeEndpoint(endpoint)
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	if b.inflight[endpoint] >= b.max {
-		return nil, ErrOpen
+		return ErrOpen
 	}
 	b.inflight[endpoint]++
+	return nil
+}
+
+func (b *Breaker) Acquire(endpoint string) (func(), error) {
+	endpoint = normalizeEndpoint(endpoint)
+	if err := b.TryAcquire(endpoint); err != nil {
+		return nil, err
+	}
 
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			b.release(endpoint)
+			b.Release(endpoint)
 		})
 	}, nil
+}
+
+func (b *Breaker) Release(endpoint string) {
+	b.release(normalizeEndpoint(endpoint))
 }
 
 func (b *Breaker) Inflight(endpoint string) int64 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.inflight[endpoint]
+	return b.inflight[normalizeEndpoint(endpoint)]
 }
 
 func (b *Breaker) release(endpoint string) {
@@ -62,4 +72,11 @@ func (b *Breaker) release(endpoint string) {
 		return
 	}
 	b.inflight[endpoint]--
+}
+
+func normalizeEndpoint(endpoint string) string {
+	if endpoint == "" {
+		return "unknown"
+	}
+	return endpoint
 }

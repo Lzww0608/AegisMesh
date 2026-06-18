@@ -1,6 +1,6 @@
 # AegisMesh Experiment Guide
 
-This guide explains how to reproduce the single machine benchmark data used by the project report. Do not copy numbers into a resume until `check-results` passes on measured CSV files.
+This guide is for reproducing the single-machine benchmark data used in the report. Do not put a number in the resume until `check-results` passes on measured CSV files.
 
 ## 1. Start The Experiment Stack
 
@@ -8,7 +8,7 @@ This guide explains how to reproduce the single machine benchmark data used by t
 make experiments-up
 ```
 
-This starts:
+This brings up:
 
 - `frontend-direct` on `127.0.0.1:8081`
 - `frontend-round-robin` on `127.0.0.1:8082`
@@ -47,7 +47,7 @@ RECOVERY_DURATION=60s \
 make bench-single-machine
 ```
 
-The retry comparison uses `retry-user-service`, a dedicated demo service that always returns `UNAVAILABLE`. `frontend-retry-unbudgeted` measures unbounded two-attempt retry behavior, while `frontend-retry-budgeted` measures retry-budget admission.
+The retry comparison uses `retry-user-service`, a demo service that always returns `UNAVAILABLE`. `frontend-retry-unbudgeted` shows two-attempt retry behavior without a budget. `frontend-retry-budgeted` runs the same failure with budget admission enabled.
 
 For a direct run into `experiments/results`:
 
@@ -56,11 +56,11 @@ REQUESTS=1000 CONCURRENCY=32 make bench-required
 ```
 
 The matrix is defined in `experiments/config/experiment_matrix.json`.
-During the packet-loss eBPF comparison, the script pauses before `packet_loss/ebpf_network_score` so you can start `cmd/agent` in another terminal. For non-interactive smoke runs, set `WAIT_FOR_EBPF=false`.
+During the packet-loss eBPF comparison, the script pauses before `packet_loss/ebpf_network_score`. Start `cmd/agent` in another terminal at that point. For non-interactive smoke runs, set `WAIT_FOR_EBPF=false`.
 
 Required comparisons:
 
-| Experiment | Required variants | Purpose |
+| Experiment | Required variants | What it checks |
 | --- | --- | --- |
 | `baseline` | `no_mesh`, `aegismesh` | no-fault overhead and baseline latency |
 | `single_instance_delay` | `round_robin`, `adaptive_p2c` | slow instance routing benefit |
@@ -89,7 +89,7 @@ If the demo runs inside Docker, map the container IP and port visible from the h
 make check-results
 ```
 
-This checks that all required scenario/variant pairs have evidence rows and prints derived p99 and retry amplification comparisons.
+This checks that all required scenario/variant pairs have rows and prints the derived p99 and retry amplification comparisons.
 
 For partial smoke runs:
 
@@ -103,7 +103,7 @@ python experiments/scripts/check_results.py --allow-partial
 make report
 ```
 
-Generated files go under `experiments/results/figures/`.
+Generated files are written under `experiments/results/figures/`.
 
 ## 6. Merge Old And New Results
 
@@ -113,7 +113,7 @@ After running one or more timestamped runs, combine the previous flat result fil
 make merge-results
 ```
 
-The merged outputs are written to `experiments/results/combined` with a `run_id` column added to each CSV. Use this combined directory for the final report:
+The merged outputs are written to `experiments/results/combined` with a `run_id` column added to each CSV. Use this combined directory for the project report:
 
 ```bash
 python experiments/scripts/check_results.py --results experiments/results/combined
@@ -141,10 +141,10 @@ REPETITIONS=5 \
 make bench-retry-repeat
 ```
 
-Expected direction:
+Expected direction, not a hard proof by itself:
 
-- `without_budget`: amplification should be close to `2.0x`
-- `with_budget`: amplification should be close to `1.15x`
+- `without_budget`: amplification is expected to be close to `2.0x`
+- `with_budget`: amplification is expected to be close to `1.15x`
 
 Merge and inspect:
 
@@ -153,11 +153,11 @@ make merge-results
 python experiments/scripts/check_results.py --results experiments/results/combined
 ```
 
-For the final retry conclusion, prefer the retry-only runs over legacy rows where retry was not triggered.
+For the retry conclusion, prefer the retry-only runs over legacy rows where retry was not triggered.
 
 ## 8. Single-Machine Recovery State Experiment
 
-Recovery state transitions are possible on one machine, but the default production thresholds are intentionally conservative. For a local demonstration, restart the experiment stack with lower thresholds:
+Recovery state transitions can be simulated on one machine, but the default thresholds are conservative. For a local run, restart the experiment stack with lower thresholds:
 
 ```bash
 make experiments-down
@@ -188,7 +188,7 @@ RECOVERY_DURATION=190s \
 make bench-recovery-state
 ```
 
-Expected evidence:
+Evidence to look for:
 
 - `recovery.csv` should include a nonzero slow_score for the delayed endpoint.
 - With the lowered thresholds, `state` should move beyond `HEALTHY`, ideally to `DEGRADED` or `EJECTED`, then toward `PROBING` / `HEALTHY` after reset.
@@ -204,8 +204,7 @@ grep -E 'DEGRADED|EJECTED|PROBING' "$latest/recovery.csv"
 
 ## 9. PROBING Probe-Ratio Experiment
 
-This checks that a `PROBING` endpoint is not immediately returned to normal traffic. The experiment uses the real SDK trace file from `frontend-adaptive` plus Controller health samples.
-The measured probe ratio is calculated from trace rows that fall inside the Controller's `PROBING` state window.
+This checks that a `PROBING` endpoint does not immediately get normal traffic again. The script uses the real SDK trace file from `frontend-adaptive` plus Controller health samples. The probe ratio is calculated from trace rows inside the Controller's `PROBING` window.
 
 Start the stack with aggressive local thresholds so the endpoint reaches `PROBING` in a short run:
 
@@ -247,17 +246,17 @@ cat "$latest/probe_ratio_summary.json"
 grep PROBING "$latest/recovery.csv"
 ```
 
-Expected evidence:
+Evidence to look for:
 
 - `recovery.csv` contains `PROBING` rows for the delayed endpoint, usually port `7002`.
 - `probe_ratio_summary.json` reports `within_expected_bound: true`.
-- `probe_ratio` should be small. The implementation default is 2%, but this experiment uses `MAX_PROBE_RATIO=0.10` as a tolerant upper bound because sampling windows and resolver refresh timing are coarse on one machine.
+- Look for a small `probe_ratio`. The implementation default is 2%, but this experiment uses `MAX_PROBE_RATIO=0.10` as a tolerant upper bound because sampling windows and resolver refresh timing are coarse on one machine.
 
 If there are no `PROBING` rows, increase `FAULT_DURATION` or confirm the lowered thresholds are active. If there are no trace rows, check that `frontend-adaptive` is running with `--trace-log /traces/frontend-adaptive.jsonl`.
 
 ## 10. Absolute SLO Slow-Score Experiment
 
-This checks whether slow_score can detect a one-instance or all-slow service when there is no relative peer outlier. Run it twice: once with absolute SLO disabled, then once with it enabled.
+This checks whether slow_score can detect a one-instance or all-slow service when there is no relative peer outlier. Run it twice: first with absolute SLO disabled, then with it enabled.
 
 Disabled run:
 
@@ -321,9 +320,9 @@ cat "$latest/absolute_slo_summary.json"
 cut -d, -f8 "$latest/recovery.csv" | sort | uniq -c
 ```
 
-Expected evidence:
+Evidence to look for:
 
-- Disabled run: max slow_score should be lower or no degraded/ejected/probing state should appear.
+- Disabled run: expect a lower max slow_score, or no degraded/ejected/probing state.
 - Enabled run: `absolute_slo_summary.json` should report `score_pass: true` and `state_pass: true`.
 - Both `user-a` and `user-b` can show elevated slow_score because both are delayed; this is the point of the all-slow absolute SLO test.
 
@@ -334,7 +333,7 @@ make summarize-probe-slo
 cat experiments/results/probe_slo_summary.md
 ```
 
-Keep this file with the JSON summaries when updating the project report. The benchmark report still uses `experiments/results/combined`; these newer runs add evidence for probe ratio and absolute SLO scoring, but they do not replace the latency/retry/recovery matrix.
+Keep this file with the JSON summaries when updating the report. The benchmark report still uses `experiments/results/combined`; these newer runs add evidence for probe ratio and absolute SLO scoring, but they do not replace the latency/retry/recovery matrix.
 
 The checked-in supplemental evidence currently records:
 
@@ -342,7 +341,7 @@ The checked-in supplemental evidence currently records:
 - `absolute-slo-disabled`: max slow_score `0.377401`, all samples `HEALTHY`.
 - `absolute-slo-enabled`: max slow_score `1.007183`, states `DEGRADED` and `HEALTHY`.
 
-## 11. Reporting Rules
+## 11. Reporting rules
 
 - Report `round_robin` vs `adaptive_p2c` only after both rows exist for the same fault setup.
 - Report retry budget benefit only after both `without_budget` and `with_budget` rows exist.
@@ -367,4 +366,4 @@ for i in $(seq 1 20); do curl -fsS 'http://127.0.0.1:8083/checkout' > /dev/null;
 go run ./cmd/verifier --spec experiments/verifier/real-trace-smoke.yaml --traces experiments/traces/frontend-adaptive.jsonl
 ```
 
-The generated records are verifier-compatible JSONL. Extra fields such as `span_id`, `source`, `destination`, `method`, `upstream`, and `attempt` are retained for debugging, while the verifier continues to validate `trace_id`, `route`, `path`, `retry_attempts`, and `status`.
+The generated records are verifier-compatible JSONL. Extra fields such as `span_id`, `source`, `destination`, `method`, `upstream`, and `attempt` are kept for debugging. The verifier still checks the stable fields: `trace_id`, `route`, `path`, `retry_attempts`, and `status`.

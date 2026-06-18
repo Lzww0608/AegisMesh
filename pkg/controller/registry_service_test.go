@@ -20,7 +20,7 @@ func TestRegistryServiceRegistersAndListsInstances(t *testing.T) {
 			Service: "user-service",
 			Address: "127.0.0.1:7001",
 			Status:  string(registry.InstanceHealthy),
-			Labels:  map[string]string{"version": "v1"},
+			Labels:  map[string]string{"variant": "primary"},
 		},
 		LeaseTtlSeconds: 10,
 	})
@@ -40,8 +40,8 @@ func TestRegistryServiceRegistersAndListsInstances(t *testing.T) {
 	if got.Instances[0].Id != "user-1" || got.Instances[0].Address != "127.0.0.1:7001" {
 		t.Fatalf("unexpected instance: %+v", got.Instances[0])
 	}
-	if got.Instances[0].Labels["version"] != "v1" {
-		t.Fatalf("expected label version=v1, got %+v", got.Instances[0].Labels)
+	if got.Instances[0].Labels["variant"] != "primary" {
+		t.Fatalf("expected label variant=primary, got %+v", got.Instances[0].Labels)
 	}
 }
 

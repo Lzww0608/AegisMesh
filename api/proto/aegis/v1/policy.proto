@@ -19,7 +19,7 @@ message WatchPolicyRequest {
 
 message PolicySnapshot {
   string service = 1;
-  int64 version = 2;
+  int64 revision = 2;
   string routing_policy = 3;
   RetryPolicy retry = 4;
   OutlierDetectionPolicy outlier_detection = 5;

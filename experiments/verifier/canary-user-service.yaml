@@ -6,8 +6,8 @@ test:
 
 expect:
   routes:
-    user-service:v1: 0.90
-    user-service:v2: 0.10
+    user-service:primary: 0.90
+    user-service:secondary: 0.10
   tolerance: 0.03
   max_retry_attempts: 1
   forbidden_edges:

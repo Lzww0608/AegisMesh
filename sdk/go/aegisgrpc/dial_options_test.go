@@ -152,7 +152,7 @@ func TestPolicyRetryToSDKPolicyKeepsRetryableCodes(t *testing.T) {
 	}
 }
 
-func TestDynamicRetrySourceRebuildsBudgetOnVersionChange(t *testing.T) {
+func TestDynamicRetrySourceRebuildsBudgetOnRevisionChange(t *testing.T) {
 	source := newDynamicRetrySource(DialOptions{
 		RoutingPolicy: RoutingAdaptiveP2C,
 		RetryMode:     RetryBudget,
@@ -163,14 +163,14 @@ func TestDynamicRetrySourceRebuildsBudgetOnVersionChange(t *testing.T) {
 			Window:      time.Minute,
 		},
 	}, &policyManager{})
-	source.Update(&aegisv1.PolicySnapshot{Version: 1})
+	source.Update(&aegisv1.PolicySnapshot{Revision: 1})
 	_, budget := source.PolicyForMethod("/demo.shop.v1.UserService/GetUser")
 	if budget == nil || budget.AllowRetry() {
 		t.Fatalf("expected initial exhausted zero budget")
 	}
 
 	source.Update(&aegisv1.PolicySnapshot{
-		Version: 2,
+		Revision: 2,
 		Retry: &aegisv1.RetryPolicy{
 			Enabled:       true,
 			MaxAttempts:   2,

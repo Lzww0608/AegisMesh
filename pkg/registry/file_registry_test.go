@@ -18,7 +18,7 @@ func TestFileRegistryPersistsInstancesAcrossRestart(t *testing.T) {
 		ID:      "user-a",
 		Service: "user-service",
 		Address: "user-a:7001",
-		Labels:  map[string]string{"version": "v1"},
+		Labels:  map[string]string{"variant": "primary"},
 	}, time.Minute); err != nil {
 		t.Fatalf("register instance: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestFileRegistryPersistsInstancesAcrossRestart(t *testing.T) {
 	if len(instances) != 1 {
 		t.Fatalf("expected one restored instance, got %+v", instances)
 	}
-	if instances[0].ID != "user-a" || instances[0].Address != "user-a:7001" || instances[0].Labels["version"] != "v1" {
+	if instances[0].ID != "user-a" || instances[0].Address != "user-a:7001" || instances[0].Labels["variant"] != "primary" {
 		t.Fatalf("unexpected restored instance: %+v", instances[0])
 	}
 }

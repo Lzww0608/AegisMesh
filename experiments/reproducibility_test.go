@@ -178,7 +178,7 @@ func TestExperimentComposeEnablesPolicyServiceAndPersistentRegistry(t *testing.T
 func TestSingleMachineGuideExplainsMergeWorkflow(t *testing.T) {
 	doc := readText(t, "docs/experiments.md")
 	required := []string{
-		"single machine",
+		"single-machine",
 		"RUNS_DIR=experiments/results/runs",
 		"make merge-results",
 		"experiments/results/combined",
@@ -336,7 +336,7 @@ func TestEvaluationDocumentNamesRequiredBenchmarkFigures(t *testing.T) {
 		"CPU Throttle Slow Fault",
 		"Retry Budget Amplification",
 		"Fault Recovery Curve",
-		"Do Not Fabricate Results",
+		"Reporting guardrail",
 	}
 	for _, section := range requiredSections {
 		if !strings.Contains(doc, section) {

@@ -200,7 +200,7 @@ services:
       - retry-user-service
       - --instance
       - retry-user-a
-      - --version
+      - --variant
       - retry-fault
       - --error-probability
       - "1"
