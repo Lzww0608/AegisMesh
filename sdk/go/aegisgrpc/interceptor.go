@@ -27,8 +27,10 @@ func newTelemetryUnaryInterceptor(source, destination string, recorder *telemetr
 		err := invoker(ctx, method, req, reply, cc, opts...)
 		code := status.Code(err)
 		upstream := "unknown"
+		endpointID := ""
 		if remote.Addr != nil {
 			upstream = remote.Addr.String()
+			endpointID = endpointIDForAddress(upstream)
 		}
 
 		statusValue := code.String()
@@ -36,6 +38,7 @@ func newTelemetryUnaryInterceptor(source, destination string, recorder *telemetr
 			recorder.Observe(telemetry.Observation{
 				Destination: destination,
 				Method:      method,
+				EndpointID:  endpointID,
 				Upstream:    upstream,
 				Status:      statusValue,
 				Latency:     time.Since(start),

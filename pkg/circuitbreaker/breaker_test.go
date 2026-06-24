@@ -64,3 +64,33 @@ func TestBreakerTryAcquireAndRelease(t *testing.T) {
 		t.Fatalf("try-acquire after release: %v", err)
 	}
 }
+func TestEndpointLimiterLimitsInflight(t *testing.T) {
+	limiter := NewEndpointLimiter(2)
+
+	if !limiter.TryAcquire() {
+		t.Fatalf("first acquire rejected")
+	}
+	if !limiter.TryAcquire() {
+		t.Fatalf("second acquire rejected")
+	}
+	if limiter.TryAcquire() {
+		t.Fatalf("expected acquire to fail after max inflight is reached")
+	}
+	if got := limiter.Inflight(); got != 2 {
+		t.Fatalf("expected inflight 2, got %d", got)
+	}
+
+	limiter.Release()
+	if got := limiter.Inflight(); got != 1 {
+		t.Fatalf("expected inflight 1 after release, got %d", got)
+	}
+	if !limiter.TryAcquire() {
+		t.Fatalf("expected acquire after release")
+	}
+	limiter.Release()
+	limiter.Release()
+	limiter.Release()
+	if got := limiter.Inflight(); got != 0 {
+		t.Fatalf("expected repeated release to stop at 0, got %d", got)
+	}
+}

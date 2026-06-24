@@ -4,13 +4,23 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
+
+const (
+	recorderShardCount      = 64
+	latencyHistogramBuckets = 128
+	maxLatencyBucketNanos   = uint64(time.Hour)
+)
+
+var latencyBucketUpperBounds = buildLatencyBucketUpperBounds()
 
 type Observation struct {
 	Source      string
 	Destination string
 	Method      string
+	EndpointID  string
 	Upstream    string
 	Status      string
 	Latency     time.Duration
@@ -22,6 +32,7 @@ type EndpointStats struct {
 	Source       string
 	Destination  string
 	Method       string
+	EndpointID   string
 	Upstream     string
 	RequestCount int64
 	ErrorCount   int64
@@ -33,70 +44,108 @@ type EndpointStats struct {
 	WindowEnd    time.Time
 }
 
+type MetricLabels struct {
+	Source          string
+	Destination     string
+	Method          string
+	EndpointID      string
+	EndpointAddress string
+}
+
 type MetricsSink interface {
+	CreateRowMetrics(labels MetricLabels) RowMetrics
+}
+
+type RowMetrics interface {
+	Record(status string, latency time.Duration, latencyEWMA time.Duration, inflight int64)
+}
+
+type LegacyMetricsSink interface {
 	Record(obs Observation, latencyEWMA time.Duration, inflight int64)
 }
 
 type Recorder struct {
-	mu      sync.Mutex
 	source  string
-	metrics MetricsSink
+	metrics any
 	now     func() time.Time
-	rows    map[statsKey]*statsRow
+	shards  [recorderShardCount]recorderShard
+}
+
+type recorderShard struct {
+	mu   sync.Mutex
+	rows map[statsKey]*statsRow
 }
 
 type statsKey struct {
 	destination string
 	method      string
+	endpointID  string
 	upstream    string
 }
 
 type statsRow struct {
-	requestCount int64
-	errorCount   int64
-	timeoutCount int64
-	inflight     int64
-	ewma         *EWMA
-	latencies    []time.Duration
-	windowStart  time.Time
+	key          statsKey
+	metrics      RowMetrics
+	requestCount atomic.Int64
+	errorCount   atomic.Int64
+	timeoutCount atomic.Int64
+	inflight     atomic.Int64
+
+	mu          sync.Mutex
+	ewma        *EWMA
+	activeHist  *latencyHistogram
+	scratchHist *latencyHistogram
+	windowStart time.Time
 }
 
-func NewRecorder(source string, metrics MetricsSink) *Recorder {
+type latencyHistogram struct {
+	count   uint64
+	buckets [latencyHistogramBuckets]uint64
+}
+
+type legacyRowMetrics struct {
+	sink   LegacyMetricsSink
+	source string
+	key    statsKey
+}
+
+func NewRecorder(source string, metrics any) *Recorder {
 	return NewRecorderWithClock(source, metrics, time.Now)
 }
 
-func NewRecorderWithClock(source string, metrics MetricsSink, now func() time.Time) *Recorder {
+func NewRecorderWithClock(source string, metrics any, now func() time.Time) *Recorder {
 	if source == "" {
 		source = "unknown"
 	}
 	if now == nil {
 		now = time.Now
 	}
-	return &Recorder{
+	recorder := &Recorder{
 		source:  source,
 		metrics: metrics,
 		now:     now,
-		rows:    make(map[statsKey]*statsRow),
 	}
+	for i := range recorder.shards {
+		recorder.shards[i].rows = make(map[statsKey]*statsRow)
+	}
+	return recorder
 }
 
 func (r *Recorder) Start(destination, method, upstream string) func(status string) {
 	started := r.now()
-	key := makeStatsKey(destination, method, upstream)
-
-	r.mu.Lock()
-	row := r.rowForLocked(key, started)
-	row.inflight++
-	r.mu.Unlock()
+	key := makeStatsKey(destination, method, "", upstream)
+	row := r.rowFor(key, started)
+	row.inflight.Add(1)
 
 	var once sync.Once
 	return func(status string) {
 		once.Do(func() {
 			latency := r.now().Sub(started)
-			r.finish(key, Observation{
+			r.finish(row, Observation{
 				Source:      r.source,
 				Destination: key.destination,
 				Method:      key.method,
+				EndpointID:  key.endpointID,
 				Upstream:    key.upstream,
 				Status:      normalizeStatus(status),
 				Latency:     latency,
@@ -106,110 +155,109 @@ func (r *Recorder) Start(destination, method, upstream string) func(status strin
 }
 
 func (r *Recorder) Observe(obs Observation) {
-	key := makeStatsKey(obs.Destination, obs.Method, obs.Upstream)
-	obs.Source = firstNonEmpty(obs.Source, r.source)
+	key := makeStatsKey(obs.Destination, obs.Method, obs.EndpointID, obs.Upstream)
+	obs.Source = r.source
 	obs.Destination = key.destination
 	obs.Method = key.method
+	obs.EndpointID = key.endpointID
 	obs.Upstream = key.upstream
 	obs.Status = normalizeStatus(obs.Status)
-	r.recordObservation(key, obs, false)
+	row := r.rowFor(key, r.now())
+	r.recordObservation(row, obs, false)
 }
 
 func (r *Recorder) Snapshot() []EndpointStats {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return r.snapshotLocked(false)
+	return r.snapshot(false)
 }
 
 func (r *Recorder) SnapshotAndReset() []EndpointStats {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return r.snapshotLocked(true)
+	return r.snapshot(true)
 }
 
-func (r *Recorder) finish(key statsKey, obs Observation) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (r *Recorder) finish(row *statsRow, obs Observation) {
+	r.recordObservation(row, obs, true)
+}
 
-	row := r.rowForLocked(key, r.now())
-	if row.inflight > 0 {
-		row.inflight--
+func (r *Recorder) recordObservation(row *statsRow, obs Observation, decrementInflight bool) {
+	if decrementInflight {
+		decrementPositive(&row.inflight)
 	}
-	r.applyObservationLocked(row, obs)
-}
 
-func (r *Recorder) recordObservation(key statsKey, obs Observation, decrementInflight bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	row := r.rowForLocked(key, r.now())
-	if decrementInflight && row.inflight > 0 {
-		row.inflight--
-	}
-	r.applyObservationLocked(row, obs)
-}
-
-func (r *Recorder) applyObservationLocked(row *statsRow, obs Observation) {
-	row.requestCount++
+	row.mu.Lock()
+	row.requestCount.Add(1)
 	if obs.Error || obs.Status != "OK" {
-		row.errorCount++
+		row.errorCount.Add(1)
 	}
 	if obs.Timeout || obs.Status == "DEADLINE_EXCEEDED" {
-		row.timeoutCount++
+		row.timeoutCount.Add(1)
 	}
 	row.ewma.Observe(obs.Latency)
-	row.latencies = append(row.latencies, obs.Latency)
+	row.activeHist.Record(obs.Latency)
+	latencyEWMA := row.ewma.Value()
+	inflight := row.inflight.Load()
+	metrics := row.metrics
+	row.mu.Unlock()
 
-	if r.metrics != nil {
-		r.metrics.Record(obs, row.ewma.Value(), row.inflight)
+	if metrics != nil {
+		metrics.Record(obs.Status, obs.Latency, latencyEWMA, inflight)
 	}
 }
 
-func (r *Recorder) rowForLocked(key statsKey, now time.Time) *statsRow {
-	row := r.rows[key]
+func (r *Recorder) rowFor(key statsKey, now time.Time) *statsRow {
+	shard := r.shardFor(key)
+	shard.mu.Lock()
+	row := shard.rows[key]
 	if row == nil {
 		row = &statsRow{
+			key:         key,
+			metrics:     r.bindMetrics(key),
 			ewma:        NewEWMA(defaultEWMAAlpha),
+			activeHist:  &latencyHistogram{},
+			scratchHist: &latencyHistogram{},
 			windowStart: now,
 		}
-		r.rows[key] = row
+		shard.rows[key] = row
 	}
-	if row.windowStart.IsZero() {
-		row.windowStart = now
-	}
+	shard.mu.Unlock()
 	return row
 }
 
-func (r *Recorder) snapshotLocked(reset bool) []EndpointStats {
+func (r *Recorder) bindMetrics(key statsKey) RowMetrics {
+	if r.metrics == nil {
+		return nil
+	}
+	labels := MetricLabels{
+		Source:          r.source,
+		Destination:     key.destination,
+		Method:          key.method,
+		EndpointID:      key.endpointID,
+		EndpointAddress: key.upstream,
+	}
+	if sink, ok := r.metrics.(MetricsSink); ok {
+		return sink.CreateRowMetrics(labels)
+	}
+	if sink, ok := r.metrics.(LegacyMetricsSink); ok {
+		return legacyRowMetrics{sink: sink, source: r.source, key: key}
+	}
+	return nil
+}
+
+func (r *Recorder) shardFor(key statsKey) *recorderShard {
+	return &r.shards[statsKeyHash(key)&(recorderShardCount-1)]
+}
+
+func (r *Recorder) snapshot(reset bool) []EndpointStats {
 	now := r.now()
-	stats := make([]EndpointStats, 0, len(r.rows))
-	for key, row := range r.rows {
-		if row.requestCount == 0 && row.inflight == 0 {
-			continue
+	stats := make([]EndpointStats, 0, r.rowCount())
+	for i := range r.shards {
+		shard := &r.shards[i]
+		shard.mu.Lock()
+		for key, row := range shard.rows {
+			if stat, ok := row.snapshot(r.source, key, now, reset); ok {
+				stats = append(stats, stat)
+			}
 		}
-		stats = append(stats, EndpointStats{
-			Source:       r.source,
-			Destination:  key.destination,
-			Method:       key.method,
-			Upstream:     key.upstream,
-			RequestCount: row.requestCount,
-			ErrorCount:   row.errorCount,
-			TimeoutCount: row.timeoutCount,
-			Inflight:     row.inflight,
-			LatencyEWMA:  row.ewma.Value(),
-			LatencyP95:   percentile(row.latencies, 0.95),
-			WindowStart:  row.windowStart,
-			WindowEnd:    now,
-		})
-		if reset {
-			row.requestCount = 0
-			row.errorCount = 0
-			row.timeoutCount = 0
-			row.latencies = nil
-			row.windowStart = now
-		}
+		shard.mu.Unlock()
 	}
 	sort.Slice(stats, func(i, j int) bool {
 		if stats[i].Destination != stats[j].Destination {
@@ -218,15 +266,107 @@ func (r *Recorder) snapshotLocked(reset bool) []EndpointStats {
 		if stats[i].Upstream != stats[j].Upstream {
 			return stats[i].Upstream < stats[j].Upstream
 		}
+		if stats[i].EndpointID != stats[j].EndpointID {
+			return stats[i].EndpointID < stats[j].EndpointID
+		}
 		return stats[i].Method < stats[j].Method
 	})
 	return stats
 }
 
-func makeStatsKey(destination, method, upstream string) statsKey {
+func (r *Recorder) rowCount() int {
+	count := 0
+	for i := range r.shards {
+		shard := &r.shards[i]
+		shard.mu.Lock()
+		count += len(shard.rows)
+		shard.mu.Unlock()
+	}
+	return count
+}
+
+func (row *statsRow) snapshot(source string, key statsKey, now time.Time, reset bool) (EndpointStats, bool) {
+	row.mu.Lock()
+	requestCount := row.requestCount.Load()
+	inflight := row.inflight.Load()
+	if requestCount == 0 && inflight == 0 {
+		row.mu.Unlock()
+		return EndpointStats{}, false
+	}
+
+	stat := EndpointStats{
+		Source:       source,
+		Destination:  key.destination,
+		Method:       key.method,
+		EndpointID:   key.endpointID,
+		Upstream:     key.upstream,
+		RequestCount: requestCount,
+		ErrorCount:   row.errorCount.Load(),
+		TimeoutCount: row.timeoutCount.Load(),
+		Inflight:     inflight,
+		LatencyEWMA:  row.ewma.Value(),
+		LatencyP95:   row.activeHist.Quantile(0.95),
+		WindowStart:  row.windowStart,
+		WindowEnd:    now,
+	}
+	if reset {
+		row.requestCount.Store(0)
+		row.errorCount.Store(0)
+		row.timeoutCount.Store(0)
+		row.activeHist, row.scratchHist = row.scratchHist, row.activeHist
+		row.activeHist.Reset()
+		row.scratchHist.Reset()
+		row.windowStart = now
+	}
+	row.mu.Unlock()
+	return stat, true
+}
+
+func (h *latencyHistogram) Record(sample time.Duration) {
+	if sample < 0 {
+		sample = 0
+	}
+	idx := latencyBucketIndex(uint64(sample))
+	h.buckets[idx]++
+	h.count++
+}
+
+func (h *latencyHistogram) Quantile(q float64) time.Duration {
+	if h.count == 0 {
+		return 0
+	}
+	if q <= 0 {
+		q = 0
+	}
+	if q > 1 {
+		q = 1
+	}
+	target := uint64(q*float64(h.count) + 0.999999999)
+	if target == 0 {
+		target = 1
+	}
+	var seen uint64
+	for i, count := range h.buckets {
+		seen += count
+		if seen >= target {
+			return time.Duration(latencyBucketUpperBounds[i])
+		}
+	}
+	return time.Duration(latencyBucketUpperBounds[len(latencyBucketUpperBounds)-1])
+}
+
+func (h *latencyHistogram) Reset() {
+	for i := range h.buckets {
+		h.buckets[i] = 0
+	}
+	h.count = 0
+}
+
+func makeStatsKey(destination, method, endpointID, upstream string) statsKey {
 	return statsKey{
 		destination: firstNonEmpty(destination, "unknown"),
 		method:      firstNonEmpty(method, "unknown"),
+		endpointID:  strings.TrimSpace(endpointID),
 		upstream:    firstNonEmpty(upstream, "unknown"),
 	}
 }
@@ -246,20 +386,80 @@ func firstNonEmpty(value, fallback string) string {
 	return fallback
 }
 
-func percentile(samples []time.Duration, q float64) time.Duration {
-	if len(samples) == 0 {
-		return 0
+func decrementPositive(value *atomic.Int64) int64 {
+	for {
+		current := value.Load()
+		if current <= 0 {
+			return 0
+		}
+		if value.CompareAndSwap(current, current-1) {
+			return current - 1
+		}
 	}
-	values := append([]time.Duration(nil), samples...)
-	sort.Slice(values, func(i, j int) bool {
-		return values[i] < values[j]
-	})
-	idx := int(q*float64(len(values))+0.999999999) - 1
-	if idx < 0 {
-		idx = 0
+}
+
+func (m legacyRowMetrics) Record(status string, latency time.Duration, latencyEWMA time.Duration, inflight int64) {
+	m.sink.Record(Observation{
+		Source:      m.source,
+		Destination: m.key.destination,
+		Method:      m.key.method,
+		EndpointID:  m.key.endpointID,
+		Upstream:    m.key.upstream,
+		Status:      status,
+		Latency:     latency,
+	}, latencyEWMA, inflight)
+}
+
+func statsKeyHash(key statsKey) uint64 {
+	const (
+		offset64 = 1469598103934665603
+		prime64  = 1099511628211
+	)
+	h := uint64(offset64)
+	h = hashString(h, key.destination)
+	h = hashString(h, key.method)
+	h = hashString(h, key.endpointID)
+	h = hashString(h, key.upstream)
+	return h
+}
+
+func hashString(h uint64, value string) uint64 {
+	const prime64 = 1099511628211
+	for i := 0; i < len(value); i++ {
+		h ^= uint64(value[i])
+		h *= prime64
 	}
-	if idx >= len(values) {
-		idx = len(values) - 1
+	h ^= 0xff
+	h *= prime64
+	return h
+}
+
+func latencyBucketIndex(nanos uint64) int {
+	lo, hi := 0, len(latencyBucketUpperBounds)-1
+	for lo < hi {
+		mid := lo + (hi-lo)/2
+		if nanos <= latencyBucketUpperBounds[mid] {
+			hi = mid
+		} else {
+			lo = mid + 1
+		}
 	}
-	return values[idx]
+	return lo
+}
+
+func buildLatencyBucketUpperBounds() [latencyHistogramBuckets]uint64 {
+	var bounds [latencyHistogramBuckets]uint64
+	bounds[0] = 0
+	bound := uint64(time.Microsecond)
+	for i := 1; i < latencyHistogramBuckets-1; i++ {
+		bounds[i] = bound
+		next := bound + (bound+6)/7
+		if next <= bound || next >= maxLatencyBucketNanos {
+			bound = maxLatencyBucketNanos
+		} else {
+			bound = next
+		}
+	}
+	bounds[latencyHistogramBuckets-1] = maxLatencyBucketNanos
+	return bounds
 }

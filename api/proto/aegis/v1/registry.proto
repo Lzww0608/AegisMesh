@@ -8,6 +8,7 @@ service RegistryService {
   rpc RegisterInstance(RegisterInstanceRequest) returns (RegisterInstanceResponse);
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
   rpc ListInstances(ListInstancesRequest) returns (ListInstancesResponse);
+  rpc WatchInstances(WatchInstancesRequest) returns (stream ListInstancesResponse);
 }
 
 message ServiceInstance {
@@ -43,6 +44,12 @@ message ListInstancesRequest {
   string service = 1;
 }
 
+message WatchInstancesRequest {
+  string service = 1;
+  int64 last_seen_version = 2;
+}
+
 message ListInstancesResponse {
   repeated ServiceInstance instances = 1;
+  int64 version = 2;
 }

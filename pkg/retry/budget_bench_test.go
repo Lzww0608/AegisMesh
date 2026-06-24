@@ -34,7 +34,26 @@ func BenchmarkBudgetTryAcquireRetryParallel(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			if !benchmarkTryAcquireRetry(budget) {
+			if !budget.TryAcquireRetry() {
+				panic("retry budget unexpectedly exhausted")
+			}
+		}
+	})
+}
+
+func BenchmarkBudgetAllowThenRecordRetryParallel(b *testing.B) {
+	budget := NewBudget(BudgetConfig{
+		BudgetRatio: 1,
+		MinBudget:   1 << 60,
+		Window:      time.Minute,
+		Now:         fixedBenchmarkTime,
+	})
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if !benchmarkAllowThenRecordRetry(budget) {
 				panic("retry budget unexpectedly exhausted")
 			}
 		}
@@ -58,7 +77,7 @@ func BenchmarkBudgetWindowRollover(b *testing.B) {
 	}
 }
 
-func benchmarkTryAcquireRetry(budget *Budget) bool {
+func benchmarkAllowThenRecordRetry(budget *Budget) bool {
 	if !budget.AllowRetry() {
 		return false
 	}

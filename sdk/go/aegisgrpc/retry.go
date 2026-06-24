@@ -10,23 +10,89 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const defaultRetryableMask = (uint64(1) << uint(codes.Unavailable)) | (uint64(1) << uint(codes.DeadlineExceeded))
+
 type RetryPolicy struct {
 	MaxAttempts    int
 	PerTryTimeout  time.Duration
 	RetryableCodes []codes.Code
 }
 
+type compiledRetry struct {
+	mode          RetryMode
+	maxAttempts   int
+	perTryTimeout time.Duration
+	retryableMask uint64
+	budget        retrypkg.BudgetConfig
+}
+
+func compileRetryPolicy(policy RetryPolicy) compiledRetry {
+	if policy.MaxAttempts <= 0 {
+		policy.MaxAttempts = 1
+	}
+	mask := retryableCodeMask(policy.RetryableCodes)
+	if len(policy.RetryableCodes) == 0 {
+		mask = defaultRetryableMask
+	}
+	return compiledRetry{
+		maxAttempts:   policy.MaxAttempts,
+		perTryTimeout: policy.PerTryTimeout,
+		retryableMask: mask,
+	}
+}
+
+func retryableCodeMask(retryableCodes []codes.Code) uint64 {
+	var mask uint64
+	for _, code := range retryableCodes {
+		mask |= retryableCodeBit(code)
+	}
+	return mask
+}
+
+func retryableCodeBit(code codes.Code) uint64 {
+	shift := uint(code)
+	if shift >= 64 {
+		return 0
+	}
+	return uint64(1) << shift
+}
+
+func (r compiledRetry) IsRetryable(code codes.Code) bool {
+	return r.retryableMask&retryableCodeBit(code) != 0
+}
+
+func (r compiledRetry) toPolicy() RetryPolicy {
+	return RetryPolicy{
+		MaxAttempts:    r.maxAttempts,
+		PerTryTimeout:  r.perTryTimeout,
+		RetryableCodes: retryableCodesFromMask(r.retryableMask),
+	}
+}
+
+func retryableCodesFromMask(mask uint64) []codes.Code {
+	if mask == 0 {
+		return nil
+	}
+	out := make([]codes.Code, 0, 4)
+	for code := uint(0); code < 64; code++ {
+		if mask&(uint64(1)<<code) != 0 {
+			out = append(out, codes.Code(code))
+		}
+	}
+	return out
+}
+
 type retryPolicySource interface {
-	PolicyForMethod(method string) (RetryPolicy, *retrypkg.Budget)
+	PolicyForMethod(method string) (compiledRetry, *retrypkg.Budget)
 }
 
 type staticRetrySource struct {
-	policy RetryPolicy
+	retry  compiledRetry
 	budget *retrypkg.Budget
 }
 
-func (s staticRetrySource) PolicyForMethod(string) (RetryPolicy, *retrypkg.Budget) {
-	return s.policy, s.budget
+func (s staticRetrySource) PolicyForMethod(string) (compiledRetry, *retrypkg.Budget) {
+	return s.retry, s.budget
 }
 
 func defaultRetryPolicy() RetryPolicy {
@@ -38,43 +104,35 @@ func defaultRetryPolicy() RetryPolicy {
 }
 
 func newRetryUnaryInterceptor(policy RetryPolicy, budget *retrypkg.Budget) grpc.UnaryClientInterceptor {
-	return newRetryUnaryInterceptorFromSource(staticRetrySource{policy: policy, budget: budget})
+	return newRetryUnaryInterceptorFromSource(staticRetrySource{retry: compileRetryPolicy(policy), budget: budget})
 }
 
 func newRetryUnaryInterceptorFromSource(source retryPolicySource) grpc.UnaryClientInterceptor {
 	if source == nil {
-		source = staticRetrySource{policy: defaultRetryPolicy()}
+		source = staticRetrySource{retry: compileRetryPolicy(defaultRetryPolicy())}
 	}
 
 	return func(ctx context.Context, method string, req any, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-		policy, budget := source.PolicyForMethod(method)
-		return invokeWithRetryPolicy(ctx, method, req, reply, cc, invoker, policy, budget, opts...)
+		retry, budget := source.PolicyForMethod(method)
+		return invokeWithRetryPolicy(ctx, method, req, reply, cc, invoker, retry, budget, opts...)
 	}
 }
 
-func invokeWithRetryPolicy(ctx context.Context, method string, req any, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, policy RetryPolicy, budget *retrypkg.Budget, opts ...grpc.CallOption) error {
-	if policy.MaxAttempts <= 0 {
-		policy.MaxAttempts = 1
+func invokeWithRetryPolicy(ctx context.Context, method string, req any, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, retry compiledRetry, budget *retrypkg.Budget, opts ...grpc.CallOption) error {
+	if retry.maxAttempts <= 0 {
+		retry.maxAttempts = 1
 	}
-	if len(policy.RetryableCodes) == 0 {
-		policy.RetryableCodes = defaultRetryPolicy().RetryableCodes
-	}
-	retryable := make(map[codes.Code]struct{}, len(policy.RetryableCodes))
-	for _, code := range policy.RetryableCodes {
-		retryable[code] = struct{}{}
-	}
-
 	ctx = ensureTraceID(ctx)
 	if budget != nil {
 		budget.RecordOriginal()
 	}
 
 	var lastErr error
-	for attempt := 1; attempt <= policy.MaxAttempts; attempt++ {
+	for attempt := 1; attempt <= retry.maxAttempts; attempt++ {
 		attemptCtx := ctx
 		cancel := func() {}
-		if policy.PerTryTimeout > 0 {
-			attemptCtx, cancel = context.WithTimeout(ctx, policy.PerTryTimeout)
+		if retry.perTryTimeout > 0 {
+			attemptCtx, cancel = context.WithTimeout(ctx, retry.perTryTimeout)
 		}
 		attemptCtx = contextWithAttempt(attemptCtx, attempt)
 		err := invoker(attemptCtx, method, req, reply, cc, opts...)
@@ -83,17 +141,14 @@ func invokeWithRetryPolicy(ctx context.Context, method string, req any, reply an
 			return nil
 		}
 		lastErr = err
-		if attempt == policy.MaxAttempts {
+		if attempt == retry.maxAttempts {
 			break
 		}
-		if _, ok := retryable[status.Code(err)]; !ok {
+		if !retry.IsRetryable(status.Code(err)) {
 			break
 		}
-		if budget != nil {
-			if !budget.AllowRetry() {
-				break
-			}
-			budget.RecordRetry()
+		if budget != nil && !budget.TryAcquireRetry() {
+			break
 		}
 	}
 	return lastErr

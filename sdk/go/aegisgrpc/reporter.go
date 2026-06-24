@@ -69,6 +69,7 @@ func statsToProto(stat telemetry.EndpointStats) *aegisv1.EndpointStatsSample {
 	return &aegisv1.EndpointStatsSample{
 		Source:                stat.Source,
 		Service:               stat.Destination,
+		InstanceId:            stat.EndpointID,
 		EndpointAddress:       stat.Upstream,
 		Method:                stat.Method,
 		RequestCount:          stat.RequestCount,

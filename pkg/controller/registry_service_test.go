@@ -2,11 +2,14 @@ package controller
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
+	"github.com/aegismesh/aegismesh/pkg/fault"
 	"github.com/aegismesh/aegismesh/pkg/registry"
+	"google.golang.org/grpc/metadata"
 )
 
 func TestRegistryServiceRegistersAndListsInstances(t *testing.T) {
@@ -81,3 +84,159 @@ func TestRegistryServiceUsesDefaultLeaseWhenRequestOmitsTTL(t *testing.T) {
 		t.Fatalf("expected instance to expire after default lease, got %+v", got.Instances)
 	}
 }
+
+func TestRegistryServiceListInstancesVersionTracksRegistryChanges(t *testing.T) {
+	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	store := registry.NewMemoryRegistry(func() time.Time { return now })
+	service := NewRegistryService(store, 30*time.Second)
+	registerTestInstance(t, store, "user-service", "user-a", "127.0.0.1:7001")
+
+	first, err := service.ListInstances(context.Background(), &aegisv1.ListInstancesRequest{Service: "user-service"})
+	if err != nil {
+		t.Fatalf("first list: %v", err)
+	}
+	if first.Version == 0 {
+		t.Fatalf("expected non-zero list version")
+	}
+	second, err := service.ListInstances(context.Background(), &aegisv1.ListInstancesRequest{Service: "user-service"})
+	if err != nil {
+		t.Fatalf("second list: %v", err)
+	}
+	if second.Version != first.Version {
+		t.Fatalf("unchanged list version drifted: first %d second %d", first.Version, second.Version)
+	}
+
+	now = now.Add(time.Second)
+	if err := store.Heartbeat(context.Background(), "user-service", "user-a", time.Minute); err != nil {
+		t.Fatalf("heartbeat: %v", err)
+	}
+	third, err := service.ListInstances(context.Background(), &aegisv1.ListInstancesRequest{Service: "user-service"})
+	if err != nil {
+		t.Fatalf("third list: %v", err)
+	}
+	if third.Version == first.Version {
+		t.Fatalf("registry heartbeat did not change response version: %d", third.Version)
+	}
+}
+
+func TestRegistryServiceListInstancesVersionTracksHealthOverlay(t *testing.T) {
+	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	store := registry.NewMemoryRegistry(func() time.Time { return now })
+	health := &versionedHealthProvider{}
+	service := NewRegistryServiceWithHealth(store, 30*time.Second, health)
+	registerTestInstance(t, store, "user-service", "user-a", "127.0.0.1:7001")
+
+	before, err := service.ListInstances(context.Background(), &aegisv1.ListInstancesRequest{Service: "user-service"})
+	if err != nil {
+		t.Fatalf("list before health: %v", err)
+	}
+	health.set("user-service", "user-a", fault.StateDegraded, 1.75, 1)
+	after, err := service.ListInstances(context.Background(), &aegisv1.ListInstancesRequest{Service: "user-service"})
+	if err != nil {
+		t.Fatalf("list after health: %v", err)
+	}
+	if after.Version == before.Version {
+		t.Fatalf("health revision did not change response version: %d", after.Version)
+	}
+	if after.Instances[0].Status != string(fault.StateDegraded) || after.Instances[0].SlowScore != 1.75 {
+		t.Fatalf("expected health overlay in response, got %+v", after.Instances[0])
+	}
+}
+
+func TestRegistryServiceWatchInstancesSendsInitialAndRegistryUpdates(t *testing.T) {
+	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	store := registry.NewMemoryRegistry(func() time.Time { return now })
+	service := NewRegistryService(store, 30*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream := newRegistryWatchTestStream(ctx)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- service.WatchInstances(&aegisv1.WatchInstancesRequest{Service: "user-service"}, stream)
+	}()
+
+	initial := stream.receive(t)
+	if len(initial.Instances) != 0 || initial.Version == 0 {
+		t.Fatalf("expected initial empty versioned snapshot, got %+v", initial)
+	}
+
+	registerTestInstance(t, store, "user-service", "user-a", "127.0.0.1:7001")
+	updated := stream.receive(t)
+	if updated.Version == initial.Version || len(updated.Instances) != 1 || updated.Instances[0].Id != "user-a" {
+		t.Fatalf("expected watched registry update, got %+v after %+v", updated, initial)
+	}
+
+	cancel()
+	select {
+	case <-errCh:
+	case <-time.After(time.Second):
+		t.Fatalf("watch did not exit after context cancellation")
+	}
+}
+
+type versionedHealthProvider struct {
+	health  fault.EndpointHealth
+	version int64
+}
+
+func (p *versionedHealthProvider) set(service, instanceID string, state fault.EndpointState, slowScore float64, version int64) {
+	p.health = fault.EndpointHealth{Service: service, InstanceID: instanceID, State: state, SlowScore: slowScore}
+	p.version = version
+}
+
+func (p *versionedHealthProvider) HealthState(service, instanceID string) (fault.EndpointState, bool) {
+	if p.health.Service != service || p.health.InstanceID != instanceID {
+		return "", false
+	}
+	return p.health.State, true
+}
+
+func (p *versionedHealthProvider) Get(service, instanceID string) (fault.EndpointHealth, bool) {
+	if p.health.Service != service || p.health.InstanceID != instanceID {
+		return fault.EndpointHealth{}, false
+	}
+	return p.health, true
+}
+
+func (p *versionedHealthProvider) HealthVersion(service string) int64 {
+	if p.health.Service != service {
+		return 0
+	}
+	return p.version
+}
+
+type registryWatchTestStream struct {
+	ctx  context.Context
+	sent chan *aegisv1.ListInstancesResponse
+}
+
+func newRegistryWatchTestStream(ctx context.Context) *registryWatchTestStream {
+	return &registryWatchTestStream{ctx: ctx, sent: make(chan *aegisv1.ListInstancesResponse, 4)}
+}
+
+func (s *registryWatchTestStream) Send(resp *aegisv1.ListInstancesResponse) error {
+	select {
+	case s.sent <- resp:
+		return nil
+	case <-s.ctx.Done():
+		return s.ctx.Err()
+	}
+}
+
+func (s *registryWatchTestStream) receive(t *testing.T) *aegisv1.ListInstancesResponse {
+	t.Helper()
+	select {
+	case resp := <-s.sent:
+		return resp
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for watch response")
+		return nil
+	}
+}
+
+func (s *registryWatchTestStream) SetHeader(metadata.MD) error  { return nil }
+func (s *registryWatchTestStream) SendHeader(metadata.MD) error { return nil }
+func (s *registryWatchTestStream) SetTrailer(metadata.MD)       {}
+func (s *registryWatchTestStream) Context() context.Context     { return s.ctx }
+func (s *registryWatchTestStream) SendMsg(any) error            { return nil }
+func (s *registryWatchTestStream) RecvMsg(any) error            { return io.EOF }

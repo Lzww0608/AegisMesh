@@ -93,14 +93,24 @@ func main() {
 }
 
 type registryFlags struct {
-	backend *string
-	file    *string
+	backend             *string
+	file                *string
+	fileV2Sync          *string
+	fileV2FlushInterval *time.Duration
+	fileV2FlushRecords  *int
+	fileV2FlushBytes    *int
+	fileV2CompactBytes  *int64
 }
 
 func registerRegistryFlags(fs *flag.FlagSet) registryFlags {
 	return registryFlags{
-		backend: fs.String("registry-backend", "memory", "registry backend: memory or file"),
-		file:    fs.String("registry-file", "data/aegis-registry.json", "file registry snapshot path when --registry-backend=file"),
+		backend:             fs.String("registry-backend", "memory", "registry backend: memory, file, or file-v2"),
+		file:                fs.String("registry-file", "data/aegis-registry.json", "file registry snapshot path when --registry-backend=file or file-v2"),
+		fileV2Sync:          fs.String("registry-file-v2-sync", string(registry.FileRegistrySyncBatch), "file-v2 WAL sync mode: batch or always"),
+		fileV2FlushInterval: fs.Duration("registry-file-v2-flush-interval", 2*time.Millisecond, "file-v2 group commit flush/fsync interval"),
+		fileV2FlushRecords:  fs.Int("registry-file-v2-flush-records", 64, "file-v2 group commit flush/fsync record threshold"),
+		fileV2FlushBytes:    fs.Int("registry-file-v2-flush-bytes", 64*1024, "file-v2 group commit flush/fsync byte threshold"),
+		fileV2CompactBytes:  fs.Int64("registry-file-v2-compact-bytes", 16*1024*1024, "file-v2 WAL size threshold that triggers snapshot compaction; <=0 disables automatic compaction"),
 	}
 }
 
@@ -110,6 +120,14 @@ func buildRegistry(cfg registryFlags, now func() time.Time) (registry.Registry, 
 		return registry.NewMemoryRegistry(now), nil
 	case "file":
 		return registry.NewFileRegistry(*cfg.file, now)
+	case "file-v2":
+		return registry.NewFileRegistryV2(
+			*cfg.file,
+			now,
+			registry.WithFileRegistryV2SyncMode(registry.FileRegistrySyncMode(*cfg.fileV2Sync)),
+			registry.WithFileRegistryV2GroupCommit(*cfg.fileV2FlushRecords, *cfg.fileV2FlushBytes, *cfg.fileV2FlushInterval),
+			registry.WithFileRegistryV2CompactBytes(*cfg.fileV2CompactBytes),
+		)
 	default:
 		return nil, fmt.Errorf("unsupported registry backend %q", *cfg.backend)
 	}

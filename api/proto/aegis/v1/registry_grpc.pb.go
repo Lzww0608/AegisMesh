@@ -22,6 +22,7 @@ const (
 	RegistryService_RegisterInstance_FullMethodName = "/aegis.v1.RegistryService/RegisterInstance"
 	RegistryService_Heartbeat_FullMethodName        = "/aegis.v1.RegistryService/Heartbeat"
 	RegistryService_ListInstances_FullMethodName    = "/aegis.v1.RegistryService/ListInstances"
+	RegistryService_WatchInstances_FullMethodName   = "/aegis.v1.RegistryService/WatchInstances"
 )
 
 // RegistryServiceClient is the client API for RegistryService service.
@@ -31,6 +32,7 @@ type RegistryServiceClient interface {
 	RegisterInstance(ctx context.Context, in *RegisterInstanceRequest, opts ...grpc.CallOption) (*RegisterInstanceResponse, error)
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 	ListInstances(ctx context.Context, in *ListInstancesRequest, opts ...grpc.CallOption) (*ListInstancesResponse, error)
+	WatchInstances(ctx context.Context, in *WatchInstancesRequest, opts ...grpc.CallOption) (RegistryService_WatchInstancesClient, error)
 }
 
 type registryServiceClient struct {
@@ -71,6 +73,39 @@ func (c *registryServiceClient) ListInstances(ctx context.Context, in *ListInsta
 	return out, nil
 }
 
+func (c *registryServiceClient) WatchInstances(ctx context.Context, in *WatchInstancesRequest, opts ...grpc.CallOption) (RegistryService_WatchInstancesClient, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &RegistryService_ServiceDesc.Streams[0], RegistryService_WatchInstances_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &registryServiceWatchInstancesClient{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type RegistryService_WatchInstancesClient interface {
+	Recv() (*ListInstancesResponse, error)
+	grpc.ClientStream
+}
+
+type registryServiceWatchInstancesClient struct {
+	grpc.ClientStream
+}
+
+func (x *registryServiceWatchInstancesClient) Recv() (*ListInstancesResponse, error) {
+	m := new(ListInstancesResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // RegistryServiceServer is the server API for RegistryService service.
 // All implementations must embed UnimplementedRegistryServiceServer
 // for forward compatibility
@@ -78,6 +113,7 @@ type RegistryServiceServer interface {
 	RegisterInstance(context.Context, *RegisterInstanceRequest) (*RegisterInstanceResponse, error)
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	ListInstances(context.Context, *ListInstancesRequest) (*ListInstancesResponse, error)
+	WatchInstances(*WatchInstancesRequest, RegistryService_WatchInstancesServer) error
 	mustEmbedUnimplementedRegistryServiceServer()
 }
 
@@ -93,6 +129,9 @@ func (UnimplementedRegistryServiceServer) Heartbeat(context.Context, *HeartbeatR
 }
 func (UnimplementedRegistryServiceServer) ListInstances(context.Context, *ListInstancesRequest) (*ListInstancesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListInstances not implemented")
+}
+func (UnimplementedRegistryServiceServer) WatchInstances(*WatchInstancesRequest, RegistryService_WatchInstancesServer) error {
+	return status.Errorf(codes.Unimplemented, "method WatchInstances not implemented")
 }
 func (UnimplementedRegistryServiceServer) mustEmbedUnimplementedRegistryServiceServer() {}
 
@@ -161,6 +200,27 @@ func _RegistryService_ListInstances_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RegistryService_WatchInstances_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchInstancesRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(RegistryServiceServer).WatchInstances(m, &registryServiceWatchInstancesServer{ServerStream: stream})
+}
+
+type RegistryService_WatchInstancesServer interface {
+	Send(*ListInstancesResponse) error
+	grpc.ServerStream
+}
+
+type registryServiceWatchInstancesServer struct {
+	grpc.ServerStream
+}
+
+func (x *registryServiceWatchInstancesServer) Send(m *ListInstancesResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // RegistryService_ServiceDesc is the grpc.ServiceDesc for RegistryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -181,6 +241,12 @@ var RegistryService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _RegistryService_ListInstances_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchInstances",
+			Handler:       _RegistryService_WatchInstances_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "api/proto/aegis/v1/registry.proto",
 }

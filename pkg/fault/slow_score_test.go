@@ -121,3 +121,24 @@ func TestScoreCalculatorLeavesAbsoluteSLODisabledByDefault(t *testing.T) {
 		}
 	}
 }
+
+func TestScoreCalculatorAggregatesMultipleMethodsPerEndpoint(t *testing.T) {
+	calculator := NewScoreCalculatorWithConfig(ScoreCalculatorConfig{
+		Weights:    ScoreWeights{LatencyWeight: 1},
+		LatencySLO: 100 * time.Millisecond,
+	})
+
+	scores := calculator.Calculate([]EndpointSample{
+		{Service: "user-service", InstanceID: "user-b", Method: "/demo/Slow", RequestCount: 100, LatencyP95: 900 * time.Millisecond, Capacity: 100},
+		{Service: "user-service", InstanceID: "user-a", Method: "/demo/Fast", RequestCount: 100, LatencyP95: 100 * time.Millisecond, Capacity: 100},
+		{Service: "user-service", InstanceID: "user-b", Method: "/demo/Fast", RequestCount: 100, LatencyP95: 100 * time.Millisecond, Capacity: 100},
+	})
+
+	slow := scores[ScoreKey("user-service", "user-b")]
+	if slow.LatencyScore < 9 {
+		t.Fatalf("expected endpoint-level aggregation to preserve the slowest method latency, got %+v", slow)
+	}
+	if slow.Score <= scores[ScoreKey("user-service", "user-a")].Score {
+		t.Fatalf("expected aggregated slow endpoint to outrank healthy endpoint, got %+v", scores)
+	}
+}

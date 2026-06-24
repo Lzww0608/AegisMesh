@@ -92,9 +92,8 @@ func newBenchmarkAdaptivePicker(endpointCount int, degradedRatio, probingRatio f
 
 	picker := adaptivePickerBuilder{random: newAdaptiveAtomicRandomSource(1)}.
 		Build(base.PickerBuildInfo{ReadySCs: ready}).(*adaptivePicker)
-	picker.breaker = circuitbreaker.NewBreaker(circuitbreaker.Config{MaxInflightPerEndpoint: int64(endpointCount * 4096)})
-
 	for i := range picker.items {
+		picker.items[i].limiter = circuitbreaker.NewEndpointLimiter(int64(endpointCount * 4096))
 		picker.items[i].stats.ObserveLatency(time.Duration(i%10+1) * time.Millisecond)
 	}
 	return picker

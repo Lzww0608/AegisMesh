@@ -79,19 +79,58 @@ func NewScoreCalculatorWithConfig(cfg ScoreCalculatorConfig) *ScoreCalculator {
 }
 
 func (c *ScoreCalculator) Calculate(samples []EndpointSample) map[string]EndpointScore {
-	byService := make(map[string][]EndpointSample)
+	byService := make(map[string]map[string]EndpointSample)
 	for _, sample := range samples {
 		if sample.Service == "" || sample.InstanceID == "" {
 			continue
 		}
-		byService[sample.Service] = append(byService[sample.Service], sample)
+		serviceSamples := byService[sample.Service]
+		if serviceSamples == nil {
+			serviceSamples = make(map[string]EndpointSample)
+			byService[sample.Service] = serviceSamples
+		}
+		serviceSamples[sample.InstanceID] = aggregateEndpointSample(serviceSamples[sample.InstanceID], sample)
 	}
 
 	out := make(map[string]EndpointScore)
 	for service, serviceSamples := range byService {
-		c.calculateService(service, serviceSamples, out)
+		aggregated := make([]EndpointSample, 0, len(serviceSamples))
+		for _, sample := range serviceSamples {
+			aggregated = append(aggregated, sample)
+		}
+		c.calculateService(service, aggregated, out)
 	}
 	return out
+}
+
+func aggregateEndpointSample(current EndpointSample, sample EndpointSample) EndpointSample {
+	if current.Service == "" {
+		return sample
+	}
+	if current.Address == "" {
+		current.Address = sample.Address
+	}
+	if current.Method != "" && sample.Method != "" && current.Method != sample.Method {
+		current.Method = ""
+	}
+	current.RequestCount += sample.RequestCount
+	current.ErrorCount += sample.ErrorCount
+	current.TimeoutCount += sample.TimeoutCount
+	current.Inflight += sample.Inflight
+	current.TCPRetransmit += sample.TCPRetransmit
+	current.ConnectError += sample.ConnectError
+	if sample.Capacity > current.Capacity {
+		current.Capacity = sample.Capacity
+	}
+	// Recorder samples are method windows, not mergeable histograms. Keep latency
+	// conservative so a degraded route on an endpoint is not hidden by faster methods.
+	if sample.LatencyEWMA > current.LatencyEWMA {
+		current.LatencyEWMA = sample.LatencyEWMA
+	}
+	if sample.LatencyP95 > current.LatencyP95 {
+		current.LatencyP95 = sample.LatencyP95
+	}
+	return current
 }
 
 func (c *ScoreCalculator) calculateService(service string, samples []EndpointSample, out map[string]EndpointScore) {

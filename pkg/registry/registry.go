@@ -1,10 +1,12 @@
 package registry
 
 import (
+	"container/heap"
 	"context"
 	"errors"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -39,28 +41,95 @@ type Registry interface {
 	SweepExpired(ctx context.Context) int
 }
 
+type Snapshotter interface {
+	Snapshot(ctx context.Context, service string) (InstanceSnapshot, error)
+}
+
+type Watcher interface {
+	Watch(ctx context.Context, service string, afterVersion int64) (<-chan InstanceSnapshot, error)
+}
+
+type InstanceSnapshot struct {
+	Service   string
+	Version   int64
+	Instances []Instance
+
+	nextExpiresAt time.Time
+}
+
 type MemoryRegistry struct {
-	mu    sync.RWMutex
-	now   func() time.Time
-	items map[string]map[string]record
+	now func() time.Time
+
+	services   sync.Map // map[string]*serviceState
+	expiryMu   sync.Mutex
+	expiries   expiryHeap
+	generation atomic.Uint64
 }
 
 type record struct {
-	instance  Instance
-	expiresAt time.Time
+	instance   Instance
+	expiresAt  time.Time
+	generation uint64
+}
+
+type serviceState struct {
+	mu       sync.Mutex
+	records  map[string]record
+	snapshot atomic.Pointer[InstanceSnapshot]
+	version  atomic.Int64
+	notify   chan struct{}
+}
+
+type expiryEntry struct {
+	service    string
+	id         string
+	expiresAt  time.Time
+	generation uint64
+}
+
+type expiredRecord struct {
+	service string
+	id      string
+}
+
+type expiryHeap []expiryEntry
+
+func (h expiryHeap) Len() int {
+	return len(h)
+}
+
+func (h expiryHeap) Less(i, j int) bool {
+	return h[i].expiresAt.Before(h[j].expiresAt)
+}
+
+func (h expiryHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+}
+
+func (h *expiryHeap) Push(x any) {
+	*h = append(*h, x.(expiryEntry))
+}
+
+func (h *expiryHeap) Pop() any {
+	old := *h
+	n := len(old)
+	entry := old[n-1]
+	*h = old[:n-1]
+	return entry
 }
 
 func NewMemoryRegistry(now func() time.Time) *MemoryRegistry {
 	if now == nil {
 		now = time.Now
 	}
-	return &MemoryRegistry{
-		now:   now,
-		items: make(map[string]map[string]record),
-	}
+	return &MemoryRegistry{now: now}
 }
 
 func (r *MemoryRegistry) Register(ctx context.Context, inst Instance, ttl time.Duration) error {
+	return r.registerAt(ctx, inst, ttl, r.now())
+}
+
+func (r *MemoryRegistry) registerAt(ctx context.Context, inst Instance, ttl time.Duration, now time.Time) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -74,25 +143,30 @@ func (r *MemoryRegistry) Register(ctx context.Context, inst Instance, ttl time.D
 		inst.Status = InstanceHealthy
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	serviceInstances := r.items[inst.Service]
-	if serviceInstances == nil {
-		serviceInstances = make(map[string]record)
-		r.items[inst.Service] = serviceInstances
-	}
-
-	inst.LastSeen = r.now()
+	inst.LastSeen = now
 	inst.Labels = cloneLabels(inst.Labels)
-	serviceInstances[inst.ID] = record{
-		instance:  inst,
-		expiresAt: inst.LastSeen.Add(ttl),
+	expiresAt := inst.LastSeen.Add(ttl)
+	generation := r.generation.Add(1)
+
+	state := r.serviceState(inst.Service)
+	state.mu.Lock()
+	state.records[inst.ID] = record{
+		instance:   inst,
+		expiresAt:  expiresAt,
+		generation: generation,
 	}
+	state.rebuildSnapshotLocked(inst.Service, now)
+	state.mu.Unlock()
+
+	r.pushExpiry(expiryEntry{service: inst.Service, id: inst.ID, expiresAt: expiresAt, generation: generation})
 	return nil
 }
 
 func (r *MemoryRegistry) Heartbeat(ctx context.Context, service, id string, ttl time.Duration) error {
+	return r.heartbeatAt(ctx, service, id, ttl, r.now())
+}
+
+func (r *MemoryRegistry) heartbeatAt(ctx context.Context, service, id string, ttl time.Duration, now time.Time) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -100,25 +174,106 @@ func (r *MemoryRegistry) Heartbeat(ctx context.Context, service, id string, ttl 
 		return ErrInvalidInstance
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	serviceInstances := r.items[service]
-	if serviceInstances == nil {
-		return ErrInstanceNotFound
-	}
-	rec, ok := serviceInstances[id]
+	stateValue, ok := r.services.Load(service)
 	if !ok {
 		return ErrInstanceNotFound
 	}
+	state := stateValue.(*serviceState)
+	expiresAt := now.Add(ttl)
+	generation := r.generation.Add(1)
 
-	rec.instance.LastSeen = r.now()
-	rec.expiresAt = rec.instance.LastSeen.Add(ttl)
-	serviceInstances[id] = rec
+	state.mu.Lock()
+	rec, ok := state.records[id]
+	if !ok {
+		state.mu.Unlock()
+		return ErrInstanceNotFound
+	}
+
+	rec.instance.LastSeen = now
+	rec.expiresAt = expiresAt
+	rec.generation = generation
+	state.records[id] = rec
+	state.rebuildSnapshotLocked(service, now)
+	state.mu.Unlock()
+
+	r.pushExpiry(expiryEntry{service: service, id: id, expiresAt: expiresAt, generation: generation})
 	return nil
 }
 
 func (r *MemoryRegistry) List(ctx context.Context, service string) ([]Instance, error) {
+	snapshot, err := r.Snapshot(ctx, service)
+	if err != nil {
+		return nil, err
+	}
+	return snapshot.Instances, nil
+}
+
+func (r *MemoryRegistry) Snapshot(ctx context.Context, service string) (InstanceSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return InstanceSnapshot{}, err
+	}
+	if service == "" {
+		return InstanceSnapshot{}, ErrInvalidInstance
+	}
+
+	stateValue, ok := r.services.Load(service)
+	if !ok {
+		return InstanceSnapshot{Service: service, Instances: []Instance{}}, nil
+	}
+
+	now := r.now()
+	state := stateValue.(*serviceState)
+	snapshot := state.snapshot.Load()
+	if snapshotNeedsExpiry(snapshot, now) {
+		r.sweepExpiredForService(ctx, service, state, now)
+		snapshot = state.snapshot.Load()
+	}
+	return cloneInstanceSnapshot(*snapshot), nil
+}
+
+func (r *MemoryRegistry) SweepExpired(ctx context.Context) int {
+	return len(r.sweepExpiredRecords(ctx))
+}
+
+func (r *MemoryRegistry) sweepExpiredRecords(ctx context.Context) []expiredRecord {
+	if err := ctx.Err(); err != nil {
+		return nil
+	}
+
+	now := r.now()
+	expired := make([]expiredRecord, 0)
+	dirtyServices := make(map[string]*serviceState)
+	for {
+		entry, ok := r.popExpired(now)
+		if !ok {
+			break
+		}
+		if err := ctx.Err(); err != nil {
+			break
+		}
+		stateValue, ok := r.services.Load(entry.service)
+		if !ok {
+			continue
+		}
+		state := stateValue.(*serviceState)
+		state.mu.Lock()
+		rec, ok := state.records[entry.id]
+		if ok && rec.generation == entry.generation && !rec.expiresAt.After(now) {
+			delete(state.records, entry.id)
+			dirtyServices[entry.service] = state
+			expired = append(expired, expiredRecord{service: entry.service, id: entry.id})
+		}
+		state.mu.Unlock()
+	}
+	for service, state := range dirtyServices {
+		state.mu.Lock()
+		state.rebuildSnapshotLocked(service, now)
+		state.mu.Unlock()
+	}
+	return expired
+}
+
+func (r *MemoryRegistry) Watch(ctx context.Context, service string, afterVersion int64) (<-chan InstanceSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -126,49 +281,227 @@ func (r *MemoryRegistry) List(ctx context.Context, service string) ([]Instance, 
 		return nil, ErrInvalidInstance
 	}
 
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	state := r.serviceState(service)
+	updates := make(chan InstanceSnapshot, 1)
+	go r.watch(ctx, service, state, afterVersion, updates)
+	return updates, nil
+}
 
-	now := r.now()
-	serviceInstances := r.items[service]
-	out := make([]Instance, 0, len(serviceInstances))
-	for _, rec := range serviceInstances {
+func (r *MemoryRegistry) watch(ctx context.Context, service string, state *serviceState, afterVersion int64, updates chan<- InstanceSnapshot) {
+	defer close(updates)
+
+	lastVersion := afterVersion
+	for {
+		if err := ctx.Err(); err != nil {
+			return
+		}
+
+		now := r.now()
+		snapshot := state.snapshot.Load()
+		if snapshotNeedsExpiry(snapshot, now) {
+			r.sweepExpiredForService(ctx, service, state, now)
+		}
+
+		state.mu.Lock()
+		snapshot = state.snapshot.Load()
+		notify := state.notify
+		state.mu.Unlock()
+
+		if snapshot.Version > lastVersion {
+			lastVersion = snapshot.Version
+			select {
+			case updates <- cloneInstanceSnapshot(*snapshot):
+				continue
+			case <-ctx.Done():
+				return
+			}
+		}
+
+		expiryTimer, expiry := nextExpiryTimer(snapshot, now)
+		select {
+		case <-ctx.Done():
+			stopTimer(expiryTimer)
+			return
+		case <-notify:
+			stopTimer(expiryTimer)
+		case <-expiry:
+		}
+	}
+}
+
+func (r *MemoryRegistry) serviceState(service string) *serviceState {
+	if state, ok := r.services.Load(service); ok {
+		return state.(*serviceState)
+	}
+	state := newServiceState(service)
+	actual, _ := r.services.LoadOrStore(service, state)
+	return actual.(*serviceState)
+}
+
+func newServiceState(service string) *serviceState {
+	state := &serviceState{
+		records: make(map[string]record),
+		notify:  make(chan struct{}),
+	}
+	state.snapshot.Store(&InstanceSnapshot{
+		Service:   service,
+		Instances: []Instance{},
+	})
+	return state
+}
+
+func (s *serviceState) rebuildSnapshotLocked(service string, now time.Time) {
+	instances := make([]Instance, 0, len(s.records))
+	var nextExpiresAt time.Time
+	for _, rec := range s.records {
 		if !rec.expiresAt.After(now) {
 			continue
 		}
-		inst := rec.instance
-		inst.Labels = cloneLabels(inst.Labels)
-		out = append(out, inst)
+		instances = append(instances, rec.instance)
+		if nextExpiresAt.IsZero() || rec.expiresAt.Before(nextExpiresAt) {
+			nextExpiresAt = rec.expiresAt
+		}
 	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].ID < out[j].ID
+	sort.Slice(instances, func(i, j int) bool {
+		return instances[i].ID < instances[j].ID
 	})
-	return out, nil
+
+	s.snapshot.Store(&InstanceSnapshot{
+		Service:       service,
+		Version:       s.version.Add(1),
+		Instances:     instances,
+		nextExpiresAt: nextExpiresAt,
+	})
+	close(s.notify)
+	s.notify = make(chan struct{})
 }
 
-func (r *MemoryRegistry) SweepExpired(ctx context.Context) int {
+func (r *MemoryRegistry) pushExpiry(entry expiryEntry) {
+	r.expiryMu.Lock()
+	heap.Push(&r.expiries, entry)
+	r.expiryMu.Unlock()
+}
+
+func (r *MemoryRegistry) popExpired(now time.Time) (expiryEntry, bool) {
+	r.expiryMu.Lock()
+	defer r.expiryMu.Unlock()
+
+	if len(r.expiries) == 0 || r.expiries[0].expiresAt.After(now) {
+		return expiryEntry{}, false
+	}
+	return heap.Pop(&r.expiries).(expiryEntry), true
+}
+
+func (r *MemoryRegistry) sweepExpiredForService(ctx context.Context, service string, state *serviceState, now time.Time) int {
 	if err := ctx.Err(); err != nil {
 		return 0
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	state.mu.Lock()
+	defer state.mu.Unlock()
 
-	now := r.now()
 	expired := 0
-	for service, serviceInstances := range r.items {
-		for id, rec := range serviceInstances {
-			if rec.expiresAt.After(now) {
-				continue
-			}
-			delete(serviceInstances, id)
-			expired++
+	for id, rec := range state.records {
+		if rec.expiresAt.After(now) {
+			continue
 		}
-		if len(serviceInstances) == 0 {
-			delete(r.items, service)
-		}
+		delete(state.records, id)
+		expired++
+	}
+	if expired > 0 {
+		state.rebuildSnapshotLocked(service, now)
 	}
 	return expired
+}
+
+func (r *MemoryRegistry) recordExists(service, id string) bool {
+	stateValue, ok := r.services.Load(service)
+	if !ok {
+		return false
+	}
+	state := stateValue.(*serviceState)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	_, ok = state.records[id]
+	return ok
+}
+
+func (r *MemoryRegistry) deleteRecord(service, id string, now time.Time) bool {
+	stateValue, ok := r.services.Load(service)
+	if !ok {
+		return false
+	}
+	state := stateValue.(*serviceState)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if _, ok := state.records[id]; !ok {
+		return false
+	}
+	delete(state.records, id)
+	state.rebuildSnapshotLocked(service, now)
+	return true
+}
+
+func snapshotNeedsExpiry(snapshot *InstanceSnapshot, now time.Time) bool {
+	return snapshot != nil && !snapshot.nextExpiresAt.IsZero() && !snapshot.nextExpiresAt.After(now)
+}
+
+func nextExpiryTimer(snapshot *InstanceSnapshot, now time.Time) (*time.Timer, <-chan time.Time) {
+	if snapshot == nil || snapshot.nextExpiresAt.IsZero() {
+		return nil, nil
+	}
+	delay := snapshot.nextExpiresAt.Sub(now)
+	if delay < 0 {
+		delay = 0
+	}
+	timer := time.NewTimer(delay)
+	return timer, timer.C
+}
+
+func stopTimer(timer *time.Timer) {
+	if timer == nil {
+		return
+	}
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+}
+
+func (r *MemoryRegistry) restore(inst Instance, expiresAt time.Time) {
+	r.restoreRecord(inst, expiresAt, true)
+}
+
+func (r *MemoryRegistry) restoreHistorical(inst Instance, expiresAt time.Time) {
+	r.restoreRecord(inst, expiresAt, false)
+}
+
+func (r *MemoryRegistry) restoreRecord(inst Instance, expiresAt time.Time, filterExpired bool) {
+	if inst.ID == "" || inst.Service == "" || inst.Address == "" {
+		return
+	}
+	if filterExpired && !expiresAt.After(r.now()) {
+		return
+	}
+	if inst.Status == "" {
+		inst.Status = InstanceHealthy
+	}
+	inst.Labels = cloneLabels(inst.Labels)
+
+	generation := r.generation.Add(1)
+	state := r.serviceState(inst.Service)
+	state.mu.Lock()
+	state.records[inst.ID] = record{
+		instance:   inst,
+		expiresAt:  expiresAt,
+		generation: generation,
+	}
+	state.rebuildSnapshotLocked(inst.Service, r.now())
+	state.mu.Unlock()
+
+	r.pushExpiry(expiryEntry{service: inst.Service, id: inst.ID, expiresAt: expiresAt, generation: generation})
 }
 
 func cloneLabels(labels map[string]string) map[string]string {
@@ -180,4 +513,18 @@ func cloneLabels(labels map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func cloneInstances(instances []Instance) []Instance {
+	out := make([]Instance, len(instances))
+	for i, inst := range instances {
+		inst.Labels = cloneLabels(inst.Labels)
+		out[i] = inst
+	}
+	return out
+}
+
+func cloneInstanceSnapshot(snapshot InstanceSnapshot) InstanceSnapshot {
+	snapshot.Instances = cloneInstances(snapshot.Instances)
+	return snapshot
 }

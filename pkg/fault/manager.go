@@ -1,6 +1,7 @@
 package fault
 
 import (
+	"context"
 	"sort"
 	"sync"
 	"time"
@@ -14,11 +15,14 @@ type HealthManagerConfig struct {
 }
 
 type HealthManager struct {
-	mu         sync.RWMutex
-	now        func() time.Time
-	calculator *ScoreCalculator
-	machine    *StateMachine
-	health     map[string]EndpointHealth
+	mu               sync.RWMutex
+	now              func() time.Time
+	calculator       *ScoreCalculator
+	machine          *StateMachine
+	health           map[string]EndpointHealth
+	revision         int64
+	serviceRevisions map[string]int64
+	notify           chan struct{}
 }
 
 func NewHealthManager(cfg HealthManagerConfig) *HealthManager {
@@ -29,10 +33,12 @@ func NewHealthManager(cfg HealthManagerConfig) *HealthManager {
 		cfg.Weights = DefaultScoreWeights()
 	}
 	return &HealthManager{
-		now:        cfg.Now,
-		calculator: NewScoreCalculatorWithConfig(ScoreCalculatorConfig{Weights: cfg.Weights, LatencySLO: cfg.LatencySLO}),
-		machine:    NewStateMachine(cfg.StateMachine),
-		health:     make(map[string]EndpointHealth),
+		now:              cfg.Now,
+		calculator:       NewScoreCalculatorWithConfig(ScoreCalculatorConfig{Weights: cfg.Weights, LatencySLO: cfg.LatencySLO}),
+		machine:          NewStateMachine(cfg.StateMachine),
+		health:           make(map[string]EndpointHealth),
+		serviceRevisions: make(map[string]int64),
+		notify:           make(chan struct{}),
 	}
 }
 
@@ -43,12 +49,14 @@ func (m *HealthManager) Update(samples []EndpointSample) []EndpointHealth {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	changedServices := make(map[string]struct{})
 	for _, sample := range samples {
 		if sample.Service == "" || sample.InstanceID == "" {
 			continue
 		}
 		key := ScoreKey(sample.Service, sample.InstanceID)
-		health := m.health[key]
+		before, existed := m.health[key]
+		health := before
 		if health.Service == "" {
 			health = NewEndpointHealth(sample.Service, sample.InstanceID, sample.Address)
 		}
@@ -62,8 +70,12 @@ func (m *HealthManager) Update(samples []EndpointSample) []EndpointHealth {
 			SlowScore:   score.Score,
 			SuccessRate: successRate(sample),
 		})
+		if !existed || before != health {
+			changedServices[sample.Service] = struct{}{}
+		}
 		m.health[key] = health
 	}
+	m.bumpIfChangedLocked(changedServices)
 
 	return m.listLocked("")
 }
@@ -74,14 +86,20 @@ func (m *HealthManager) Tick() []EndpointHealth {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	changedServices := make(map[string]struct{})
 	for key, health := range m.health {
+		before := health
 		m.machine.Apply(&health, StateInput{
 			Now:         now,
 			SlowScore:   health.SlowScore,
 			SuccessRate: 1,
 		})
+		if before != health {
+			changedServices[health.Service] = struct{}{}
+		}
 		m.health[key] = health
 	}
+	m.bumpIfChangedLocked(changedServices)
 	return m.listLocked("")
 }
 
@@ -99,6 +117,49 @@ func (m *HealthManager) HealthState(service, instanceID string) (EndpointState, 
 		return "", false
 	}
 	return health.State, true
+}
+
+func (m *HealthManager) HealthVersion(service string) int64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return m.healthVersionLocked(service)
+}
+
+func (m *HealthManager) WatchHealth(ctx context.Context, service string, afterVersion int64) (<-chan int64, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	updates := make(chan int64, 1)
+	go func() {
+		defer close(updates)
+
+		lastVersion := afterVersion
+		for {
+			m.mu.RLock()
+			version := m.healthVersionLocked(service)
+			notify := m.notify
+			m.mu.RUnlock()
+
+			if version > lastVersion {
+				lastVersion = version
+				select {
+				case updates <- version:
+					continue
+				case <-ctx.Done():
+					return
+				}
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-notify:
+			}
+		}
+	}()
+	return updates, nil
 }
 
 func (m *HealthManager) List(service string) []EndpointHealth {
@@ -123,6 +184,25 @@ func (m *HealthManager) listLocked(service string) []EndpointHealth {
 		return out[i].InstanceID < out[j].InstanceID
 	})
 	return out
+}
+
+func (m *HealthManager) bumpIfChangedLocked(changedServices map[string]struct{}) {
+	if len(changedServices) == 0 {
+		return
+	}
+	m.revision++
+	for service := range changedServices {
+		m.serviceRevisions[service] = m.revision
+	}
+	close(m.notify)
+	m.notify = make(chan struct{})
+}
+
+func (m *HealthManager) healthVersionLocked(service string) int64 {
+	if service == "" {
+		return m.revision
+	}
+	return m.serviceRevisions[service]
 }
 
 func successRate(sample EndpointSample) float64 {

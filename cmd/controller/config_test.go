@@ -69,3 +69,30 @@ func TestRegisterPolicyFlags(t *testing.T) {
 		t.Fatalf("expected 2s reload interval, got %s", *cfg.reloadInterval)
 	}
 }
+
+func TestBuildRegistryFromFlagsSelectsFileV2Backend(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	cfg := registerRegistryFlags(fs)
+	if err := fs.Parse([]string{"--registry-backend", "file-v2", "--registry-file", t.TempDir() + "/registry.json", "--registry-file-v2-sync", "always", "--registry-file-v2-flush-records", "1", "--registry-file-v2-flush-bytes", "256", "--registry-file-v2-flush-interval", "1ms", "--registry-file-v2-compact-bytes", "1024"}); err != nil {
+		t.Fatalf("parse flags: %v", err)
+	}
+
+	store, err := buildRegistry(cfg, time.Now)
+	if err != nil {
+		t.Fatalf("build registry: %v", err)
+	}
+	persistent, ok := store.(interface {
+		PersistencePath() string
+		WALPath() string
+		Close() error
+	})
+	if !ok {
+		t.Fatalf("expected file-v2 registry backend, got %T", store)
+	}
+	if persistent.WALPath() == "" {
+		t.Fatalf("expected file-v2 registry to expose WAL path")
+	}
+	if err := persistent.Close(); err != nil {
+		t.Fatalf("close file-v2 registry: %v", err)
+	}
+}

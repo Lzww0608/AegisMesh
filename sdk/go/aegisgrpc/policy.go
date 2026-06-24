@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
@@ -12,7 +13,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -21,34 +21,162 @@ const (
 )
 
 type policyManager struct {
-	mu       sync.RWMutex
-	snapshot *aegisv1.PolicySnapshot
+	v atomic.Value // stores *compiledPolicy
 }
 
 func (m *policyManager) Update(snapshot *aegisv1.PolicySnapshot) {
-	if snapshot == nil {
+	if m == nil || snapshot == nil {
 		return
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.snapshot = proto.Clone(snapshot).(*aegisv1.PolicySnapshot)
+	m.v.Store(compilePolicySnapshot(snapshot))
 }
 
-func (m *policyManager) Snapshot() *aegisv1.PolicySnapshot {
+func (m *policyManager) Load() *compiledPolicy {
 	if m == nil {
 		return nil
 	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	if m.snapshot == nil {
-		return nil
+	policy, _ := m.v.Load().(*compiledPolicy)
+	return policy
+}
+
+type compiledPolicy struct {
+	version      int64
+	routing      RoutingPolicy
+	defaultRetry compiledRetryPatch
+	methods      map[string]compiledMethod
+}
+
+type compiledMethod struct {
+	idempotent bool
+	timeout    time.Duration
+	retry      compiledRetryPatch
+}
+
+type compiledRetryPatch struct {
+	has           bool
+	enabled       bool
+	maxAttempts   int
+	perTryTimeout time.Duration
+	budgetRatio   float64
+	minBudget     int64
+	window        time.Duration
+}
+
+func compilePolicySnapshot(snapshot *aegisv1.PolicySnapshot) *compiledPolicy {
+	policy := &compiledPolicy{
+		version:      snapshot.Revision,
+		routing:      RoutingPolicy(snapshot.RoutingPolicy),
+		defaultRetry: compileRetryPatch(snapshot.Retry),
 	}
-	return proto.Clone(m.snapshot).(*aegisv1.PolicySnapshot)
+	if len(snapshot.Methods) == 0 {
+		return policy
+	}
+
+	methods := make(map[string]compiledMethod, len(snapshot.Methods))
+	for methodName, method := range snapshot.Methods {
+		if method == nil {
+			continue
+		}
+		key := methodName
+		if key == "" {
+			key = method.Method
+		}
+		methods[key] = compiledMethod{
+			idempotent: method.Idempotent,
+			timeout:    durationMillis(method.TimeoutMillis),
+			retry:      compileRetryPatch(method.Retry),
+		}
+	}
+	policy.methods = methods
+	return policy
+}
+
+func compileRetryPatch(policy *aegisv1.RetryPolicy) compiledRetryPatch {
+	if !policyRetryHasAnyField(policy) {
+		return compiledRetryPatch{}
+	}
+	return compiledRetryPatch{
+		has:           true,
+		enabled:       policy.Enabled,
+		maxAttempts:   int(policy.MaxAttempts),
+		perTryTimeout: durationMillis(policy.PerTryTimeoutMillis),
+		budgetRatio:   policy.BudgetRatio,
+		minBudget:     int64(policy.MinBudget),
+		window:        durationSeconds(policy.WindowSeconds),
+	}
+}
+
+func compileRetryFromDialOptions(options DialOptions) compiledRetry {
+	options = normalizeDialOptions(options)
+	retry := compileRetryPolicy(options.RetryPolicy)
+	retry.mode = options.RetryMode
+	retry.budget = options.RetryBudget
+	if retry.mode == RetryOff {
+		retry.maxAttempts = 1
+	}
+	return retry
+}
+
+func applyCompiledRetryPatch(retry compiledRetry, patch compiledRetryPatch) compiledRetry {
+	if !patch.has {
+		return retry
+	}
+	if !patch.enabled {
+		retry.mode = RetryOff
+		retry.maxAttempts = 1
+		return retry
+	}
+
+	retry.mode = RetryBudget
+	if patch.maxAttempts > 0 {
+		retry.maxAttempts = patch.maxAttempts
+	}
+	if patch.perTryTimeout > 0 {
+		retry.perTryTimeout = patch.perTryTimeout
+	}
+	if patch.budgetRatio > 0 {
+		retry.budget.BudgetRatio = patch.budgetRatio
+	}
+	if patch.minBudget > 0 {
+		retry.budget.MinBudget = patch.minBudget
+	}
+	if patch.window > 0 {
+		retry.budget.Window = patch.window
+	}
+	return retry
+}
+
+func applyCompiledMethod(retry compiledRetry, method compiledMethod) compiledRetry {
+	if method.timeout > 0 {
+		retry.perTryTimeout = method.timeout
+	}
+	if method.retry.has {
+		return applyCompiledRetryPatch(retry, method.retry)
+	}
+	if !method.idempotent {
+		retry.mode = RetryOff
+		retry.maxAttempts = 1
+	}
+	return retry
+}
+
+func durationMillis(ms int64) time.Duration {
+	if ms <= 0 {
+		return 0
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
+func durationSeconds(seconds int64) time.Duration {
+	if seconds <= 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 type dynamicRetrySource struct {
 	mu              sync.Mutex
-	defaults        DialOptions
+	defaults        compiledRetry
 	manager         *policyManager
 	budgets         map[string]*retrypkg.Budget
 	budgetRevisions map[string]int64
@@ -59,7 +187,7 @@ func newDynamicRetrySource(defaults DialOptions, manager *policyManager) *dynami
 		manager = &policyManager{}
 	}
 	return &dynamicRetrySource{
-		defaults:        normalizeDialOptions(defaults),
+		defaults:        compileRetryFromDialOptions(defaults),
 		manager:         manager,
 		budgets:         make(map[string]*retrypkg.Budget),
 		budgetRevisions: make(map[string]int64),
@@ -70,27 +198,21 @@ func (s *dynamicRetrySource) Update(snapshot *aegisv1.PolicySnapshot) {
 	s.manager.Update(snapshot)
 }
 
-func (s *dynamicRetrySource) PolicyForMethod(method string) (RetryPolicy, *retrypkg.Budget) {
-	snapshot := s.manager.Snapshot()
-	options := applyPolicySnapshotToDialOptions(s.defaults, snapshot)
-	if snapshot != nil {
-		options = applyMethodPolicyToDialOptions(options, snapshot.Methods[method])
-	}
-
-	policy, budgetCfg := retryPolicyAndBudgetConfig(options)
-	if options.RetryMode == RetryOff {
-		return policy, nil
-	}
-	if options.RetryMode == RetryWithoutBudget {
-		return policy, nil
-	}
-
+func (s *dynamicRetrySource) PolicyForMethod(method string) (compiledRetry, *retrypkg.Budget) {
+	retry := s.defaults
 	revision := int64(0)
-	if snapshot != nil {
-		revision = snapshot.Revision
+	if policy := s.manager.Load(); policy != nil {
+		revision = policy.version
+		retry = applyCompiledRetryPatch(retry, policy.defaultRetry)
+		if methodPolicy, ok := policy.methods[method]; ok {
+			retry = applyCompiledMethod(retry, methodPolicy)
+		}
 	}
-	budget := s.budgetForMethod(method, revision, budgetCfg)
-	return policy, budget
+
+	if retry.mode == RetryOff || retry.mode == RetryWithoutBudget {
+		return retry, nil
+	}
+	return retry, s.budgetForMethod(method, revision, retry.budget)
 }
 
 func (s *dynamicRetrySource) budgetForMethod(method string, revision int64, cfg retrypkg.BudgetConfig) *retrypkg.Budget {
@@ -107,12 +229,8 @@ func (s *dynamicRetrySource) budgetForMethod(method string, revision int64, cfg 
 }
 
 func retryPolicyAndBudgetConfig(options DialOptions) (RetryPolicy, retrypkg.BudgetConfig) {
-	options = normalizeDialOptions(options)
-	policy := options.RetryPolicy
-	if options.RetryMode == RetryOff {
-		policy.MaxAttempts = 1
-	}
-	return policy, options.RetryBudget
+	retry := compileRetryFromDialOptions(options)
+	return retry.toPolicy(), retry.budget
 }
 
 func loadInitialPolicy(ctx context.Context, controllerAddr, service string, manager *policyManager) *aegisv1.PolicySnapshot {

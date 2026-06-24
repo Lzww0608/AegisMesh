@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	benchmarkRetryPolicy RetryPolicy
+	benchmarkRetryPolicy compiledRetry
 	benchmarkRetryBudget *retrypkg.Budget
 )
 

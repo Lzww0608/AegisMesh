@@ -3,17 +3,23 @@ package aegisgrpc
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
+	"sync"
 	"time"
 
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/attributes"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/resolver"
+	"google.golang.org/grpc/status"
 )
 
 const defaultRefreshInterval = 3 * time.Second
+
+var endpointIdentityByAddress sync.Map
 
 type addressAttributeKey string
 
@@ -70,6 +76,9 @@ type registryResolver struct {
 	cc              resolver.ClientConn
 	service         string
 	refreshInterval time.Duration
+
+	mu          sync.Mutex
+	lastVersion int64
 }
 
 func (r *registryResolver) ResolveNow(resolver.ResolveNowOptions) {
@@ -82,6 +91,59 @@ func (r *registryResolver) Close() {
 }
 
 func (r *registryResolver) watch() {
+	for {
+		err := r.watchStream()
+		if err == nil || r.ctx.Err() != nil {
+			return
+		}
+		if status.Code(err) == codes.Unimplemented {
+			r.pollLoop()
+			return
+		}
+		if !errors.Is(err, io.EOF) {
+			r.cc.ReportError(err)
+		}
+		r.resolve()
+		if !r.waitBeforeWatchRetry() {
+			return
+		}
+	}
+}
+
+func (r *registryResolver) watchStream() error {
+	stream, err := r.client.WatchInstances(r.ctx, &aegisv1.WatchInstancesRequest{
+		Service:         r.service,
+		LastSeenVersion: r.currentVersion(),
+	})
+	if err != nil {
+		return err
+	}
+
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		if err := r.applyInstancesResponse(resp); err != nil {
+			r.cc.ReportError(err)
+		}
+	}
+}
+
+func (r *registryResolver) waitBeforeWatchRetry() bool {
+	timer := time.NewTimer(r.refreshInterval)
+	defer timer.Stop()
+
+	select {
+	case <-r.ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func (r *registryResolver) pollLoop() {
+	r.resolve()
 	ticker := time.NewTicker(r.refreshInterval)
 	defer ticker.Stop()
 
@@ -105,9 +167,36 @@ func (r *registryResolver) resolve() {
 		return
 	}
 
-	if err := r.cc.UpdateState(resolver.State{Addresses: instancesToAddresses(resp.Instances)}); err != nil {
+	if err := r.applyInstancesResponse(resp); err != nil {
 		r.cc.ReportError(err)
 	}
+}
+
+func (r *registryResolver) applyInstancesResponse(resp *aegisv1.ListInstancesResponse) error {
+	if resp == nil {
+		return nil
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if resp.Version != 0 && resp.Version == r.lastVersion {
+		return nil
+	}
+	if err := r.cc.UpdateState(resolver.State{Addresses: instancesToAddresses(resp.Instances)}); err != nil {
+		return err
+	}
+	if resp.Version != 0 {
+		r.lastVersion = resp.Version
+	}
+	return nil
+}
+
+func (r *registryResolver) currentVersion() int64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.lastVersion
 }
 
 func parseTarget(target resolver.Target) (string, string, error) {
@@ -134,6 +223,7 @@ func instancesToAddresses(instances []*aegisv1.ServiceInstance) []resolver.Addre
 		}
 		switch inst.Status {
 		case "", "HEALTHY", "DEGRADED", "PROBING":
+			rememberEndpointID(inst.Address, inst.Id)
 			addresses = append(addresses, resolver.Address{
 				Addr:       inst.Address,
 				ServerName: inst.Id,
@@ -142,6 +232,23 @@ func instancesToAddresses(instances []*aegisv1.ServiceInstance) []resolver.Addre
 		}
 	}
 	return addresses
+}
+
+func rememberEndpointID(address, endpointID string) {
+	if address == "" {
+		return
+	}
+	if endpointID == "" {
+		endpointIdentityByAddress.Delete(address)
+		return
+	}
+	endpointIdentityByAddress.Store(address, endpointID)
+}
+
+func endpointIDForAddress(address string) string {
+	value, _ := endpointIdentityByAddress.Load(address)
+	endpointID, _ := value.(string)
+	return endpointID
 }
 
 func addressAttributes(instanceID, status string, slowScore float64) *attributes.Attributes {

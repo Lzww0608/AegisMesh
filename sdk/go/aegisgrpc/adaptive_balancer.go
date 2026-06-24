@@ -19,12 +19,12 @@ const adaptiveP2CBalancerName = "aegis_adaptive_p2c"
 var (
 	registerBalancerOnce sync.Once
 	adaptiveStats        sync.Map
-	defaultBreaker       = circuitbreaker.NewBreaker(circuitbreaker.Config{MaxInflightPerEndpoint: 128})
 )
 
 const (
-	adaptiveDefaultProbeThreshold = 2
-	adaptiveRandomIncrement       = uint64(0x9e3779b97f4a7c15)
+	adaptiveDefaultProbeThreshold       = 2
+	adaptiveDefaultMaxInflightPerTarget = int64(128)
+	adaptiveRandomIncrement             = uint64(0x9e3779b97f4a7c15)
 )
 
 func registerDefaultBalancer() {
@@ -59,14 +59,15 @@ func (b adaptivePickerBuilder) Build(info base.PickerBuildInfo) balancer.Picker 
 	if random == nil {
 		random = newAdaptiveAtomicRandomSource(uint64(time.Now().UnixNano()))
 	}
-	return &adaptivePicker{
+	picker := &adaptivePicker{
 		items:          items,
 		normalIndexes:  normalIndexes,
 		probingIndexes: probingIndexes,
 		random:         random,
-		breaker:        defaultBreaker,
 		probeThreshold: adaptiveDefaultProbeThreshold,
 	}
+	picker.completions.New = newAdaptiveCompletion
+	return picker
 }
 
 type adaptivePicker struct {
@@ -74,8 +75,8 @@ type adaptivePicker struct {
 	normalIndexes  []int
 	probingIndexes []int
 	random         adaptiveRandomSource
-	breaker        *circuitbreaker.Breaker
 	probeThreshold int
+	completions    sync.Pool
 }
 
 func (p *adaptivePicker) Pick(info balancer.PickInfo) (balancer.PickResult, error) {
@@ -93,20 +94,50 @@ func (p *adaptivePicker) Pick(info balancer.PickInfo) (balancer.PickResult, erro
 		return balancer.PickResult{}, status.Error(codes.Unavailable, "no available endpoint")
 	}
 
-	if err := p.breaker.TryAcquire(item.address); err != nil {
-		return balancer.PickResult{}, status.Error(codes.ResourceExhausted, err.Error())
+	if !item.limiter.TryAcquire() {
+		return balancer.PickResult{}, status.Error(codes.ResourceExhausted, circuitbreaker.ErrOpen.Error())
 	}
 	item.stats.IncrementInflight()
-	started := time.Now()
+	completion := p.completions.Get().(*adaptiveCompletion)
+	completion.picker = p
+	completion.item = item
+	completion.started = time.Now()
 
 	return balancer.PickResult{
 		SubConn: item.subConn,
-		Done: func(done balancer.DoneInfo) {
-			item.stats.DecrementInflight()
-			item.stats.ObserveLatency(time.Since(started))
-			p.breaker.Release(item.address)
-		},
+		Done:    completion.done,
 	}, nil
+}
+
+type adaptiveCompletion struct {
+	picker  *adaptivePicker
+	item    *adaptivePickerItem
+	started time.Time
+	done    func(balancer.DoneInfo)
+}
+
+func newAdaptiveCompletion() any {
+	completion := &adaptiveCompletion{}
+	completion.done = completion.finish
+	return completion
+}
+
+func (c *adaptiveCompletion) finish(balancer.DoneInfo) {
+	picker := c.picker
+	item := c.item
+	started := c.started
+	if picker == nil || item == nil {
+		return
+	}
+
+	c.picker = nil
+	c.item = nil
+	c.started = time.Time{}
+
+	item.stats.DecrementInflight()
+	item.stats.ObserveLatency(time.Since(started))
+	item.limiter.Release()
+	picker.completions.Put(c)
 }
 
 func (p *adaptivePicker) pickItem() *adaptivePickerItem {
@@ -153,6 +184,7 @@ type adaptivePickerItem struct {
 	latencyPenalty  float64
 	staticCost      float64
 	stats           *adaptiveEndpointStats
+	limiter         *circuitbreaker.EndpointLimiter
 }
 
 func newAdaptivePickerItem(sc balancer.SubConn, address resolver.Address) (adaptivePickerItem, bool) {
@@ -183,6 +215,7 @@ func newAdaptivePickerItem(sc balancer.SubConn, address resolver.Address) (adapt
 		latencyPenalty:  1,
 		staticCost:      staticCost,
 		stats:           statsForEndpoint(address.Addr),
+		limiter:         circuitbreaker.NewEndpointLimiter(adaptiveDefaultMaxInflightPerTarget),
 	}, true
 }
 

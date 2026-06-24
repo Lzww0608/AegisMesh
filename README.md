@@ -179,6 +179,16 @@ go run ./cmd/controller \
 
 The file backend writes registered instances and lease expiry timestamps to a JSON snapshot. After a restart, unexpired instances are restored; expired ones are ignored.
 
+For lower heartbeat write amplification, use the WAL-backed file backend. It keeps the JSON snapshot as the compacted recovery point and appends short WAL records to `--registry-file + ".wal"` between compactions:
+
+```bash
+go run ./cmd/controller \
+  --registry-backend file-v2 \
+  --registry-file data/aegis-registry.json
+```
+
+Use `--registry-file-v2-sync always` for tests that need every record fsynced before the call returns. The default `batch` mode groups fsyncs by `--registry-file-v2-flush-records`, `--registry-file-v2-flush-bytes`, or `--registry-file-v2-flush-interval`; `--registry-file-v2-compact-bytes` controls snapshot compaction.
+
 Controller-side dynamic policy snapshots can be loaded from YAML and served through `PolicyService.GetPolicy` / `PolicyService.WatchPolicy`:
 
 ```bash

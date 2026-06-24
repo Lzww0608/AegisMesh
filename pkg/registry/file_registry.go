@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -59,6 +60,14 @@ func (r *FileRegistry) List(ctx context.Context, service string) ([]Instance, er
 	return r.memory.List(ctx, service)
 }
 
+func (r *FileRegistry) Snapshot(ctx context.Context, service string) (InstanceSnapshot, error) {
+	return r.memory.Snapshot(ctx, service)
+}
+
+func (r *FileRegistry) Watch(ctx context.Context, service string, afterVersion int64) (<-chan InstanceSnapshot, error) {
+	return r.memory.Watch(ctx, service, afterVersion)
+}
+
 func (r *FileRegistry) SweepExpired(ctx context.Context) int {
 	expired := r.memory.SweepExpired(ctx)
 	if expired > 0 {
@@ -84,20 +93,8 @@ func (r *FileRegistry) load() error {
 		return err
 	}
 
-	r.memory.mu.Lock()
-	defer r.memory.mu.Unlock()
 	for _, rec := range snapshot.Records {
-		inst := rec.Instance
-		if inst.ID == "" || inst.Service == "" || inst.Address == "" || !rec.ExpiresAt.After(r.memory.now()) {
-			continue
-		}
-		serviceInstances := r.memory.items[inst.Service]
-		if serviceInstances == nil {
-			serviceInstances = make(map[string]record)
-			r.memory.items[inst.Service] = serviceInstances
-		}
-		inst.Labels = cloneLabels(inst.Labels)
-		serviceInstances[inst.ID] = record{instance: inst, expiresAt: rec.ExpiresAt}
+		r.memory.restore(rec.Instance, rec.ExpiresAt)
 	}
 	return nil
 }
@@ -119,13 +116,13 @@ func (r *FileRegistry) persist() error {
 }
 
 func (r *FileRegistry) snapshot() fileRegistrySnapshot {
-	r.memory.mu.RLock()
-	defer r.memory.mu.RUnlock()
-
 	now := r.memory.now()
 	records := make([]fileRegistryRecord, 0)
-	for _, serviceInstances := range r.memory.items {
-		for _, rec := range serviceInstances {
+	r.memory.services.Range(func(_, value any) bool {
+		state := value.(*serviceState)
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		for _, rec := range state.records {
 			if !rec.expiresAt.After(now) {
 				continue
 			}
@@ -133,6 +130,13 @@ func (r *FileRegistry) snapshot() fileRegistrySnapshot {
 			inst.Labels = cloneLabels(inst.Labels)
 			records = append(records, fileRegistryRecord{Instance: inst, ExpiresAt: rec.expiresAt})
 		}
-	}
+		return true
+	})
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].Instance.Service != records[j].Instance.Service {
+			return records[i].Instance.Service < records[j].Instance.Service
+		}
+		return records[i].Instance.ID < records[j].Instance.ID
+	})
 	return fileRegistrySnapshot{Records: records}
 }

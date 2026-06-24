@@ -16,6 +16,7 @@ func TestTelemetryReporterSendsAndResetsRecorderWindow(t *testing.T) {
 	recorder.Observe(telemetry.Observation{
 		Destination: "user-service",
 		Method:      "/demo.shop.v1.UserService/GetUser",
+		EndpointID:  "user-a",
 		Upstream:    "127.0.0.1:7001",
 		Status:      "OK",
 		Latency:     100 * time.Millisecond,
@@ -30,7 +31,7 @@ func TestTelemetryReporterSendsAndResetsRecorderWindow(t *testing.T) {
 		t.Fatalf("expected one reported sample, got %+v", client.last)
 	}
 	sample := client.last.Samples[0]
-	if sample.Source != "frontend" || sample.Service != "user-service" || sample.EndpointAddress != "127.0.0.1:7001" {
+	if sample.Source != "frontend" || sample.Service != "user-service" || sample.InstanceId != "user-a" || sample.EndpointAddress != "127.0.0.1:7001" {
 		t.Fatalf("unexpected reported sample identity: %+v", sample)
 	}
 	if sample.RequestCount != 1 || sample.LatencyP95Seconds <= 0 || sample.LatencyEwmaSeconds <= 0 {

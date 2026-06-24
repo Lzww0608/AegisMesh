@@ -5,9 +5,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/aegismesh/aegismesh/pkg/circuitbreaker"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/balancer/base"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/resolver"
+	"google.golang.org/grpc/status"
 )
 
 func TestAdaptivePickerChoosesLowerCostReadySubConn(t *testing.T) {
@@ -104,6 +107,32 @@ func TestAdaptivePickerConcurrentPicks(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestAdaptivePickerRejectsWhenEndpointLimiterIsFull(t *testing.T) {
+	subConn := &fakeSubConn{id: "limited"}
+	picker := adaptivePickerBuilder{random: &sequenceRandom{values: []int{0}}}.Build(base.PickerBuildInfo{
+		ReadySCs: map[balancer.SubConn]base.SubConnInfo{
+			subConn: {Address: resolver.Address{Addr: "127.0.0.1:7001", Attributes: addressAttributes("limited", "HEALTHY", 0.1)}},
+		},
+	}).(*adaptivePicker)
+	picker.items[0].limiter = circuitbreaker.NewEndpointLimiter(1)
+
+	first, err := picker.Pick(balancer.PickInfo{})
+	if err != nil {
+		t.Fatalf("first pick: %v", err)
+	}
+	_, err = picker.Pick(balancer.PickInfo{})
+	if status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("expected ResourceExhausted when limiter is full, got %v", err)
+	}
+
+	first.Done(balancer.DoneInfo{})
+	second, err := picker.Pick(balancer.PickInfo{})
+	if err != nil {
+		t.Fatalf("pick after done: %v", err)
+	}
+	second.Done(balancer.DoneInfo{})
 }
 
 type fakeSubConn struct {

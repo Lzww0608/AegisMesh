@@ -2,6 +2,8 @@ package aegisgrpc
 
 import (
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -125,17 +127,185 @@ func TestDynamicRetrySourceUsesMethodPolicy(t *testing.T) {
 	})
 
 	orderPolicy, orderBudget := source.PolicyForMethod("/demo.shop.v1.OrderService/CreateOrder")
-	if orderPolicy.MaxAttempts != 1 || orderBudget != nil {
+	if orderPolicy.maxAttempts != 1 || orderBudget != nil {
 		t.Fatalf("expected non-idempotent CreateOrder retry disabled, got policy=%+v budget=%v", orderPolicy, orderBudget)
 	}
-	if orderPolicy.PerTryTimeout != 300*time.Millisecond {
-		t.Fatalf("expected method timeout override, got %s", orderPolicy.PerTryTimeout)
+	if orderPolicy.perTryTimeout != 300*time.Millisecond {
+		t.Fatalf("expected method timeout override, got %s", orderPolicy.perTryTimeout)
 	}
 
 	userPolicy, userBudget := source.PolicyForMethod("/demo.shop.v1.UserService/GetUser")
-	if userPolicy.MaxAttempts != 2 || userPolicy.PerTryTimeout != 100*time.Millisecond || userBudget == nil {
+	if userPolicy.maxAttempts != 2 || userPolicy.perTryTimeout != 100*time.Millisecond || userBudget == nil {
 		t.Fatalf("expected method retry override with budget, got policy=%+v budget=%v", userPolicy, userBudget)
 	}
+}
+
+func TestDynamicRetrySourcePolicyForMethodIsAllocationFree(t *testing.T) {
+	const method = "/demo.shop.v1.UserService/GetUser"
+	source := newDynamicRetrySource(DialOptions{
+		RoutingPolicy: RoutingAdaptiveP2C,
+		RetryMode:     RetryBudget,
+		RetryPolicy: RetryPolicy{
+			MaxAttempts:    2,
+			PerTryTimeout:  750 * time.Millisecond,
+			RetryableCodes: []codes.Code{codes.Unavailable, codes.DeadlineExceeded},
+		},
+		RetryBudget: retrypkg.BudgetConfig{
+			BudgetRatio: 0.15,
+			MinBudget:   10,
+			Window:      10 * time.Second,
+		},
+	}, &policyManager{})
+	source.Update(&aegisv1.PolicySnapshot{
+		Revision:      7,
+		RoutingPolicy: string(RoutingRoundRobin),
+		Retry: &aegisv1.RetryPolicy{
+			Enabled:             true,
+			MaxAttempts:         3,
+			BudgetRatio:         0.5,
+			MinBudget:           1,
+			WindowSeconds:       10,
+			PerTryTimeoutMillis: 500,
+		},
+		Methods: map[string]*aegisv1.MethodPolicy{
+			method: {
+				Method:        method,
+				Idempotent:    true,
+				TimeoutMillis: 150,
+				Retry: &aegisv1.RetryPolicy{
+					Enabled:             true,
+					MaxAttempts:         2,
+					PerTryTimeoutMillis: 100,
+				},
+			},
+		},
+	})
+	source.PolicyForMethod(method)
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		policy, budget := source.PolicyForMethod(method)
+		if policy.maxAttempts != 2 || policy.perTryTimeout != 100*time.Millisecond || budget == nil {
+			t.Fatalf("unexpected method policy: policy=%+v budget=%v", policy, budget)
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("expected PolicyForMethod hot path to allocate 0 times, got %.2f", allocs)
+	}
+}
+
+func TestDynamicRetrySourceUsesImmutableCompiledSnapshot(t *testing.T) {
+	const method = "/demo.shop.v1.UserService/GetUser"
+	snapshot := &aegisv1.PolicySnapshot{
+		Revision: 1,
+		Retry: &aegisv1.RetryPolicy{
+			Enabled:             true,
+			MaxAttempts:         3,
+			BudgetRatio:         0.5,
+			MinBudget:           1,
+			WindowSeconds:       10,
+			PerTryTimeoutMillis: 500,
+		},
+		Methods: map[string]*aegisv1.MethodPolicy{
+			method: {
+				Method:        method,
+				Idempotent:    true,
+				TimeoutMillis: 150,
+			},
+		},
+	}
+	source := newDynamicRetrySource(DefaultDialOptions(), &policyManager{})
+	source.Update(snapshot)
+
+	snapshot.Retry.MaxAttempts = 9
+	snapshot.Methods[method].TimeoutMillis = 900
+	snapshot.Methods[method] = &aegisv1.MethodPolicy{
+		Method:        method,
+		Idempotent:    false,
+		TimeoutMillis: 250,
+	}
+
+	policy, budget := source.PolicyForMethod(method)
+	if policy.maxAttempts != 3 || policy.perTryTimeout != 150*time.Millisecond || budget == nil {
+		t.Fatalf("expected compiled snapshot to ignore post-update proto mutation, got policy=%+v budget=%v", policy, budget)
+	}
+
+	source.Update(&aegisv1.PolicySnapshot{
+		Revision: 2,
+		Methods: map[string]*aegisv1.MethodPolicy{
+			method: {
+				Method:        method,
+				Idempotent:    false,
+				TimeoutMillis: 250,
+			},
+		},
+	})
+	policy, budget = source.PolicyForMethod(method)
+	if policy.maxAttempts != 1 || policy.perTryTimeout != 250*time.Millisecond || budget != nil {
+		t.Fatalf("expected latest compiled snapshot to disable retries, got policy=%+v budget=%v", policy, budget)
+	}
+}
+
+func TestDynamicRetrySourceMethodBudgetsDoNotOversubscribeConcurrent(t *testing.T) {
+	methods := []string{
+		"/demo.shop.v1.UserService/GetUser",
+		"/demo.shop.v1.OrderService/GetOrder",
+	}
+	source := newDynamicRetrySource(DialOptions{
+		RoutingPolicy: RoutingAdaptiveP2C,
+		RetryMode:     RetryBudget,
+		RetryPolicy:   RetryPolicy{MaxAttempts: 2, RetryableCodes: []codes.Code{codes.Unavailable}},
+		RetryBudget: retrypkg.BudgetConfig{
+			BudgetRatio: 0.15,
+			MinBudget:   0,
+			Window:      time.Minute,
+		},
+	}, &policyManager{})
+	source.Update(&aegisv1.PolicySnapshot{
+		Revision: 1,
+		Retry: &aegisv1.RetryPolicy{
+			Enabled:       true,
+			MaxAttempts:   2,
+			BudgetRatio:   0.15,
+			WindowSeconds: 60,
+		},
+		Methods: map[string]*aegisv1.MethodPolicy{
+			methods[0]: {Method: methods[0], Idempotent: true},
+			methods[1]: {Method: methods[1], Idempotent: true},
+		},
+	})
+
+	for _, method := range methods {
+		_, budget := source.PolicyForMethod(method)
+		if budget == nil {
+			t.Fatalf("expected budget for %s", method)
+		}
+		for i := 0; i < 100; i++ {
+			budget.RecordOriginal()
+		}
+
+		if got := acquireRetryBudgetConcurrently(budget, 100); got != 15 {
+			t.Fatalf("expected exactly 15 retry acquisitions for %s, got %d", method, got)
+		}
+	}
+}
+
+func acquireRetryBudgetConcurrently(budget *retrypkg.Budget, goroutines int) int64 {
+	var successes atomic.Int64
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			if budget.TryAcquireRetry() {
+				successes.Add(1)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	return successes.Load()
 }
 
 func TestPolicyRetryToSDKPolicyKeepsRetryableCodes(t *testing.T) {
@@ -165,7 +335,7 @@ func TestDynamicRetrySourceRebuildsBudgetOnRevisionChange(t *testing.T) {
 	}, &policyManager{})
 	source.Update(&aegisv1.PolicySnapshot{Revision: 1})
 	_, budget := source.PolicyForMethod("/demo.shop.v1.UserService/GetUser")
-	if budget == nil || budget.AllowRetry() {
+	if budget == nil || budget.TryAcquireRetry() {
 		t.Fatalf("expected initial exhausted zero budget")
 	}
 
@@ -180,7 +350,7 @@ func TestDynamicRetrySourceRebuildsBudgetOnRevisionChange(t *testing.T) {
 		},
 	})
 	_, budget = source.PolicyForMethod("/demo.shop.v1.UserService/GetUser")
-	if budget == nil || !budget.AllowRetry() {
+	if budget == nil || !budget.TryAcquireRetry() {
 		t.Fatalf("expected rebuilt budget to allow retry")
 	}
 }

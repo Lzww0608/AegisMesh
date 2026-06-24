@@ -6,6 +6,7 @@ import (
 
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
 	"google.golang.org/grpc/resolver"
+	"google.golang.org/grpc/serviceconfig"
 )
 
 func TestTargetForServiceBuildsAegisTarget(t *testing.T) {
@@ -65,4 +66,100 @@ func TestInstancesToAddressesAttachesAegisAttributes(t *testing.T) {
 	if slowScoreFromAttributes(got[0].Attributes) != 1.75 {
 		t.Fatalf("expected slow score attribute 1.75")
 	}
+}
+
+func TestInstancesToAddressesCachesEndpointIdentityForTelemetry(t *testing.T) {
+	instancesToAddresses([]*aegisv1.ServiceInstance{
+		{Id: "user-a", Address: "127.0.0.1:7001", Status: "HEALTHY"},
+	})
+
+	if got := endpointIDForAddress("127.0.0.1:7001"); got != "user-a" {
+		t.Fatalf("expected endpoint id user-a, got %q", got)
+	}
+}
+
+func TestRegistryResolverSkipsUnchangedVersion(t *testing.T) {
+	cc := &recordingResolverClientConn{}
+	r := &registryResolver{cc: cc}
+
+	first := &aegisv1.ListInstancesResponse{
+		Version: 10,
+		Instances: []*aegisv1.ServiceInstance{
+			{Id: "user-a", Address: "127.0.0.1:7001", Status: "HEALTHY"},
+		},
+	}
+	if err := r.applyInstancesResponse(first); err != nil {
+		t.Fatalf("apply first response: %v", err)
+	}
+	if cc.updateCount() != 1 {
+		t.Fatalf("expected first response to update state, got %d updates", cc.updateCount())
+	}
+
+	if err := r.applyInstancesResponse(&aegisv1.ListInstancesResponse{
+		Version: 10,
+		Instances: []*aegisv1.ServiceInstance{
+			{Id: "user-a", Address: "127.0.0.1:7001", Status: "HEALTHY"},
+			{Id: "user-b", Address: "127.0.0.1:7002", Status: "HEALTHY"},
+		},
+	}); err != nil {
+		t.Fatalf("apply unchanged version: %v", err)
+	}
+	if cc.updateCount() != 1 {
+		t.Fatalf("unchanged version should not update state, got %d updates", cc.updateCount())
+	}
+
+	if err := r.applyInstancesResponse(&aegisv1.ListInstancesResponse{
+		Version: 11,
+		Instances: []*aegisv1.ServiceInstance{
+			{Id: "user-a", Address: "127.0.0.1:7001", Status: "HEALTHY"},
+			{Id: "user-b", Address: "127.0.0.1:7002", Status: "HEALTHY"},
+		},
+	}); err != nil {
+		t.Fatalf("apply changed version: %v", err)
+	}
+	if cc.updateCount() != 2 {
+		t.Fatalf("changed version should update state, got %d updates", cc.updateCount())
+	}
+}
+
+func TestRegistryResolverKeepsUpdatingWhenVersionIsMissing(t *testing.T) {
+	cc := &recordingResolverClientConn{}
+	r := &registryResolver{cc: cc}
+	resp := &aegisv1.ListInstancesResponse{
+		Instances: []*aegisv1.ServiceInstance{{Id: "user-a", Address: "127.0.0.1:7001", Status: "HEALTHY"}},
+	}
+
+	if err := r.applyInstancesResponse(resp); err != nil {
+		t.Fatalf("apply first legacy response: %v", err)
+	}
+	if err := r.applyInstancesResponse(resp); err != nil {
+		t.Fatalf("apply second legacy response: %v", err)
+	}
+	if cc.updateCount() != 2 {
+		t.Fatalf("legacy version=0 responses should preserve polling behavior, got %d updates", cc.updateCount())
+	}
+}
+
+type recordingResolverClientConn struct {
+	states []resolver.State
+	errors []error
+}
+
+func (c *recordingResolverClientConn) UpdateState(state resolver.State) error {
+	c.states = append(c.states, state)
+	return nil
+}
+
+func (c *recordingResolverClientConn) ReportError(err error) {
+	c.errors = append(c.errors, err)
+}
+
+func (c *recordingResolverClientConn) NewAddress([]resolver.Address) {}
+
+func (c *recordingResolverClientConn) ParseServiceConfig(string) *serviceconfig.ParseResult {
+	return nil
+}
+
+func (c *recordingResolverClientConn) updateCount() int {
+	return len(c.states)
 }
