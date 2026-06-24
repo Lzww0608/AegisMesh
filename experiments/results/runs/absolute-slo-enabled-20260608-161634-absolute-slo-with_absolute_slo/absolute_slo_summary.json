@@ -1,0 +1,33 @@
+{
+  "conclusion": "PASS: absolute SLO scoring produced elevated slow_score and a health-state reaction.",
+  "endpoints": {
+    "172.18.0.4:7001": {
+      "max_slow_score": 0.929815,
+      "rows": 105,
+      "states": [
+        "HEALTHY"
+      ]
+    },
+    "172.18.0.5:7002": {
+      "max_slow_score": 1.007183,
+      "rows": 105,
+      "states": [
+        "DEGRADED",
+        "HEALTHY"
+      ]
+    }
+  },
+  "expected_states_observed": [
+    "DEGRADED"
+  ],
+  "max_slow_score": 1.007183,
+  "min_expected_score": 1.0,
+  "recovery_path": "experiments/results/runs/absolute-slo-enabled-20260608-161634-absolute-slo-with_absolute_slo/recovery.csv",
+  "rows": 210,
+  "score_pass": true,
+  "state_pass": true,
+  "states": {
+    "DEGRADED": 75,
+    "HEALTHY": 135
+  }
+}

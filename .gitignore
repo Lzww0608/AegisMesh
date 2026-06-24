@@ -4,3 +4,23 @@
 *.test
 *.out
 *.word
+
+# Experiment artifacts: track only final summaries (*_summary.md / *_summary.json).
+experiments/results/runs/**
+!experiments/results/runs/**/
+!experiments/results/runs/**/*_summary.json
+
+experiments/results/combined/
+experiments/results/figures/
+experiments/results/runs/**/figures/
+
+experiments/results/latency.csv
+experiments/results/recovery.csv
+experiments/results/retry.csv
+experiments/results/runs/**/*.csv
+experiments/results/**/run_meta.txt
+
+experiments/traces/**
+!experiments/traces/README.md
+
+experiments/**/*.log

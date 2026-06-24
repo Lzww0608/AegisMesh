@@ -1,0 +1,29 @@
+{
+  "conclusion": "FAIL: slow_score did not rise above the expected threshold.",
+  "endpoints": {
+    "172.18.0.4:7002": {
+      "max_slow_score": 0.377401,
+      "rows": 105,
+      "states": [
+        "HEALTHY"
+      ]
+    },
+    "172.18.0.6:7001": {
+      "max_slow_score": 0.31148,
+      "rows": 105,
+      "states": [
+        "HEALTHY"
+      ]
+    }
+  },
+  "expected_states_observed": [],
+  "max_slow_score": 0.377401,
+  "min_expected_score": 1.0,
+  "recovery_path": "experiments/results/runs/absolute-slo-disabled-20260608-161300-absolute-slo-without_absolute_slo/recovery.csv",
+  "rows": 210,
+  "score_pass": false,
+  "state_pass": false,
+  "states": {
+    "HEALTHY": 210
+  }
+}
