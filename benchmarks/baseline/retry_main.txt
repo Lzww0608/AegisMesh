@@ -1,0 +1,18 @@
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/pkg/retry
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkBudgetRecordOriginalParallel-32          	10616235	       111.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetRecordOriginalParallel-32          	10375374	       111.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetRecordOriginalParallel-32          	10306932	       111.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-32         	 9081460	       127.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-32         	 9016381	       131.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-32         	 9389566	       132.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-32    	 5325693	       223.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-32    	 5265734	       230.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-32    	 5136964	       229.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-32                  	17099884	        68.20 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-32                  	17402154	        68.25 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-32                  	17490634	        68.03 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/pkg/retry	15.900s

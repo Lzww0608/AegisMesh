@@ -33,7 +33,7 @@ RUNS_DIR ?= experiments/results/runs
 COMBINED_DIR ?= experiments/results/combined
 RUN_ID ?= $(shell date +%Y%m%d-%H%M%S)
 
-.PHONY: demo-up demo-down observability-up dashboard experiments-up experiments-down load inject-delay inject-loss inject-cpu reset-faults bench bench-required bench-probe-ratio bench-absolute-slo summarize-probe-slo check-results record-recovery report test
+.PHONY: demo-up demo-down observability-up dashboard experiments-up experiments-down load inject-delay inject-loss inject-cpu reset-faults bench bench-required bench-probe-ratio bench-absolute-slo summarize-probe-slo check-results record-recovery report test test-race microbench microbench-baseline microbench-baseline-full microbench-race microbench-quick microbench-adaptive
 
 demo-up:
 	$(COMPOSE) $(DEMO_COMPOSE) up -d --build
@@ -109,3 +109,28 @@ report:
 
 test:
 	go test ./...
+
+test-race:
+	go test -race ./...
+
+microbench:
+	bash scripts/run_microbench.sh capture
+
+microbench-baseline:
+	BENCH_COUNT=10 bash scripts/run_microbench.sh capture main
+
+microbench-baseline-full:
+	BENCH_COUNT=10 bash -c '\
+		bash scripts/run_microbench.sh capture main && \
+		go test ./pkg/telemetry -run=NONE -bench=SnapshotAndReset -benchmem -count=10 > benchmarks/baseline/telemetry_snapshot_main.txt && \
+		go test ./agent/ebpf -run=NONE -bench=SnapshotAndReset -benchmem -count=10 > benchmarks/baseline/ebpf_snapshot_main.txt'
+
+microbench-quick:
+	BENCH_COUNT=1 BENCHTIME=50ms bash scripts/run_microbench.sh capture quick
+
+microbench-race:
+	bash scripts/run_microbench.sh race
+
+microbench-adaptive:
+	@test -n "$(OLD)" && test -n "$(NEW)" || (echo "usage: make microbench-adaptive OLD=benchmarks/baseline/adaptive_gomax1_main.txt NEW=/tmp/adaptive.txt" && exit 1)
+	bash scripts/run_microbench.sh adaptive "$(OLD)" "$(NEW)"

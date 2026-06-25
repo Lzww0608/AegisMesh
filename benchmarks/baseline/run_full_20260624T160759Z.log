@@ -1,0 +1,18 @@
+=== AegisMesh full microbenchmark baseline ===
+started_at=20260624T160759Z
+log=/home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/run_full_20260624T160759Z.log
+cwd=/home/lab2439/Work/lzww/AegisMesh
+go=go version go1.26.3 linux/amd64
+gomaxprocs=default
+
+>>> microbench-baseline-full (2026-06-24T16:07:59Z)
+BENCH_COUNT=10 bash -c '\
+	bash scripts/run_microbench.sh capture main && \
+	go test ./pkg/telemetry -run=NONE -bench=SnapshotAndReset -benchmem -count=10 > benchmarks/baseline/telemetry_snapshot_main.txt && \
+	go test ./agent/ebpf -run=NONE -bench=SnapshotAndReset -benchmem -count=10 > benchmarks/baseline/ebpf_snapshot_main.txt'
+Capturing microbenchmark baseline (label=main, count=10, benchtime=default)
+==> adaptive_gomax1 -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/adaptive_gomax1_main.txt
+==> adaptive_gomax8 -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/adaptive_gomax8_main.txt
+==> aegisgrpc_policy -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/aegisgrpc_policy_main.txt
+==> aegisgrpc_retry -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/aegisgrpc_retry_main.txt
+==> telemetry -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/telemetry_main.txt

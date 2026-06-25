@@ -1,0 +1,36 @@
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/sdk/go/aegisgrpc
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=1-32         	 6922215	       162.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=1-32         	 6852196	       165.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=1-32         	 7596450	       171.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=1-32         	 7008252	       171.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=1-32         	 7191684	       172.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=1-32         	 7193264	       164.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=1-32         	 7336348	       168.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=1-32         	 7303264	       156.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=1-32         	 7232554	       174.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=1-32         	 6923530	       173.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=16-32        	 6699495	       176.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=16-32        	 6890853	       175.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=16-32        	 6904990	       176.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=16-32        	 6987481	       175.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=16-32        	 6634009	       176.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=16-32        	 6778512	       175.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=16-32        	 6850096	       176.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=16-32        	 6718731	       181.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=16-32        	 6695187	       179.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=16-32        	 6642464	       180.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=128-32       	 6617871	       180.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=128-32       	 6418936	       181.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=128-32       	 6682272	       181.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=128-32       	 6709765	       180.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=128-32       	 6343369	       183.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=128-32       	 6426598	       187.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=128-32       	 6285390	       179.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=128-32       	 6564616	       177.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=128-32       	 6580376	       176.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=128-32       	 6935593	       176.4 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/sdk/go/aegisgrpc	41.267s

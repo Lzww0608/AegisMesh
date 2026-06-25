@@ -1,0 +1,15 @@
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/pkg/policy
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkFileStoreGetPolicySnapshot/methods=1-32         	 1754295	       686.7 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=1-32         	 1729252	       696.8 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=1-32         	 1753338	       684.6 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-32        	  281751	      4449 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-32        	  271134	      4467 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-32        	  266018	      4467 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-32       	   37473	     32699 ns/op	   36376 B/op	     401 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-32       	   36609	     32272 ns/op	   36376 B/op	     401 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-32       	   37519	     32135 ns/op	   36376 B/op	     401 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/pkg/policy	14.122s

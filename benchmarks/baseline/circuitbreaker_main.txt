@@ -1,0 +1,18 @@
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/pkg/circuitbreaker
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkBreakerSameEndpoint-32       	13114234	        92.83 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerSameEndpoint-32       	13044061	        92.24 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerSameEndpoint-32       	13183824	        93.20 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-32       	160706556	         7.664 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-32       	157249474	         7.488 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-32       	160857360	         7.792 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-32    	13383483	        89.79 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-32    	13474032	        90.13 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-32    	13418736	        89.44 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-32    	250595019	         4.772 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-32    	246501771	         4.785 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-32    	250290235	         5.987 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/pkg/circuitbreaker	19.129s

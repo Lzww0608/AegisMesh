@@ -1,0 +1,22 @@
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/sdk/go/aegisgrpc
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkAdaptivePick_N2/healthy-8         	  127849	       456.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N2/degraded25-8      	  183828	       420.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N2/probing25-8       	  142494	       426.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N2/degraded25_probing10-8         	  206056	       404.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N8/healthy-8                      	  492178	       116.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N8/degraded25-8                   	  473016	       126.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N8/probing25-8                    	  396954	       154.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N8/degraded25_probing10-8         	  492134	       118.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N32/healthy-8                     	  935665	        67.32 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N32/degraded25-8                  	  859107	        69.24 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N32/probing25-8                   	  574910	        97.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N32/degraded25_probing10-8        	  596569	       101.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N128/healthy-8                    	  824751	        62.68 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N128/degraded25-8                 	  999518	        54.92 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N128/probing25-8                  	  612679	        97.08 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdaptivePick_N128/degraded25_probing10-8       	  705518	        90.81 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/sdk/go/aegisgrpc	1.202s

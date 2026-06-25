@@ -1,0 +1,19 @@
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/agent/ebpf
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkAggregatorObserveParallel/endpoints=1-32         	  496380	       112.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAggregatorObserveParallel/endpoints=8-32         	  472052	       129.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAggregatorObserveParallel/endpoints=64-32        	  428250	       139.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=1000-32         	  136972	       430.3 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=10000-32        	  123822	       482.0 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=100000-32       	   78381	       744.3 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=1000-32         	   56599	      1025 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=10000-32        	   51229	      1087 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=100000-32       	   34968	      1800 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=1000-32        	    5307	     10364 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=10000-32       	    6153	      9467 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=100000-32      	    5106	      9837 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkDecodeRawTCPEvent-32                                                	   77055	       683.0 ns/op	     224 B/op	      11 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/agent/ebpf	465.395s

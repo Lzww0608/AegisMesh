@@ -1,0 +1,26 @@
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/pkg/registry
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkMemoryRegistryRegister/services=1/instances_per_service=1-32         	   92125	       622.3 ns/op	    1086 B/op	       7 allocs/op
+BenchmarkMemoryRegistryRegister/services=8/instances_per_service=16-32        	   25672	      2335 ns/op	    2870 B/op	       9 allocs/op
+BenchmarkMemoryRegistryRegister/services=64/instances_per_service=64-32       	   10000	      7341 ns/op	    6518 B/op	       9 allocs/op
+BenchmarkMemoryRegistryRegister/services=100/instances_per_service=10-32      	   39800	      1570 ns/op	    2120 B/op	       9 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=1/instances_per_service=1-32        	  146930	       463.3 ns/op	     748 B/op	       5 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=8/instances_per_service=16-32       	   30849	      2293 ns/op	    2556 B/op	       7 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=64/instances_per_service=64-32      	    6636	      8560 ns/op	    7208 B/op	       7 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=100/instances_per_service=10-32     	   44342	      1405 ns/op	    1829 B/op	       7 allocs/op
+BenchmarkMemoryRegistryList/services=1/instances_per_service=1-32             	  313291	       190.5 ns/op	     432 B/op	       3 allocs/op
+BenchmarkMemoryRegistryList/services=8/instances_per_service=16-32            	   25008	      2506 ns/op	    7168 B/op	      33 allocs/op
+BenchmarkMemoryRegistryList/services=64/instances_per_service=64-32           	    5454	     10911 ns/op	   28033 B/op	     129 allocs/op
+BenchmarkMemoryRegistryList/services=100/instances_per_service=10-32          	   30045	      1930 ns/op	    4384 B/op	      21 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=1/instances_per_service=1-32         	  306918	       186.3 ns/op	     432 B/op	       3 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=8/instances_per_service=16-32        	   24132	      2495 ns/op	    7168 B/op	      33 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=64/instances_per_service=64-32       	    8280	     10725 ns/op	   28032 B/op	     129 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=100/instances_per_service=10-32      	   30867	      1967 ns/op	    4384 B/op	      21 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=1/instances_per_service=1-32     	   65312	       851.8 ns/op	     312 B/op	       5 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=8/instances_per_service=16-32    	    2348	     23314 ns/op	   19688 B/op	     163 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=64/instances_per_service=64-32   	      79	    942156 ns/op	  705160 B/op	    4312 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=100/instances_per_service=10-32  	     303	    191110 ns/op	  162536 B/op	    1320 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/pkg/registry	8.274s

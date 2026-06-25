@@ -1,0 +1,9 @@
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/sdk/go/aegisgrpc
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=1-32         	  323528	       174.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=16-32        	  331072	       189.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDynamicRetrySourcePolicyForMethodParallel/methods=128-32       	  319050	       180.5 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/sdk/go/aegisgrpc	0.193s

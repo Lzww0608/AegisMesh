@@ -1,0 +1,66 @@
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/pkg/registry
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkMemoryRegistryRegister/services=1/instances_per_service=1-32         	 2102013	       561.4 ns/op	    1101 B/op	       7 allocs/op
+BenchmarkMemoryRegistryRegister/services=1/instances_per_service=1-32         	 2102336	       569.1 ns/op	    1101 B/op	       7 allocs/op
+BenchmarkMemoryRegistryRegister/services=1/instances_per_service=1-32         	 2055056	       564.4 ns/op	    1110 B/op	       7 allocs/op
+BenchmarkMemoryRegistryRegister/services=8/instances_per_service=16-32        	  477388	      2299 ns/op	    2908 B/op	       9 allocs/op
+BenchmarkMemoryRegistryRegister/services=8/instances_per_service=16-32        	  471990	      2212 ns/op	    2912 B/op	       9 allocs/op
+BenchmarkMemoryRegistryRegister/services=8/instances_per_service=16-32        	  450992	      2282 ns/op	    2928 B/op	       9 allocs/op
+BenchmarkMemoryRegistryRegister/services=64/instances_per_service=64-32       	  151293	      8709 ns/op	    7579 B/op	       9 allocs/op
+BenchmarkMemoryRegistryRegister/services=64/instances_per_service=64-32       	  153914	      8752 ns/op	    7574 B/op	       9 allocs/op
+BenchmarkMemoryRegistryRegister/services=64/instances_per_service=64-32       	  153160	      8751 ns/op	    7576 B/op	       9 allocs/op
+BenchmarkMemoryRegistryRegister/services=100/instances_per_service=10-32      	  773377	      1499 ns/op	    2128 B/op	       9 allocs/op
+BenchmarkMemoryRegistryRegister/services=100/instances_per_service=10-32      	  812421	      1477 ns/op	    2112 B/op	       9 allocs/op
+BenchmarkMemoryRegistryRegister/services=100/instances_per_service=10-32      	  686113	      1506 ns/op	    2172 B/op	       9 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=1/instances_per_service=1-32        	 2709450	       442.1 ns/op	     753 B/op	       5 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=1/instances_per_service=1-32        	 2803782	       445.8 ns/op	     740 B/op	       5 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=1/instances_per_service=1-32        	 2930000	       413.2 ns/op	     725 B/op	       5 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=8/instances_per_service=16-32       	  569877	      2099 ns/op	    2589 B/op	       7 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=8/instances_per_service=16-32       	  518228	      2094 ns/op	    2544 B/op	       7 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=8/instances_per_service=16-32       	  570872	      2076 ns/op	    2589 B/op	       7 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=64/instances_per_service=64-32      	  135594	      9033 ns/op	    7264 B/op	       7 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=64/instances_per_service=64-32      	  129214	      8921 ns/op	    7279 B/op	       7 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=64/instances_per_service=64-32      	  127548	      8972 ns/op	    7283 B/op	       7 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=100/instances_per_service=10-32     	  857365	      1354 ns/op	    1837 B/op	       7 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=100/instances_per_service=10-32     	  798843	      1326 ns/op	    1781 B/op	       7 allocs/op
+BenchmarkMemoryRegistryHeartbeat/services=100/instances_per_service=10-32     	  764256	      1340 ns/op	    1796 B/op	       7 allocs/op
+BenchmarkMemoryRegistryList/services=1/instances_per_service=1-32             	 5871724	       202.8 ns/op	     432 B/op	       3 allocs/op
+BenchmarkMemoryRegistryList/services=1/instances_per_service=1-32             	 5844644	       205.5 ns/op	     432 B/op	       3 allocs/op
+BenchmarkMemoryRegistryList/services=1/instances_per_service=1-32             	 5927924	       204.9 ns/op	     432 B/op	       3 allocs/op
+BenchmarkMemoryRegistryList/services=8/instances_per_service=16-32            	  479430	      2661 ns/op	    7168 B/op	      33 allocs/op
+BenchmarkMemoryRegistryList/services=8/instances_per_service=16-32            	  470209	      2651 ns/op	    7168 B/op	      33 allocs/op
+BenchmarkMemoryRegistryList/services=8/instances_per_service=16-32            	  454683	      2631 ns/op	    7168 B/op	      33 allocs/op
+BenchmarkMemoryRegistryList/services=64/instances_per_service=64-32           	  105578	     11076 ns/op	   28032 B/op	     129 allocs/op
+BenchmarkMemoryRegistryList/services=64/instances_per_service=64-32           	  105398	     11192 ns/op	   28032 B/op	     129 allocs/op
+BenchmarkMemoryRegistryList/services=64/instances_per_service=64-32           	  107671	     11118 ns/op	   28032 B/op	     129 allocs/op
+BenchmarkMemoryRegistryList/services=100/instances_per_service=10-32          	  599718	      2039 ns/op	    4384 B/op	      21 allocs/op
+BenchmarkMemoryRegistryList/services=100/instances_per_service=10-32          	  540906	      2048 ns/op	    4384 B/op	      21 allocs/op
+BenchmarkMemoryRegistryList/services=100/instances_per_service=10-32          	  576921	      2042 ns/op	    4384 B/op	      21 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=1/instances_per_service=1-32         	 5863018	       202.2 ns/op	     432 B/op	       3 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=1/instances_per_service=1-32         	 6014610	       202.6 ns/op	     432 B/op	       3 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=1/instances_per_service=1-32         	 5876473	       201.6 ns/op	     432 B/op	       3 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=8/instances_per_service=16-32        	  447642	      2643 ns/op	    7168 B/op	      33 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=8/instances_per_service=16-32        	  450926	      2657 ns/op	    7168 B/op	      33 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=8/instances_per_service=16-32        	  442953	      2669 ns/op	    7168 B/op	      33 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=64/instances_per_service=64-32       	  107502	     11298 ns/op	   28032 B/op	     129 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=64/instances_per_service=64-32       	  106722	     11394 ns/op	   28032 B/op	     129 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=64/instances_per_service=64-32       	  103810	     11127 ns/op	   28032 B/op	     129 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=100/instances_per_service=10-32      	  566148	      2117 ns/op	    4384 B/op	      21 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=100/instances_per_service=10-32      	  573686	      2093 ns/op	    4384 B/op	      21 allocs/op
+BenchmarkMemoryRegistrySnapshot/services=100/instances_per_service=10-32      	  573348	      2109 ns/op	    4384 B/op	      21 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=1/instances_per_service=1-32     	 1222816	       977.0 ns/op	     312 B/op	       5 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=1/instances_per_service=1-32     	 1274574	       942.6 ns/op	     312 B/op	       5 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=1/instances_per_service=1-32     	 1303111	       898.3 ns/op	     312 B/op	       5 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=8/instances_per_service=16-32    	   47484	     24831 ns/op	   19688 B/op	     163 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=8/instances_per_service=16-32    	   47374	     24940 ns/op	   19688 B/op	     163 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=8/instances_per_service=16-32    	   47941	     25186 ns/op	   19688 B/op	     163 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=64/instances_per_service=64-32   	    1299	    943233 ns/op	  705163 B/op	    4312 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=64/instances_per_service=64-32   	    1282	    934053 ns/op	  705162 B/op	    4312 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=64/instances_per_service=64-32   	    1293	    946014 ns/op	  705162 B/op	    4312 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=100/instances_per_service=10-32  	    6060	    192439 ns/op	  162536 B/op	    1320 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=100/instances_per_service=10-32  	    6142	    192493 ns/op	  162536 B/op	    1320 allocs/op
+BenchmarkMemoryRegistrySweepExpired/services=100/instances_per_service=10-32  	    5986	    192656 ns/op	  162536 B/op	    1320 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/pkg/registry	579.300s
