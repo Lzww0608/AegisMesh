@@ -3,11 +3,46 @@ package aegisgrpc
 import (
 	"net/url"
 	"testing"
+	"time"
 
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
+	aegisstatus "github.com/aegismesh/aegismesh/pkg/status"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/serviceconfig"
 )
+
+func TestRegistryResolverNextWatchRetryDelayCapsBackoff(t *testing.T) {
+	r := &registryResolver{
+		refreshInterval: defaultRefreshInterval,
+		watchBackoff:    defaultRefreshInterval,
+	}
+
+	got := []time.Duration{
+		r.nextWatchRetryDelay(),
+		r.nextWatchRetryDelay(),
+		r.nextWatchRetryDelay(),
+		r.nextWatchRetryDelay(),
+	}
+	want := []time.Duration{
+		3 * time.Second,
+		6 * time.Second,
+		12 * time.Second,
+		24 * time.Second,
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("backoff[%d] = %s, want %s", i, got[i], want[i])
+		}
+	}
+
+	r.watchBackoff = 20 * time.Second
+	if delay := r.nextWatchRetryDelay(); delay != 20*time.Second {
+		t.Fatalf("expected capped delay 20s, got %s", delay)
+	}
+	if r.watchBackoff != maxWatchRetryBackoff {
+		t.Fatalf("expected backoff cap %s, got %s", maxWatchRetryBackoff, r.watchBackoff)
+	}
+}
 
 func TestTargetForServiceBuildsAegisTarget(t *testing.T) {
 	got := TargetForService("127.0.0.1:9000", "user-service")
@@ -60,7 +95,7 @@ func TestInstancesToAddressesAttachesAegisAttributes(t *testing.T) {
 	if instanceIDFromAttributes(got[0].Attributes) != "user-a" {
 		t.Fatalf("expected instance id attribute user-a")
 	}
-	if endpointStatusFromAttributes(got[0].Attributes) != "DEGRADED" {
+	if endpointStatusFromAttributes(got[0].Attributes) != aegisstatus.Degraded {
 		t.Fatalf("expected status attribute DEGRADED")
 	}
 	if slowScoreFromAttributes(got[0].Attributes) != 1.75 {

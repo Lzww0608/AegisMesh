@@ -22,7 +22,7 @@ func TestRegistryServiceRegistersAndListsInstances(t *testing.T) {
 			Id:      "user-1",
 			Service: "user-service",
 			Address: "127.0.0.1:7001",
-			Status:  string(registry.InstanceHealthy),
+			Status:  registry.InstanceHealthy.String(),
 			Labels:  map[string]string{"variant": "primary"},
 		},
 		LeaseTtlSeconds: 10,
@@ -138,7 +138,7 @@ func TestRegistryServiceListInstancesVersionTracksHealthOverlay(t *testing.T) {
 	if after.Version == before.Version {
 		t.Fatalf("health revision did not change response version: %d", after.Version)
 	}
-	if after.Instances[0].Status != string(fault.StateDegraded) || after.Instances[0].SlowScore != 1.75 {
+	if after.Instances[0].Status != fault.StateDegraded.String() || after.Instances[0].SlowScore != 1.75 {
 		t.Fatalf("expected health overlay in response, got %+v", after.Instances[0])
 	}
 }
@@ -186,7 +186,7 @@ func (p *versionedHealthProvider) set(service, instanceID string, state fault.En
 
 func (p *versionedHealthProvider) HealthState(service, instanceID string) (fault.EndpointState, bool) {
 	if p.health.Service != service || p.health.InstanceID != instanceID {
-		return "", false
+		return fault.StateUnspecified, false
 	}
 	return p.health.State, true
 }

@@ -7,19 +7,21 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/aegismesh/aegismesh/pkg/status"
 )
 
 var ErrNoEndpoint = errors.New("no available endpoint")
 
-type EndpointStatus string
+type EndpointStatus = status.Code
 
 const (
-	EndpointHealthy     EndpointStatus = "HEALTHY"
-	EndpointDegraded    EndpointStatus = "DEGRADED"
-	EndpointEjected     EndpointStatus = "EJECTED"
-	EndpointProbing     EndpointStatus = "PROBING"
-	EndpointDead        EndpointStatus = "DEAD"
-	EndpointUnavailable EndpointStatus = "UNAVAILABLE"
+	EndpointHealthy     = status.Healthy
+	EndpointDegraded    = status.Degraded
+	EndpointEjected     = status.Ejected
+	EndpointProbing     = status.Probing
+	EndpointDead        = status.Dead
+	EndpointUnavailable = status.Unavailable
 )
 
 type Endpoint struct {
@@ -66,7 +68,7 @@ func (p *RoundRobinPicker) Pick(ctx context.Context) (Endpoint, error) {
 		p.next = (p.next + 1) % len(p.endpoints)
 
 		endpoint := p.endpoints[idx]
-		if endpoint.Status == "" || endpoint.Status == EndpointHealthy {
+		if status.Normalized(endpoint.Status) == EndpointHealthy {
 			return endpoint, nil
 		}
 	}
@@ -166,8 +168,7 @@ func (p *AdaptiveP2CPicker) Update(endpoints []Endpoint) {
 func routableEndpoints(endpoints []Endpoint) []Endpoint {
 	out := make([]Endpoint, 0, len(endpoints))
 	for _, endpoint := range endpoints {
-		switch endpoint.Status {
-		case "", EndpointHealthy, EndpointDegraded, EndpointProbing:
+		if endpoint.Status.Routable() {
 			out = append(out, endpoint)
 		}
 	}
@@ -178,10 +179,10 @@ func (p *AdaptiveP2CPicker) pickCandidates(endpoints []Endpoint) []Endpoint {
 	normal := make([]Endpoint, 0, len(endpoints))
 	probing := make([]Endpoint, 0, len(endpoints))
 	for _, endpoint := range endpoints {
-		switch endpoint.Status {
-		case "", EndpointHealthy, EndpointDegraded:
+		switch {
+		case endpoint.Status.NormalTraffic():
 			normal = append(normal, endpoint)
-		case EndpointProbing:
+		case endpoint.Status.IsProbing():
 			probing = append(probing, endpoint)
 		}
 	}

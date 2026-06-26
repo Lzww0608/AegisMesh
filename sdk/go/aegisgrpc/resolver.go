@@ -9,6 +9,7 @@ import (
 	"time"
 
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
+	aegisstatus "github.com/aegismesh/aegismesh/pkg/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/attributes"
 	"google.golang.org/grpc/codes"
@@ -17,7 +18,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const defaultRefreshInterval = 3 * time.Second
+const (
+	defaultRefreshInterval    = 3 * time.Second
+	maxWatchRetryBackoff      = 30 * time.Second
+	maxWatchFailuresBeforePoll = 5
+)
 
 var endpointIdentityByAddress sync.Map
 
@@ -62,6 +67,7 @@ func (b *registryResolverBuilder) Build(target resolver.Target, cc resolver.Clie
 		cc:              cc,
 		service:         service,
 		refreshInterval: b.refreshInterval,
+		watchBackoff:    b.refreshInterval,
 	}
 	r.ResolveNow(resolver.ResolveNowOptions{})
 	go r.watch()
@@ -77,8 +83,10 @@ type registryResolver struct {
 	service         string
 	refreshInterval time.Duration
 
-	mu          sync.Mutex
-	lastVersion int64
+	mu            sync.Mutex
+	lastVersion   int64
+	watchFailures int
+	watchBackoff  time.Duration
 }
 
 func (r *registryResolver) ResolveNow(resolver.ResolveNowOptions) {
@@ -100,11 +108,17 @@ func (r *registryResolver) watch() {
 			r.pollLoop()
 			return
 		}
+
+		r.recordWatchFailure()
 		if !errors.Is(err, io.EOF) {
 			r.cc.ReportError(err)
 		}
 		r.resolve()
-		if !r.waitBeforeWatchRetry() {
+		if r.watchFailures >= maxWatchFailuresBeforePoll {
+			r.pollLoop()
+			return
+		}
+		if !r.waitWatchBackoff() {
 			return
 		}
 	}
@@ -118,6 +132,7 @@ func (r *registryResolver) watchStream() error {
 	if err != nil {
 		return err
 	}
+	r.resetWatchRetry()
 
 	for {
 		resp, err := stream.Recv()
@@ -130,8 +145,22 @@ func (r *registryResolver) watchStream() error {
 	}
 }
 
-func (r *registryResolver) waitBeforeWatchRetry() bool {
-	timer := time.NewTimer(r.refreshInterval)
+func (r *registryResolver) recordWatchFailure() {
+	r.mu.Lock()
+	r.watchFailures++
+	r.mu.Unlock()
+}
+
+func (r *registryResolver) resetWatchRetry() {
+	r.mu.Lock()
+	r.watchFailures = 0
+	r.watchBackoff = r.refreshInterval
+	r.mu.Unlock()
+}
+
+func (r *registryResolver) waitWatchBackoff() bool {
+	delay := r.nextWatchRetryDelay()
+	timer := time.NewTimer(delay)
 	defer timer.Stop()
 
 	select {
@@ -140,6 +169,19 @@ func (r *registryResolver) waitBeforeWatchRetry() bool {
 	case <-timer.C:
 		return true
 	}
+}
+
+func (r *registryResolver) nextWatchRetryDelay() time.Duration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	delay := r.watchBackoff
+	next := r.watchBackoff * 2
+	if next > maxWatchRetryBackoff {
+		next = maxWatchRetryBackoff
+	}
+	r.watchBackoff = next
+	return delay
 }
 
 func (r *registryResolver) pollLoop() {
@@ -221,15 +263,15 @@ func instancesToAddresses(instances []*aegisv1.ServiceInstance) []resolver.Addre
 		if inst == nil || inst.Address == "" {
 			continue
 		}
-		switch inst.Status {
-		case "", "HEALTHY", "DEGRADED", "PROBING":
-			rememberEndpointID(inst.Address, inst.Id)
-			addresses = append(addresses, resolver.Address{
-				Addr:       inst.Address,
-				ServerName: inst.Id,
-				Attributes: addressAttributes(inst.Id, inst.Status, inst.SlowScore),
-			})
+		if !aegisstatus.Parse(inst.Status).Routable() {
+			continue
 		}
+		rememberEndpointID(inst.Address, inst.Id)
+		addresses = append(addresses, resolver.Address{
+			Addr:       inst.Address,
+			ServerName: inst.Id,
+			Attributes: addressAttributes(inst.Id, aegisstatus.Parse(inst.Status), inst.SlowScore),
+		})
 	}
 	return addresses
 }
@@ -251,9 +293,9 @@ func endpointIDForAddress(address string) string {
 	return endpointID
 }
 
-func addressAttributes(instanceID, status string, slowScore float64) *attributes.Attributes {
+func addressAttributes(instanceID string, statusCode aegisstatus.Code, slowScore float64) *attributes.Attributes {
 	return attributes.New(instanceIDAttribute, instanceID).
-		WithValue(statusAttribute, status).
+		WithValue(statusAttribute, statusCode).
 		WithValue(slowScoreAttribute, slowScore)
 }
 
@@ -265,12 +307,17 @@ func instanceIDFromAttributes(attrs *attributes.Attributes) string {
 	return value
 }
 
-func endpointStatusFromAttributes(attrs *attributes.Attributes) string {
+func endpointStatusFromAttributes(attrs *attributes.Attributes) aegisstatus.Code {
 	if attrs == nil {
-		return ""
+		return aegisstatus.Unspecified
 	}
-	value, _ := attrs.Value(statusAttribute).(string)
-	return value
+	if value, ok := attrs.Value(statusAttribute).(aegisstatus.Code); ok {
+		return value
+	}
+	if value, ok := attrs.Value(statusAttribute).(string); ok {
+		return aegisstatus.Parse(value)
+	}
+	return aegisstatus.Unspecified
 }
 
 func slowScoreFromAttributes(attrs *attributes.Attributes) float64 {

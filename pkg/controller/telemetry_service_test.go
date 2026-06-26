@@ -47,7 +47,7 @@ func TestTelemetryServiceReportsStatsAndReturnsHealth(t *testing.T) {
 	if slow == nil {
 		t.Fatalf("expected resolved instance id user-c in response: %+v", resp.Endpoints)
 	}
-	if slow.State != string(fault.StateEjected) {
+	if slow.State != fault.StateEjected.String() {
 		t.Fatalf("expected slow endpoint ejected, got %+v", slow)
 	}
 }
@@ -90,7 +90,7 @@ func TestRegistryServiceOverlaysHealthStateOnDiscoveredInstances(t *testing.T) {
 	if len(resp.Instances) != 1 {
 		t.Fatalf("expected one instance, got %d", len(resp.Instances))
 	}
-	if resp.Instances[0].Status != string(fault.StateEjected) {
+	if resp.Instances[0].Status != fault.StateEjected.String() {
 		t.Fatalf("expected discovered instance status to be overlaid as EJECTED, got %+v", resp.Instances[0])
 	}
 }

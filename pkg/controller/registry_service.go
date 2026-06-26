@@ -7,6 +7,7 @@ import (
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
 	"github.com/aegismesh/aegismesh/pkg/fault"
 	"github.com/aegismesh/aegismesh/pkg/registry"
+	aegisstatus "github.com/aegismesh/aegismesh/pkg/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -239,11 +240,11 @@ func (s *RegistryService) overlayHealth(inst registry.Instance) (registry.Instan
 		return inst, slowScore
 	}
 	if state, ok := s.health.HealthState(inst.Service, inst.ID); ok {
-		inst.Status = registry.InstanceStatus(state)
+		inst.Status = state
 	}
 	if provider, ok := s.health.(healthSnapshotProvider); ok {
 		if health, ok := provider.Get(inst.Service, inst.ID); ok {
-			inst.Status = registry.InstanceStatus(health.State)
+			inst.Status = health.State
 			slowScore = health.SlowScore
 		}
 	}
@@ -310,8 +311,8 @@ func (s *RegistryService) leaseTTL(seconds int64) time.Duration {
 }
 
 func instanceFromProto(inst *aegisv1.ServiceInstance) registry.Instance {
-	statusValue := registry.InstanceStatus(inst.Status)
-	if statusValue == "" {
+	statusValue := aegisstatus.Parse(inst.Status)
+	if statusValue == aegisstatus.Unspecified {
 		statusValue = registry.InstanceHealthy
 	}
 	return registry.Instance{
@@ -328,7 +329,7 @@ func instanceToProto(inst registry.Instance) *aegisv1.ServiceInstance {
 		Id:                 inst.ID,
 		Service:            inst.Service,
 		Address:            inst.Address,
-		Status:             string(inst.Status),
+		Status:             inst.Status.String(),
 		Labels:             cloneProtoLabels(inst.Labels),
 		LastSeenUnixMillis: inst.LastSeen.UnixMilli(),
 	}

@@ -10,7 +10,7 @@ import (
 var benchmarkTCPEvent TCPEvent
 
 func BenchmarkDecodeRawTCPEvent(b *testing.B) {
-	raw := rawTCPEvent{
+	raw := testRawTCPEvent{
 		TimestampNS:      uint64(time.Second),
 		PID:              4242,
 		Type:             uint32(EventTypeConnect),
@@ -34,11 +34,13 @@ func BenchmarkDecodeRawTCPEvent(b *testing.B) {
 	}
 }
 
-func encodeBenchmarkRawEvent(b *testing.B, event rawTCPEvent) []byte {
+func encodeBenchmarkRawEvent(b *testing.B, event testRawTCPEvent) []byte {
 	b.Helper()
 	var buf bytes.Buffer
 	if err := binary.Write(&buf, binary.LittleEndian, event); err != nil {
 		b.Fatal(err)
 	}
-	return buf.Bytes()
+	out := make([]byte, rawTCPEventSize)
+	copy(out, buf.Bytes())
+	return out
 }

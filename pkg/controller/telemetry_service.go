@@ -153,7 +153,7 @@ func healthToProto(health []fault.EndpointHealth) []*aegisv1.EndpointHealth {
 			Service:                 endpoint.Service,
 			InstanceId:              endpoint.InstanceID,
 			EndpointAddress:         endpoint.Address,
-			State:                   string(endpoint.State),
+			State:                   endpoint.State.String(),
 			SlowScore:               endpoint.SlowScore,
 			ConsecutiveSlowWindows:  int64(endpoint.ConsecutiveSlowWindows),
 			ConsecutiveEjectWindows: int64(endpoint.ConsecutiveEjectWindows),

@@ -2,17 +2,55 @@ goos: linux
 goarch: amd64
 pkg: github.com/aegismesh/aegismesh/pkg/retry
 cpu: 13th Gen Intel(R) Core(TM) i9-13900K
-BenchmarkBudgetRecordOriginalParallel-32          	10616235	       111.9 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBudgetRecordOriginalParallel-32          	10375374	       111.8 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBudgetRecordOriginalParallel-32          	10306932	       111.3 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBudgetTryAcquireRetryParallel-32         	 9081460	       127.7 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBudgetTryAcquireRetryParallel-32         	 9016381	       131.9 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBudgetTryAcquireRetryParallel-32         	 9389566	       132.7 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBudgetAllowThenRecordRetryParallel-32    	 5325693	       223.5 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBudgetAllowThenRecordRetryParallel-32    	 5265734	       230.9 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBudgetAllowThenRecordRetryParallel-32    	 5136964	       229.2 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBudgetWindowRollover-32                  	17099884	        68.20 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBudgetWindowRollover-32                  	17402154	        68.25 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBudgetWindowRollover-32                  	17490634	        68.03 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetManyIndependentParallel-2        	42618548	        26.42 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetManyIndependentParallel-2        	35602441	        33.83 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetManyIndependentParallel-2        	66898657	        16.22 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetManyIndependentParallel-2        	33639836	        32.85 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetManyIndependentParallel-2        	37092696	        33.61 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetManyIndependentParallel-2        	34491829	        41.00 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetManyIndependentParallel-2        	49223312	        33.47 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetManyIndependentParallel-2        	34668322	        34.90 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetManyIndependentParallel-2        	34169400	        33.58 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetManyIndependentParallel-2        	35896754	        30.40 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetRecordOriginalParallel-2         	10821580	       109.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetRecordOriginalParallel-2         	 8524279	       118.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetRecordOriginalParallel-2         	 9189183	       129.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetRecordOriginalParallel-2         	10173987	       126.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetRecordOriginalParallel-2         	 9222147	       141.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetRecordOriginalParallel-2         	 8624733	       137.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetRecordOriginalParallel-2         	10248256	       129.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetRecordOriginalParallel-2         	 9708858	       137.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetRecordOriginalParallel-2         	10081124	       154.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetRecordOriginalParallel-2         	 8701855	       135.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-2        	 7958787	       169.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-2        	 9890059	       120.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-2        	 9992547	       135.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-2        	 7852275	       134.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-2        	 8193649	       142.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-2        	 8290221	       144.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-2        	10435692	       114.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-2        	 7615221	       147.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-2        	 8440747	       130.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetTryAcquireRetryParallel-2        	 9125889	       156.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-2   	 5450246	       247.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-2   	 5715634	       204.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-2   	 4885992	       223.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-2   	 5031696	       223.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-2   	 5433867	       186.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-2   	 5618512	       200.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-2   	 5435050	       216.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-2   	 5719090	       200.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-2   	 6078722	       220.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetAllowThenRecordRetryParallel-2   	 5843156	       201.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-2                 	16030024	        74.32 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-2                 	16106856	        74.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-2                 	16260126	        73.62 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-2                 	16312746	        69.45 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-2                 	16439958	        69.51 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-2                 	16424125	        69.95 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-2                 	17637382	        68.03 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-2                 	16376388	        68.07 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-2                 	15911257	        73.78 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBudgetWindowRollover-2                 	16791658	        68.10 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/aegismesh/aegismesh/pkg/retry	15.900s
+ok  	github.com/aegismesh/aegismesh/pkg/retry	69.962s

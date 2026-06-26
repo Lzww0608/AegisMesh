@@ -1,0 +1,90 @@
+=== AegisMesh full microbenchmark baseline (parallel) ===
+started_at=20260625T100734Z
+log=/home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/run_full_20260625T100734Z.log
+capture_jobs=16 per_job_gomax=2 bench_count=10
+
+>>> capture main (parallel) (2026-06-25T10:07:34Z)
+Capturing hot-path baseline (label=main, count=10, jobs=16, per_job_gomax=2)
+==> adaptive_gomax1 -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/adaptive_gomax1_main.txt (GOMAXPROCS=1)
+==> adaptive_gomax8 -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/adaptive_gomax8_main.txt (GOMAXPROCS=8)
+==> aegisgrpc_policy -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/aegisgrpc_policy_main.txt (GOMAXPROCS=2)
+==> aegisgrpc_retry -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/aegisgrpc_retry_main.txt (GOMAXPROCS=2)
+==> telemetry -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/telemetry_main.txt (GOMAXPROCS=2)
+==> retry -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/retry_main.txt (GOMAXPROCS=2)
+==> circuitbreaker -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/circuitbreaker_main.txt (GOMAXPROCS=2)
+==> registry -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/registry_main.txt (GOMAXPROCS=2)
+==> policy -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/policy_main.txt (GOMAXPROCS=2)
+==> ebpf -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/ebpf_main.txt (GOMAXPROCS=2)
+Hot-path baseline written to /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline
+
+>>> capture snapshots (parallel shards) (2026-06-25T10:29:26Z)
+Capturing snapshot grids (count=10, jobs=16, per_job_gomax=2)
+==> telemetry shard upstreams=1 (1K/10K/100K)
+==> telemetry shard upstreams=8 (1K/10K/100K)
+==> telemetry shard upstreams=64 (1K/10K/100K)
+==> ebpf shard endpoints=1 (1K/10K/100K)
+==> ebpf shard endpoints=8 (1K/10K/100K)
+==> ebpf shard endpoints=64 (1K/10K/100K)
+Snapshot baselines: telemetry_snapshot_main.txt, ebpf_snapshot_main.txt
+
+>>> microbench-race (hot-path) (2026-06-26T05:11:46Z)
+bash scripts/run_microbench.sh race
+Running race detector on hot-path packages...
+ok  	github.com/aegismesh/aegismesh/sdk/go/aegisgrpc	1.057s
+ok  	github.com/aegismesh/aegismesh/pkg/retry	1.020s
+ok  	github.com/aegismesh/aegismesh/pkg/circuitbreaker	1.021s
+Running race detector on remaining benchmarked packages...
+--- FAIL: TestEndpointStatsSlicePoolReusesCapacity (0.00s)
+    stats_pool_test.go:15: expected pooled slice capacity >= 128, got 64
+FAIL
+FAIL	github.com/aegismesh/aegismesh/pkg/telemetry	0.049s
+==================
+WARNING: DATA RACE
+Write at 0x00c000212330 by goroutine 45:
+  github.com/aegismesh/aegismesh/pkg/registry.TestMemoryRegistryWatchCoalescesUpdatesForSlowConsumer()
+      /home/lab2439/Work/lzww/AegisMesh/pkg/registry/memory_registry_test.go:297 +0x66e
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:2101 +0x38
+
+Previous read at 0x00c000212330 by goroutine 46:
+  github.com/aegismesh/aegismesh/pkg/registry.TestMemoryRegistryWatchCoalescesUpdatesForSlowConsumer.func1()
+      /home/lab2439/Work/lzww/AegisMesh/pkg/registry/memory_registry_test.go:280 +0x33
+  github.com/aegismesh/aegismesh/pkg/registry.(*MemoryRegistry).watch()
+      /home/lab2439/Work/lzww/AegisMesh/pkg/registry/registry.go:301 +0x135
+  github.com/aegismesh/aegismesh/pkg/registry.(*MemoryRegistry).Watch.gowrap1()
+      /home/lab2439/Work/lzww/AegisMesh/pkg/registry/registry.go:288 +0x98
+
+Goroutine 45 (running) created at:
+  testing.(*T).Run()
+      /usr/local/go/src/testing/testing.go:2101 +0xb12
+  testing.runTests.func1()
+      /usr/local/go/src/testing/testing.go:2585 +0x84
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:2036 +0x21c
+  testing.runTests()
+      /usr/local/go/src/testing/testing.go:2583 +0x9e9
+  testing.(*M).Run()
+      /usr/local/go/src/testing/testing.go:2443 +0xf4b
+  main.main()
+      _testmain.go:98 +0x164
+
+Goroutine 46 (running) created at:
+  github.com/aegismesh/aegismesh/pkg/registry.(*MemoryRegistry).Watch()
+      /home/lab2439/Work/lzww/AegisMesh/pkg/registry/registry.go:288 +0x219
+  github.com/aegismesh/aegismesh/pkg/registry.TestMemoryRegistryWatchCoalescesUpdatesForSlowConsumer()
+      /home/lab2439/Work/lzww/AegisMesh/pkg/registry/memory_registry_test.go:287 +0x3d0
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:2101 +0x38
+==================
+--- FAIL: TestMemoryRegistryWatchCoalescesUpdatesForSlowConsumer (0.00s)
+    testing.go:1712: race detected during execution of test
+FAIL
+FAIL	github.com/aegismesh/aegismesh/pkg/registry	0.030s
+ok  	github.com/aegismesh/aegismesh/pkg/policy	1.016s
+ok  	github.com/aegismesh/aegismesh/agent/ebpf	1.016s
+FAIL
+make: *** [Makefile:130: microbench-race] Error 1

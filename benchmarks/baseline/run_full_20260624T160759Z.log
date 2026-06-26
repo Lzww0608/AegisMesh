@@ -16,3 +16,4 @@ Capturing microbenchmark baseline (label=main, count=10, benchtime=default)
 ==> aegisgrpc_policy -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/aegisgrpc_policy_main.txt
 ==> aegisgrpc_retry -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/aegisgrpc_retry_main.txt
 ==> telemetry -> /home/lab2439/Work/lzww/AegisMesh/benchmarks/baseline/telemetry_main.txt
+scripts/run_microbench.sh: line 43: 1155767 Killed                  go test "$@" "${args[@]}" > "${output}"

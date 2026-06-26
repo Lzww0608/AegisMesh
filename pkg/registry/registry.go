@@ -1,23 +1,25 @@
 package registry
 
 import (
-	"container/heap"
 	"context"
+	"container/heap"
 	"errors"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/aegismesh/aegismesh/pkg/status"
 )
 
-type InstanceStatus string
+type InstanceStatus = status.Code
 
 const (
-	InstanceHealthy  InstanceStatus = "HEALTHY"
-	InstanceDegraded InstanceStatus = "DEGRADED"
-	InstanceEjected  InstanceStatus = "EJECTED"
-	InstanceProbing  InstanceStatus = "PROBING"
-	InstanceDead     InstanceStatus = "DEAD"
+	InstanceHealthy  = status.Healthy
+	InstanceDegraded = status.Degraded
+	InstanceEjected  = status.Ejected
+	InstanceProbing  = status.Probing
+	InstanceDead     = status.Dead
 )
 
 var (
@@ -139,7 +141,7 @@ func (r *MemoryRegistry) registerAt(ctx context.Context, inst Instance, ttl time
 	if ttl <= 0 {
 		return ErrInvalidInstance
 	}
-	if inst.Status == "" {
+	if inst.Status == status.Unspecified {
 		inst.Status = InstanceHealthy
 	}
 
@@ -287,7 +289,7 @@ func (r *MemoryRegistry) Watch(ctx context.Context, service string, afterVersion
 	return updates, nil
 }
 
-func (r *MemoryRegistry) watch(ctx context.Context, service string, state *serviceState, afterVersion int64, updates chan<- InstanceSnapshot) {
+func (r *MemoryRegistry) watch(ctx context.Context, service string, state *serviceState, afterVersion int64, updates chan InstanceSnapshot) {
 	defer close(updates)
 
 	lastVersion := afterVersion
@@ -309,12 +311,10 @@ func (r *MemoryRegistry) watch(ctx context.Context, service string, state *servi
 
 		if snapshot.Version > lastVersion {
 			lastVersion = snapshot.Version
-			select {
-			case updates <- cloneInstanceSnapshot(*snapshot):
-				continue
-			case <-ctx.Done():
+			if !sendLatestSnapshot(ctx, updates, *snapshot) {
 				return
 			}
+			continue
 		}
 
 		expiryTimer, expiry := nextExpiryTimer(snapshot, now)
@@ -485,7 +485,7 @@ func (r *MemoryRegistry) restoreRecord(inst Instance, expiresAt time.Time, filte
 	if filterExpired && !expiresAt.After(r.now()) {
 		return
 	}
-	if inst.Status == "" {
+	if inst.Status == status.Unspecified {
 		inst.Status = InstanceHealthy
 	}
 	inst.Labels = cloneLabels(inst.Labels)
@@ -527,4 +527,31 @@ func cloneInstances(instances []Instance) []Instance {
 func cloneInstanceSnapshot(snapshot InstanceSnapshot) InstanceSnapshot {
 	snapshot.Instances = cloneInstances(snapshot.Instances)
 	return snapshot
+}
+
+func sendLatestSnapshot(ctx context.Context, updates chan InstanceSnapshot, snapshot InstanceSnapshot) bool {
+	cloned := cloneInstanceSnapshot(snapshot)
+	select {
+	case <-ctx.Done():
+		return false
+	default:
+	}
+	select {
+	case updates <- cloned:
+		return true
+	case <-ctx.Done():
+		return false
+	default:
+		select {
+		case <-updates:
+		case <-ctx.Done():
+			return false
+		}
+		select {
+		case updates <- cloned:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
 }

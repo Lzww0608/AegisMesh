@@ -18,7 +18,8 @@ const eventBufferSize = 1024
 type linuxCollector struct {
 	cfg Config
 
-	events chan TCPEvent
+	events  chan TCPEvent
+	metrics *CollectorMetrics
 
 	mu         sync.Mutex
 	collection *ebpf.Collection
@@ -34,8 +35,9 @@ func NewCollector(cfg Config) (Collector, error) {
 		cfg.ObjectPath = DefaultObjectPath()
 	}
 	return &linuxCollector{
-		cfg:    cfg,
-		events: make(chan TCPEvent, eventBufferSize),
+		cfg:     cfg,
+		events:  make(chan TCPEvent, eventBufferSize),
+		metrics: DefaultCollectorMetrics(),
 	}, nil
 }
 
@@ -165,6 +167,7 @@ func (c *linuxCollector) readLoop(reader *ringbuf.Reader) {
 		select {
 		case c.events <- event:
 		default:
+			c.metrics.IncDropped("channel_full")
 		}
 	}
 }

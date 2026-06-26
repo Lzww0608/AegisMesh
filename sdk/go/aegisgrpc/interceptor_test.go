@@ -46,7 +46,7 @@ func TestTelemetryUnaryInterceptorRecordsFailedRPC(t *testing.T) {
 
 func TestTelemetryUnaryInterceptorWritesVerifierTrace(t *testing.T) {
 	path := t.TempDir() + "/aegis-traces.jsonl"
-	tracer, err := tracepkg.NewJSONLWriter(path)
+	tracer, err := tracepkg.NewDefaultAsyncJSONLWriter(path)
 	if err != nil {
 		t.Fatalf("new trace writer: %v", err)
 	}

@@ -10,6 +10,32 @@ import (
 
 var benchmarkRecorderStats []EndpointStats
 
+func BenchmarkShardedLatencyHistogramRecordParallel(b *testing.B) {
+	var hist shardedLatencyHistogram
+	sample := 750 * time.Microsecond
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			hist.Record(sample)
+		}
+	})
+}
+
+func BenchmarkLatencyHistogramRecordParallel(b *testing.B) {
+	var hist latencyHistogram
+	sample := 750 * time.Microsecond
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			hist.Record(sample)
+		}
+	})
+}
+
 func BenchmarkRecorderObserve(b *testing.B) {
 	recorder := NewRecorderWithClock("bench-client", nil, fixedBenchmarkTime)
 	obs := Observation{

@@ -117,13 +117,11 @@ microbench:
 	bash scripts/run_microbench.sh capture
 
 microbench-baseline:
-	BENCH_COUNT=10 bash scripts/run_microbench.sh capture main
+	BENCH_COUNT=10 CAPTURE_JOBS=8 PER_JOB_GOMAXPROCS=4 bash scripts/run_microbench.sh capture main
 
 microbench-baseline-full:
-	BENCH_COUNT=10 bash -c '\
-		bash scripts/run_microbench.sh capture main && \
-		go test ./pkg/telemetry -run=NONE -bench=SnapshotAndReset -benchmem -count=10 > benchmarks/baseline/telemetry_snapshot_main.txt && \
-		go test ./agent/ebpf -run=NONE -bench=SnapshotAndReset -benchmem -count=10 > benchmarks/baseline/ebpf_snapshot_main.txt'
+	BENCH_COUNT=10 CAPTURE_JOBS=16 PER_JOB_GOMAXPROCS=2 bash scripts/run_microbench.sh capture main
+	BENCH_COUNT=10 CAPTURE_JOBS=16 PER_JOB_GOMAXPROCS=2 bash scripts/run_microbench.sh capture-snapshots main
 
 microbench-quick:
 	BENCH_COUNT=1 BENCHTIME=50ms bash scripts/run_microbench.sh capture quick

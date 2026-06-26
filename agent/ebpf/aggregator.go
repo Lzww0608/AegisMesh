@@ -29,15 +29,49 @@ type EndpointRef struct {
 }
 
 type TCPEvent struct {
+	RemoteKey      EndpointKey
+	LocalKey       EndpointKey
 	Type           EventType
 	RemoteAddr     string
 	LocalAddr      string
 	PID            uint32
-	Comm           string
+	Comm           [16]byte
 	Retransmits    int64
 	ConnectErrors  int64
 	ConnectLatency time.Duration
 	ObservedAt     time.Time
+}
+
+func (e TCPEvent) RemoteAddress() string {
+	if e.RemoteAddr != "" {
+		return e.RemoteAddr
+	}
+	return FormatEndpoint(e.RemoteKey)
+}
+
+func (e TCPEvent) LocalAddress() string {
+	if e.LocalAddr != "" {
+		return e.LocalAddr
+	}
+	return FormatEndpoint(e.LocalKey)
+}
+
+func (e TCPEvent) CommString() string {
+	return commString(e.Comm)
+}
+
+func (e TCPEvent) remoteEndpointKey() EndpointKey {
+	if e.RemoteKey != 0 {
+		return e.RemoteKey
+	}
+	if e.RemoteAddr == "" {
+		return 0
+	}
+	key, err := ParseEndpointKey(e.RemoteAddr)
+	if err != nil {
+		return 0
+	}
+	return key
 }
 
 type NetworkSample struct {
@@ -53,8 +87,8 @@ type NetworkSample struct {
 
 type Aggregator struct {
 	mu        sync.Mutex
-	endpoints map[string]EndpointRef
-	rows      map[string]*networkRow
+	endpoints map[EndpointKey]EndpointRef
+	rows      map[EndpointKey]*networkRow
 }
 
 type networkRow struct {
@@ -67,28 +101,41 @@ type networkRow struct {
 }
 
 func NewAggregator(endpoints map[string]EndpointRef) *Aggregator {
-	refs := make(map[string]EndpointRef, len(endpoints))
+	refs := make(map[EndpointKey]EndpointRef, len(endpoints))
 	for addr, ref := range endpoints {
-		refs[addr] = ref
+		key, err := ParseEndpointKey(addr)
+		if err != nil {
+			continue
+		}
+		if ref.Address == "" {
+			ref.Address = addr
+		}
+		refs[key] = ref
 	}
 	return &Aggregator{
 		endpoints: refs,
-		rows:      make(map[string]*networkRow),
+		rows:      make(map[EndpointKey]*networkRow),
 	}
 }
 
 func (a *Aggregator) Observe(event TCPEvent) {
+	key := event.remoteEndpointKey()
+	if key == 0 {
+		return
+	}
+
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	ref, ok := a.endpoints[event.RemoteAddr]
+	ref, ok := a.endpoints[key]
 	if !ok {
-		ref = EndpointRef{Address: event.RemoteAddr, InstanceID: event.RemoteAddr}
+		addr := FormatEndpoint(key)
+		ref = EndpointRef{Address: addr, InstanceID: addr}
 	}
-	row := a.rows[event.RemoteAddr]
+	row := a.rows[key]
 	if row == nil {
 		row = &networkRow{ref: ref, windowStart: event.ObservedAt}
-		a.rows[event.RemoteAddr] = row
+		a.rows[key] = row
 	}
 	if row.windowStart.IsZero() {
 		row.windowStart = event.ObservedAt
@@ -119,7 +166,7 @@ func (a *Aggregator) SnapshotAndReset() []NetworkSample {
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].Address < out[j].Address
 	})
-	a.rows = make(map[string]*networkRow)
+	a.rows = make(map[EndpointKey]*networkRow)
 	return out
 }
 

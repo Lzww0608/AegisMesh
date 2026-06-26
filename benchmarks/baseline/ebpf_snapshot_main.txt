@@ -1,0 +1,109 @@
+# ebpf SnapshotAndReset shards (count=10)
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/agent/ebpf
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=1000-2         	 2757416	       444.9 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=1000-2         	 2709712	       438.7 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=1000-2         	 2827200	       423.5 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=1000-2         	 2882023	       414.2 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=1000-2         	 2836201	       421.1 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=1000-2         	 2857024	       418.6 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=1000-2         	 2785270	       419.0 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=1000-2         	 2868136	       414.4 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=1000-2         	 2898480	       410.3 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=1000-2         	 2898398	       411.9 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=10000-2        	 2675846	       461.0 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=10000-2        	 2651716	       454.3 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=10000-2        	 2695178	       451.0 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=10000-2        	 2679367	       444.1 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=10000-2        	 2696499	       446.2 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=10000-2        	 2658483	       454.6 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=10000-2        	 2608767	       456.3 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=10000-2        	 2699474	       446.9 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=10000-2        	 2688909	       449.5 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=10000-2        	 2669262	       449.5 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=100000-2       	 1272186	       940.2 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=100000-2       	 1266836	      1003 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=100000-2       	 1550108	       786.2 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=100000-2       	 1529554	       785.1 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=100000-2       	 1303795	       867.2 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=100000-2       	 1514133	       787.8 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=100000-2       	 1520384	       779.4 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=100000-2       	 1562686	       762.6 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=100000-2       	 1562373	       771.6 ns/op	     200 B/op	       3 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=1/observations=100000-2       	 1570983	       788.6 ns/op	     200 B/op	       3 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/agent/ebpf	67339.465s
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/agent/ebpf
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=1000-2         	 1211323	       995.8 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=1000-2         	 1206721	       999.5 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=1000-2         	 1207131	       994.5 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=1000-2         	 1238992	       952.3 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=1000-2         	 1254343	       955.7 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=1000-2         	 1273147	       938.3 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=1000-2         	 1270836	       958.1 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=1000-2         	 1275196	       948.5 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=1000-2         	 1272807	       950.1 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=1000-2         	 1269070	       949.3 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=10000-2        	 1000000	      1021 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=10000-2        	 1000000	      1020 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=10000-2        	 1000000	      1001 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=10000-2        	 1203505	       994.1 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=10000-2        	 1200105	       997.2 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=10000-2        	 1201201	      1001 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=10000-2        	 1000000	      1007 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=10000-2        	 1000000	      1001 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=10000-2        	 1233222	       965.7 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=10000-2        	 1247640	       961.2 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=100000-2       	  693741	      1596 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=100000-2       	  679250	      1577 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=100000-2       	  685872	      1580 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=100000-2       	  674426	      1822 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=100000-2       	  598246	      1978 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=100000-2       	  510532	      2009 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=100000-2       	  529040	      2056 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=100000-2       	  593548	      2008 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=100000-2       	  532340	      2115 ns/op	    1272 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=8/observations=100000-2       	  555385	      2105 ns/op	    1272 B/op	       5 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/agent/ebpf	21123.488s
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/agent/ebpf
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=1000-2         	  125031	      9630 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=1000-2         	  122992	      9638 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=1000-2         	  121706	      9610 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=1000-2         	  122192	      9764 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=1000-2         	  120636	      9641 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=1000-2         	  125150	      9876 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=1000-2         	  125238	      9847 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=1000-2         	  125346	      9702 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=1000-2         	  122832	      9963 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=1000-2         	  123267	      9898 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=10000-2        	  128826	      9447 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=10000-2        	  133002	      9442 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=10000-2        	  126760	      9385 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=10000-2        	  130178	      9447 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=10000-2        	  133556	      9124 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=10000-2        	  131593	      9070 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=10000-2        	  134196	      9004 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=10000-2        	  132436	      8983 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=10000-2        	  137839	      8784 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=10000-2        	  137808	      8735 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=100000-2       	  119784	      9716 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=100000-2       	  119466	      9736 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=100000-2       	  120570	      9782 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=100000-2       	  125287	      9724 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=100000-2       	  116341	      9692 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=100000-2       	  127180	      9732 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=100000-2       	  123043	      9796 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=100000-2       	  120622	      9795 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=100000-2       	  122509	      9706 ns/op	    8440 B/op	       5 allocs/op
+BenchmarkAggregatorSnapshotAndReset/endpoints=64/observations=100000-2       	  125212	      9718 ns/op	    8440 B/op	       5 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/agent/ebpf	4210.220s

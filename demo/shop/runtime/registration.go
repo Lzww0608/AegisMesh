@@ -35,7 +35,7 @@ func StartRegistration(ctx context.Context, cfg Registration) error {
 		Id:      cfg.InstanceID,
 		Service: cfg.Service,
 		Address: cfg.Address,
-		Status:  string(registry.InstanceHealthy),
+		Status:  registry.InstanceHealthy.String(),
 		Labels: map[string]string{
 			"variant": cfg.Variant,
 		},

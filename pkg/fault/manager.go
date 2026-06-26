@@ -5,6 +5,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/aegismesh/aegismesh/pkg/status"
 )
 
 type HealthManagerConfig struct {
@@ -114,7 +116,7 @@ func (m *HealthManager) Get(service, instanceID string) (EndpointHealth, bool) {
 func (m *HealthManager) HealthState(service, instanceID string) (EndpointState, bool) {
 	health, ok := m.Get(service, instanceID)
 	if !ok {
-		return "", false
+		return status.Unspecified, false
 	}
 	return health.State, true
 }
@@ -144,12 +146,10 @@ func (m *HealthManager) WatchHealth(ctx context.Context, service string, afterVe
 
 			if version > lastVersion {
 				lastVersion = version
-				select {
-				case updates <- version:
-					continue
-				case <-ctx.Done():
+				if !sendLatestVersion(ctx, updates, version) {
 					return
 				}
+				continue
 			}
 
 			select {
@@ -214,4 +214,30 @@ func successRate(sample EndpointSample) float64 {
 		successes = 0
 	}
 	return float64(successes) / float64(sample.RequestCount)
+}
+
+func sendLatestVersion(ctx context.Context, updates chan int64, version int64) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	default:
+	}
+	select {
+	case updates <- version:
+		return true
+	case <-ctx.Done():
+		return false
+	default:
+		select {
+		case <-updates:
+		case <-ctx.Done():
+			return false
+		}
+		select {
+		case updates <- version:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
 }

@@ -7,14 +7,17 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG="${LOG_DIR}/run_full_${STAMP}.log"
 PID_FILE="${LOG_DIR}/run_full.pid"
 
+# 32-core host default: 16 parallel shards, 2 cores per go test.
+CAPTURE_JOBS="${CAPTURE_JOBS:-16}"
+PER_JOB_GOMAXPROCS="${PER_JOB_GOMAXPROCS:-2}"
+BENCH_COUNT="${BENCH_COUNT:-10}"
+
 cd "${ROOT}"
 echo "${BASHPID}" >"${PID_FILE}"
-echo "=== AegisMesh full microbenchmark baseline ===" | tee -a "${LOG}"
+echo "=== AegisMesh full microbenchmark baseline (parallel) ===" | tee -a "${LOG}"
 echo "started_at=${STAMP}" | tee -a "${LOG}"
 echo "log=${LOG}" | tee -a "${LOG}"
-echo "cwd=${ROOT}" | tee -a "${LOG}"
-echo "go=$(go version 2>&1)" | tee -a "${LOG}"
-echo "gomaxprocs=${GOMAXPROCS:-default}" | tee -a "${LOG}"
+echo "capture_jobs=${CAPTURE_JOBS} per_job_gomax=${PER_JOB_GOMAXPROCS} bench_count=${BENCH_COUNT}" | tee -a "${LOG}"
 echo | tee -a "${LOG}"
 
 run_step() {
@@ -32,7 +35,10 @@ run_step() {
 	echo | tee -a "${LOG}"
 }
 
-run_step "microbench-baseline-full" make microbench-baseline-full
+export CAPTURE_JOBS PER_JOB_GOMAXPROCS BENCH_COUNT
+
+run_step "capture main (parallel)" bash scripts/run_microbench.sh capture main
+run_step "capture snapshots (parallel shards)" bash scripts/run_microbench.sh capture-snapshots main
 run_step "microbench-race (hot-path)" make microbench-race
 run_step "test-race (full repo)" make test-race
 

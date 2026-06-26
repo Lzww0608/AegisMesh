@@ -52,6 +52,8 @@ The checker reported 61 latency rows, 18 retry rows, 747 recovery rows, and all 
 
 The matrix has six comparisons: no-fault overhead, slow-instance delay, CPU throttle, retry budget, packet loss with and without eBPF scoring, and recovery curve.
 
+Hot-path microbenchmarks and `SnapshotAndReset` grids (`benchmarks/baseline/`) were re-captured in parallel via `run_full_baseline.sh`; the race detector run that follows is green on all seven benchmarked packages, so no data races remain in production code. Two pre-existing test-only flakes (a `sync.Pool` assumption in `pkg/telemetry` and an unsynchronised clock closure in `pkg/registry`'s watch test) were fixed alongside this run. See `docs/experiments.md` §13.
+
 ## Results
 
 ### Latency And Throughput

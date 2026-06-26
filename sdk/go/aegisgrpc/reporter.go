@@ -19,6 +19,7 @@ type telemetryReporter struct {
 	client   telemetryClient
 	recorder *telemetry.Recorder
 	interval time.Duration
+	protoSamplesPoolHolder
 }
 
 func newTelemetryReporter(client telemetryClient, recorder *telemetry.Recorder, interval time.Duration) *telemetryReporter {
@@ -51,34 +52,25 @@ func (r *telemetryReporter) ReportOnce(ctx context.Context) error {
 		return nil
 	}
 	stats := r.recorder.SnapshotAndReset()
+	defer telemetry.ReleaseEndpointStatsSlice(stats)
 	if len(stats) == 0 {
 		return nil
 	}
 
-	req := &aegisv1.ReportEndpointStatsRequest{
-		Samples: make([]*aegisv1.EndpointStatsSample, 0, len(stats)),
+	samples := r.acquireProtoSamples(len(stats))
+	defer r.releaseProtoSamples(samples)
+
+	for i, stat := range stats {
+		fillProtoSample(samples[i], stat)
 	}
-	for _, stat := range stats {
-		req.Samples = append(req.Samples, statsToProto(stat))
-	}
-	_, err := r.client.ReportEndpointStats(ctx, req)
+	samples = samples[:len(stats)]
+
+	_, err := r.client.ReportEndpointStats(ctx, &aegisv1.ReportEndpointStatsRequest{Samples: samples})
 	return err
 }
 
 func statsToProto(stat telemetry.EndpointStats) *aegisv1.EndpointStatsSample {
-	return &aegisv1.EndpointStatsSample{
-		Source:                stat.Source,
-		Service:               stat.Destination,
-		InstanceId:            stat.EndpointID,
-		EndpointAddress:       stat.Upstream,
-		Method:                stat.Method,
-		RequestCount:          stat.RequestCount,
-		ErrorCount:            stat.ErrorCount,
-		TimeoutCount:          stat.TimeoutCount,
-		Inflight:              stat.Inflight,
-		LatencyEwmaSeconds:    stat.LatencyEWMA.Seconds(),
-		LatencyP95Seconds:     stat.LatencyP95.Seconds(),
-		WindowStartUnixMillis: stat.WindowStart.UnixMilli(),
-		WindowEndUnixMillis:   stat.WindowEnd.UnixMilli(),
-	}
+	sample := &aegisv1.EndpointStatsSample{}
+	fillProtoSample(sample, stat)
+	return sample
 }

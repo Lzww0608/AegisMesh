@@ -27,6 +27,7 @@ func TestRecorderAggregatesEndpointWindowStats(t *testing.T) {
 	})
 
 	stats := recorder.SnapshotAndReset()
+	defer ReleaseEndpointStatsSlice(stats)
 	if len(stats) != 1 {
 		t.Fatalf("expected one endpoint stats row, got %d", len(stats))
 	}
@@ -42,7 +43,9 @@ func TestRecorderAggregatesEndpointWindowStats(t *testing.T) {
 	}
 	assertDurationBetween(t, got.LatencyP95, 300*time.Millisecond, 330*time.Millisecond)
 
-	if remaining := recorder.SnapshotAndReset(); len(remaining) != 0 {
+	remaining := recorder.SnapshotAndReset()
+	defer ReleaseEndpointStatsSlice(remaining)
+	if len(remaining) != 0 {
 		t.Fatalf("expected snapshot to reset window, got %+v", remaining)
 	}
 }
@@ -163,6 +166,7 @@ func TestRecorderAggregatesConcurrentObservations(t *testing.T) {
 	wg.Wait()
 
 	stats := recorder.SnapshotAndReset()
+	defer ReleaseEndpointStatsSlice(stats)
 	if len(stats) != 1 {
 		t.Fatalf("expected one stats row, got %d", len(stats))
 	}
@@ -190,6 +194,7 @@ func TestRecorderApproximateP95PreservesSlowEndpointOrdering(t *testing.T) {
 	}
 
 	stats := recorder.SnapshotAndReset()
+	defer ReleaseEndpointStatsSlice(stats)
 	if len(stats) != 2 {
 		t.Fatalf("expected two stats rows, got %+v", stats)
 	}

@@ -1,7 +1,6 @@
 package ebpf
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"testing"
@@ -9,7 +8,7 @@ import (
 )
 
 func TestDecodeRawTCPRetransmitEvent(t *testing.T) {
-	raw := rawTCPEvent{
+	raw := testRawTCPEvent{
 		TimestampNS: uint64(time.Second),
 		PID:         4242,
 		Type:        uint32(EventTypeRetransmit),
@@ -18,26 +17,29 @@ func TestDecodeRawTCPRetransmitEvent(t *testing.T) {
 	}
 	copy(raw.Comm[:], "demo-user")
 
-	event, err := DecodeRawTCPEvent(encodeRawEvent(t, raw))
+	event, err := DecodeRawTCPEvent(encodeTestRawEvent(t, raw))
 	if err != nil {
 		t.Fatalf("decode raw event: %v", err)
 	}
 	if event.Type != EventTypeRetransmit {
 		t.Fatalf("expected retransmit event type, got %s", event.Type)
 	}
-	if event.RemoteAddr != "10.0.0.2:7001" {
-		t.Fatalf("expected remote address 10.0.0.2:7001, got %s", event.RemoteAddr)
+	if event.RemoteAddress() != "10.0.0.2:7001" {
+		t.Fatalf("expected remote address 10.0.0.2:7001, got %s", event.RemoteAddress())
+	}
+	if event.RemoteKey != packEndpoint(0x0200000a, 7001) {
+		t.Fatalf("unexpected remote key: %#x", event.RemoteKey)
 	}
 	if event.Retransmits != 1 || event.ConnectErrors != 0 {
 		t.Fatalf("unexpected counters: %+v", event)
 	}
-	if event.PID != 4242 || event.Comm != "demo-user" {
-		t.Fatalf("unexpected process identity: %+v", event)
+	if event.PID != 4242 || event.CommString() != "demo-user" {
+		t.Fatalf("unexpected process identity: pid=%d comm=%q", event.PID, event.CommString())
 	}
 }
 
 func TestDecodeRawTCPConnectErrorEvent(t *testing.T) {
-	raw := rawTCPEvent{
+	raw := testRawTCPEvent{
 		TimestampNS:      uint64(2 * time.Second),
 		Type:             uint32(EventTypeConnect),
 		Dport:            7002,
@@ -46,15 +48,15 @@ func TestDecodeRawTCPConnectErrorEvent(t *testing.T) {
 		ConnectLatencyNS: uint64(25 * time.Millisecond),
 	}
 
-	event, err := DecodeRawTCPEvent(encodeRawEvent(t, raw))
+	event, err := DecodeRawTCPEvent(encodeTestRawEvent(t, raw))
 	if err != nil {
 		t.Fatalf("decode raw event: %v", err)
 	}
 	if event.Type != EventTypeConnect {
 		t.Fatalf("expected connect event type, got %s", event.Type)
 	}
-	if event.RemoteAddr != "10.0.0.3:7002" {
-		t.Fatalf("expected remote address 10.0.0.3:7002, got %s", event.RemoteAddr)
+	if event.RemoteAddress() != "10.0.0.3:7002" {
+		t.Fatalf("expected remote address 10.0.0.3:7002, got %s", event.RemoteAddress())
 	}
 	if event.ConnectErrors != 1 {
 		t.Fatalf("expected connect error counter 1, got %+v", event)
@@ -71,11 +73,33 @@ func TestDecodeRawTCPEventRejectsShortSample(t *testing.T) {
 	}
 }
 
-func encodeRawEvent(t *testing.T, event rawTCPEvent) []byte {
+type testRawTCPEvent struct {
+	TimestampNS      uint64
+	PID              uint32
+	Type             uint32
+	Family           uint16
+	Sport            uint16
+	Dport            uint16
+	Pad              uint16
+	Ret              int32
+	SaddrV4          uint32
+	DaddrV4          uint32
+	ConnectLatencyNS uint64
+	Comm             [16]byte
+}
+
+func encodeTestRawEvent(t *testing.T, event testRawTCPEvent) []byte {
 	t.Helper()
-	var buf bytes.Buffer
-	if err := binary.Write(&buf, binary.LittleEndian, event); err != nil {
-		t.Fatalf("encode raw event: %v", err)
-	}
-	return buf.Bytes()
+	buf := make([]byte, rawTCPEventSize)
+	binary.LittleEndian.PutUint64(buf[offTimestampNS:], event.TimestampNS)
+	binary.LittleEndian.PutUint32(buf[offPID:], event.PID)
+	binary.LittleEndian.PutUint32(buf[offType:], event.Type)
+	binary.LittleEndian.PutUint16(buf[offSport:], event.Sport)
+	binary.LittleEndian.PutUint16(buf[offDport:], event.Dport)
+	binary.LittleEndian.PutUint32(buf[offRet:], uint32(event.Ret))
+	binary.LittleEndian.PutUint32(buf[offSaddrV4:], event.SaddrV4)
+	binary.LittleEndian.PutUint32(buf[offDaddrV4:], event.DaddrV4)
+	binary.LittleEndian.PutUint64(buf[offConnectLatencyNS:], event.ConnectLatencyNS)
+	copy(buf[offComm:], event.Comm[:])
+	return buf
 }

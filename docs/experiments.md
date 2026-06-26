@@ -367,3 +367,22 @@ go run ./cmd/verifier --spec experiments/verifier/real-trace-smoke.yaml --traces
 ```
 
 The generated records are verifier-compatible JSONL. Extra fields such as `span_id`, `source`, `destination`, `method`, `upstream`, and `attempt` are kept for debugging. The verifier still checks the stable fields: `trace_id`, `route`, `path`, `retry_attempts`, and `status`.
+
+## 13. Microbenchmark Baselines
+
+Hot-path baselines live in `benchmarks/baseline/` and are captured by:
+
+```bash
+bash benchmarks/baseline/run_full_baseline.sh
+```
+
+The script parallel-runs `scripts/run_microbench.sh capture` for hot-path packages, then `capture-snapshots` to shard `SnapshotAndReset` grids (telemetry `upstreams ∈ {1,8,64}`, ebpf `endpoints ∈ {1,8,64}`, observations `∈ {1K,10K,100K}`, count=10), and finally `race`.
+
+Findings from the latest full run:
+
+- Hot-path numbers and snapshot grids are reproducible; results are in `*_main.txt` and `telemetry_snapshot_main.txt` / `ebpf_snapshot_main.txt`.
+- `go test -race` is green for all 7 benchmarked packages (`sdk/go/aegisgrpc`, `pkg/retry`, `pkg/circuitbreaker`, `pkg/telemetry`, `pkg/registry`, `pkg/policy`, `agent/ebpf`). No data races in production code.
+- Two test-only flakes were fixed during this run, both in test code, not production:
+  - `pkg/telemetry/stats_pool_test.go`: relied on `sync.Pool` retaining a `Put`, which is not guaranteed under `-race` (random drop, per-P caches). The test now pins to `GOMAXPROCS=1` and retries.
+  - `pkg/registry/memory_registry_test.go` (`TestMemoryRegistryWatchCoalescesUpdatesForSlowConsumer`): the test's clock closure mutated a shared `now` from the main goroutine while the watcher read it. Guarded the variable with a mutex; the `MemoryRegistry` contract (clock may be called concurrently) is unchanged.
+

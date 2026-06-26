@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/aegismesh/aegismesh/pkg/circuitbreaker"
+	aegisstatus "github.com/aegismesh/aegismesh/pkg/status"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/balancer/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/resolver"
-	"google.golang.org/grpc/status"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func TestAdaptivePickerChoosesLowerCostReadySubConn(t *testing.T) {
@@ -20,8 +21,8 @@ func TestAdaptivePickerChoosesLowerCostReadySubConn(t *testing.T) {
 
 	picker := builder.Build(base.PickerBuildInfo{
 		ReadySCs: map[balancer.SubConn]base.SubConnInfo{
-			fast: {Address: resolver.Address{Addr: "127.0.0.1:7001", Attributes: addressAttributes("fast", "HEALTHY", 0.1)}},
-			slow: {Address: resolver.Address{Addr: "127.0.0.1:7002", Attributes: addressAttributes("slow", "HEALTHY", 3.0)}},
+			fast: {Address: resolver.Address{Addr: "127.0.0.1:7001", Attributes: addressAttributes("fast", aegisstatus.Healthy, 0.1)}},
+			slow: {Address: resolver.Address{Addr: "127.0.0.1:7002", Attributes: addressAttributes("slow", aegisstatus.Healthy, 3.0)}},
 		},
 	})
 
@@ -44,8 +45,8 @@ func TestAdaptivePickerSamplesProbingEndpointsOnlyWithinProbeBudget(t *testing.T
 
 	avoidProbe := adaptivePickerBuilder{random: &sequenceRandom{values: []int{99, 0, 0}}}.Build(base.PickerBuildInfo{
 		ReadySCs: map[balancer.SubConn]base.SubConnInfo{
-			healthy: {Address: resolver.Address{Addr: "127.0.0.1:7001", Attributes: addressAttributes("healthy", "HEALTHY", 0.1)}},
-			probe:   {Address: resolver.Address{Addr: "127.0.0.1:7002", Attributes: addressAttributes("probe", "PROBING", 0.0)}},
+			healthy: {Address: resolver.Address{Addr: "127.0.0.1:7001", Attributes: addressAttributes("healthy", aegisstatus.Healthy, 0.1)}},
+			probe:   {Address: resolver.Address{Addr: "127.0.0.1:7002", Attributes: addressAttributes("probe", aegisstatus.Probing, 0.0)}},
 		},
 	})
 
@@ -60,8 +61,8 @@ func TestAdaptivePickerSamplesProbingEndpointsOnlyWithinProbeBudget(t *testing.T
 
 	useProbe := adaptivePickerBuilder{random: &sequenceRandom{values: []int{0}}}.Build(base.PickerBuildInfo{
 		ReadySCs: map[balancer.SubConn]base.SubConnInfo{
-			healthy: {Address: resolver.Address{Addr: "127.0.0.1:7001", Attributes: addressAttributes("healthy", "HEALTHY", 0.1)}},
-			probe:   {Address: resolver.Address{Addr: "127.0.0.1:7002", Attributes: addressAttributes("probe", "PROBING", 0.0)}},
+			healthy: {Address: resolver.Address{Addr: "127.0.0.1:7001", Attributes: addressAttributes("healthy", aegisstatus.Healthy, 0.1)}},
+			probe:   {Address: resolver.Address{Addr: "127.0.0.1:7002", Attributes: addressAttributes("probe", aegisstatus.Probing, 0.0)}},
 		},
 	})
 
@@ -84,7 +85,7 @@ func TestAdaptivePickerConcurrentPicks(t *testing.T) {
 		ready[subConn] = base.SubConnInfo{
 			Address: resolver.Address{
 				Addr:       fmt.Sprintf("127.0.0.1:%d", 7001+i),
-				Attributes: addressAttributes(subConn.id, "HEALTHY", 0.1),
+				Attributes: addressAttributes(subConn.id, aegisstatus.Healthy, 0.1),
 			},
 		}
 	}
@@ -113,7 +114,7 @@ func TestAdaptivePickerRejectsWhenEndpointLimiterIsFull(t *testing.T) {
 	subConn := &fakeSubConn{id: "limited"}
 	picker := adaptivePickerBuilder{random: &sequenceRandom{values: []int{0}}}.Build(base.PickerBuildInfo{
 		ReadySCs: map[balancer.SubConn]base.SubConnInfo{
-			subConn: {Address: resolver.Address{Addr: "127.0.0.1:7001", Attributes: addressAttributes("limited", "HEALTHY", 0.1)}},
+			subConn: {Address: resolver.Address{Addr: "127.0.0.1:7001", Attributes: addressAttributes("limited", aegisstatus.Healthy, 0.1)}},
 		},
 	}).(*adaptivePicker)
 	picker.items[0].limiter = circuitbreaker.NewEndpointLimiter(1)
@@ -123,7 +124,7 @@ func TestAdaptivePickerRejectsWhenEndpointLimiterIsFull(t *testing.T) {
 		t.Fatalf("first pick: %v", err)
 	}
 	_, err = picker.Pick(balancer.PickInfo{})
-	if status.Code(err) != codes.ResourceExhausted {
+	if grpcstatus.Code(err) != codes.ResourceExhausted {
 		t.Fatalf("expected ResourceExhausted when limiter is full, got %v", err)
 	}
 

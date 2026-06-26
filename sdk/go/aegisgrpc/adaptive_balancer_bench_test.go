@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aegismesh/aegismesh/pkg/circuitbreaker"
+	"github.com/aegismesh/aegismesh/pkg/status"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/balancer/base"
 	"google.golang.org/grpc/resolver"
@@ -70,14 +71,14 @@ func newBenchmarkAdaptivePicker(endpointCount int, degradedRatio, probingRatio f
 	}
 
 	for i := 0; i < endpointCount; i++ {
-		status := "HEALTHY"
+		statusCode := status.Healthy
 		slowScore := 0.05 * float64(i%8)
 		switch {
 		case i < degraded:
-			status = "DEGRADED"
+			statusCode = status.Degraded
 			slowScore += 1.5
 		case i < degraded+probing:
-			status = "PROBING"
+			statusCode = status.Probing
 		}
 
 		address := fmt.Sprintf("127.0.%d.%d:7%03d", i/255, i%255+1, i)
@@ -85,7 +86,7 @@ func newBenchmarkAdaptivePicker(endpointCount int, degradedRatio, probingRatio f
 		ready[subConn] = base.SubConnInfo{
 			Address: resolver.Address{
 				Addr:       address,
-				Attributes: addressAttributes(subConn.id, status, slowScore),
+				Attributes: addressAttributes(subConn.id, statusCode, slowScore),
 			},
 		}
 	}

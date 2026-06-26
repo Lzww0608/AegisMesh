@@ -78,7 +78,7 @@ func makeBenchmarkTCPEvents(endpoints, observations int) []TCPEvent {
 	observedAt := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 	for i := range events {
 		events[i] = TCPEvent{
-			RemoteAddr:     fmt.Sprintf("10.0.0.%d:7001", i%endpoints+1),
+			RemoteKey:      benchmarkEndpointKey(i, endpoints),
 			Retransmits:    int64(i & 1),
 			ConnectErrors:  int64((i >> 1) & 1),
 			ConnectLatency: time.Duration(i%1000+1) * time.Microsecond,
@@ -86,4 +86,9 @@ func makeBenchmarkTCPEvents(endpoints, observations int) []TCPEvent {
 		}
 	}
 	return events
+}
+
+func benchmarkEndpointKey(index, endpoints int) EndpointKey {
+	host := uint32((index%endpoints)+1)<<24 | 0x0a
+	return packEndpoint(host, 7001)
 }

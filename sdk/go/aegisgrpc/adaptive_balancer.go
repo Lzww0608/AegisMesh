@@ -6,7 +6,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aegismesh/aegismesh/pkg/align"
 	"github.com/aegismesh/aegismesh/pkg/circuitbreaker"
+	aegisstatus "github.com/aegismesh/aegismesh/pkg/status"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/balancer/base"
 	"google.golang.org/grpc/codes"
@@ -48,10 +50,10 @@ func (b adaptivePickerBuilder) Build(info base.PickerBuildInfo) balancer.Picker 
 		}
 		idx := len(items)
 		items = append(items, item)
-		switch item.status {
-		case adaptiveStatusHealthy, adaptiveStatusDegraded:
+		switch {
+		case item.status.NormalTraffic():
 			normalIndexes = append(normalIndexes, idx)
-		case adaptiveStatusProbing:
+		case item.status.IsProbing():
 			probingIndexes = append(probingIndexes, idx)
 		}
 	}
@@ -179,7 +181,7 @@ func (p *adaptivePicker) pickCandidateIndexes() []int {
 type adaptivePickerItem struct {
 	subConn         balancer.SubConn
 	address         string
-	status          adaptiveEndpointStatus
+	status          aegisstatus.Code
 	inflightPenalty float64
 	latencyPenalty  float64
 	staticCost      float64
@@ -188,8 +190,8 @@ type adaptivePickerItem struct {
 }
 
 func newAdaptivePickerItem(sc balancer.SubConn, address resolver.Address) (adaptivePickerItem, bool) {
-	statusValue := adaptiveStatusFromString(endpointStatusFromAttributes(address.Attributes))
-	if statusValue == adaptiveStatusExcluded {
+	statusValue := aegisstatus.Normalized(endpointStatusFromAttributes(address.Attributes))
+	if !statusValue.Routable() {
 		return adaptivePickerItem{}, false
 	}
 
@@ -203,7 +205,7 @@ func newAdaptivePickerItem(sc balancer.SubConn, address resolver.Address) (adapt
 		effectiveWeight = 1
 	}
 	staticCost := slowScore
-	if statusValue == adaptiveStatusDegraded {
+	if statusValue == aegisstatus.Degraded {
 		staticCost++
 	}
 
@@ -225,11 +227,14 @@ func (i *adaptivePickerItem) cost() float64 {
 		i.staticCost
 }
 
+type adaptiveEndpointHot struct {
+	inflight  atomic.Int64
+	ewmaNanos atomic.Uint64
+	_         align.Pad48
+}
+
 type adaptiveEndpointStats struct {
-	inflight atomic.Int64
-	mu       sync.Mutex
-	ewma     time.Duration
-	seen     bool
+	hot adaptiveEndpointHot
 }
 
 func statsForEndpoint(address string) *adaptiveEndpointStats {
@@ -238,68 +243,45 @@ func statsForEndpoint(address string) *adaptiveEndpointStats {
 }
 
 func (s *adaptiveEndpointStats) Inflight() int64 {
-	return s.inflight.Load()
+	return s.hot.inflight.Load()
 }
 
 func (s *adaptiveEndpointStats) IncrementInflight() {
-	s.inflight.Add(1)
+	s.hot.inflight.Add(1)
 }
 
 func (s *adaptiveEndpointStats) DecrementInflight() {
 	for {
-		current := s.inflight.Load()
+		current := s.hot.inflight.Load()
 		if current <= 0 {
 			return
 		}
-		if s.inflight.CompareAndSwap(current, current-1) {
+		if s.hot.inflight.CompareAndSwap(current, current-1) {
 			return
 		}
 	}
 }
 
 func (s *adaptiveEndpointStats) ObserveLatency(sample time.Duration) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.seen {
-		s.ewma = sample
-		s.seen = true
-		return
+	if sample < 0 {
+		sample = 0
 	}
-	s.ewma = time.Duration(0.2*float64(sample) + 0.8*float64(s.ewma))
+	old := time.Duration(s.hot.ewmaNanos.Load())
+	var updated time.Duration
+	if old == 0 {
+		updated = sample
+	} else {
+		updated = time.Duration(0.2*float64(sample) + 0.8*float64(old))
+	}
+	s.hot.ewmaNanos.Store(uint64(updated))
 }
 
 func (s *adaptiveEndpointStats) LatencyEWMA() time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.ewma
+	return time.Duration(s.hot.ewmaNanos.Load())
 }
 
 func (s *adaptiveEndpointStats) LatencySeconds() float64 {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.ewma.Seconds()
-}
-
-type adaptiveEndpointStatus uint8
-
-const (
-	adaptiveStatusExcluded adaptiveEndpointStatus = iota
-	adaptiveStatusHealthy
-	adaptiveStatusDegraded
-	adaptiveStatusProbing
-)
-
-func adaptiveStatusFromString(status string) adaptiveEndpointStatus {
-	switch status {
-	case "", "HEALTHY":
-		return adaptiveStatusHealthy
-	case "DEGRADED":
-		return adaptiveStatusDegraded
-	case "PROBING":
-		return adaptiveStatusProbing
-	default:
-		return adaptiveStatusExcluded
-	}
+	return s.LatencyEWMA().Seconds()
 }
 
 type adaptiveRandomSource interface {

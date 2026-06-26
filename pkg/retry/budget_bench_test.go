@@ -5,6 +5,29 @@ import (
 	"time"
 )
 
+func BenchmarkBudgetManyIndependentParallel(b *testing.B) {
+	const budgets = 64
+	objs := make([]*Budget, budgets)
+	for i := range objs {
+		objs[i] = NewBudget(BudgetConfig{
+			BudgetRatio: 1,
+			MinBudget:   1 << 60,
+			Window:      time.Minute,
+			Now:         fixedBenchmarkTime,
+		})
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			objs[i%budgets].RecordOriginal()
+			i++
+		}
+	})
+}
+
 func BenchmarkBudgetRecordOriginalParallel(b *testing.B) {
 	budget := NewBudget(BudgetConfig{
 		BudgetRatio: 0.15,

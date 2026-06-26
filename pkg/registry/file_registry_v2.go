@@ -14,6 +14,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/aegismesh/aegismesh/pkg/status"
 )
 
 type FileRegistrySyncMode string
@@ -157,7 +159,7 @@ func (r *FileRegistryV2) Register(ctx context.Context, inst Instance, ttl time.D
 	if inst.ID == "" || inst.Service == "" || inst.Address == "" || ttl <= 0 {
 		return ErrInvalidInstance
 	}
-	if inst.Status == "" {
+	if inst.Status == status.Unspecified {
 		inst.Status = InstanceHealthy
 	}
 
@@ -304,15 +306,15 @@ func (r *FileRegistryV2) applyWALRecord(record fileRegistryWALRecord) error {
 				return err
 			}
 		}
-		status := payload.Status
-		if status == "" {
-			status = InstanceHealthy
+		statusCode := status.Parse(payload.Status)
+		if statusCode == status.Unspecified {
+			statusCode = InstanceHealthy
 		}
 		inst := Instance{
 			ID:       record.id,
 			Service:  record.service,
 			Address:  record.address,
-			Status:   status,
+			Status:   statusCode,
 			Labels:   payload.Labels,
 			LastSeen: record.timestamp,
 		}
@@ -407,7 +409,7 @@ var (
 )
 
 type fileRegistryRegisterPayload struct {
-	Status InstanceStatus    `json:"status,omitempty"`
+	Status string            `json:"status,omitempty"`
 	Labels map[string]string `json:"labels,omitempty"`
 }
 
@@ -427,7 +429,7 @@ type fileRegistryWALRecord struct {
 }
 
 func newRegisterWALRecord(inst Instance, ttl time.Duration, now time.Time) (fileRegistryWALRecord, error) {
-	payload, err := json.Marshal(fileRegistryRegisterPayload{Status: inst.Status, Labels: inst.Labels})
+	payload, err := json.Marshal(fileRegistryRegisterPayload{Status: inst.Status.String(), Labels: inst.Labels})
 	if err != nil {
 		return fileRegistryWALRecord{}, err
 	}

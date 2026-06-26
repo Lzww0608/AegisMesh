@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -275,6 +276,55 @@ func TestMemoryRegistrySweepExpiredBatchesSnapshotRebuildByService(t *testing.T)
 		t.Fatalf("expected one snapshot rebuild for batch expiry: before %d after %d", beforeExpiry.Version, afterExpiry.Version)
 	}
 }
+func TestMemoryRegistryWatchCoalescesUpdatesForSlowConsumer(t *testing.T) {
+	var (
+		clockMu sync.Mutex
+		now     = time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	)
+	getNow := func() time.Time {
+		clockMu.Lock()
+		defer clockMu.Unlock()
+		return now
+	}
+	advance := func(d time.Duration) {
+		clockMu.Lock()
+		defer clockMu.Unlock()
+		now = now.Add(d)
+	}
+	reg := NewMemoryRegistry(getNow)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := reg.Register(context.Background(), Instance{ID: "user-1", Service: "user-service", Address: "127.0.0.1:7001"}, time.Minute); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	updates, err := reg.Watch(ctx, "user-service", 0)
+	if err != nil {
+		t.Fatalf("watch: %v", err)
+	}
+	first := receiveSnapshot(t, updates)
+	if first.Version == 0 || len(first.Instances) != 1 {
+		t.Fatalf("unexpected initial watch snapshot: %+v", first)
+	}
+
+	for i := 0; i < 8; i++ {
+		advance(time.Millisecond)
+		if err := reg.Heartbeat(context.Background(), "user-service", "user-1", time.Minute); err != nil {
+			t.Fatalf("heartbeat %d: %v", i, err)
+		}
+	}
+
+	latest := receiveSnapshot(t, updates)
+	if latest.Version <= first.Version {
+		t.Fatalf("expected coalesced watch to deliver latest version: first %d latest %d", first.Version, latest.Version)
+	}
+	select {
+	case extra := <-updates:
+		t.Fatalf("expected only one coalesced update, got extra %+v", extra)
+	default:
+	}
+}
+
 func TestMemoryRegistryWatchPublishesChangedSnapshots(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	reg := NewMemoryRegistry(func() time.Time { return now })

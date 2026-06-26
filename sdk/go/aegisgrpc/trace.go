@@ -84,7 +84,7 @@ func contextWithTraceMetadata(ctx context.Context, spanID string) context.Contex
 	)
 }
 
-func traceWriterFromOptions(options DialOptions) (*tracepkg.JSONLWriter, error) {
+func traceWriterFromOptions(options DialOptions) (tracepkg.Writer, error) {
 	path := options.TraceLogPath
 	if path == "" {
 		path = os.Getenv(traceLogEnv)
@@ -92,7 +92,7 @@ func traceWriterFromOptions(options DialOptions) (*tracepkg.JSONLWriter, error) 
 	if path == "" {
 		return nil, nil
 	}
-	return tracepkg.NewJSONLWriter(path)
+	return tracepkg.NewDefaultAsyncJSONLWriter(path)
 }
 
 func newTraceID() string {

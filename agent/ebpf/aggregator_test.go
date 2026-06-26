@@ -13,7 +13,7 @@ func TestAggregatorMapsTCPEventsToEndpointSamples(t *testing.T) {
 	})
 
 	agg.Observe(TCPEvent{
-		RemoteAddr:     "10.0.0.2:7001",
+		RemoteKey:      packEndpoint(0x0200000a, 7001),
 		Retransmits:    3,
 		ConnectErrors:  1,
 		ConnectLatency: 25 * time.Millisecond,

@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+type Writer interface {
+	Write(record Record) error
+	Close() error
+}
+
 type Record struct {
 	TraceID            string   `json:"trace_id"`
 	SpanID             string   `json:"span_id,omitempty"`

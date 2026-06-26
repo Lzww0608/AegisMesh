@@ -37,7 +37,9 @@ func TestTelemetryReporterSendsAndResetsRecorderWindow(t *testing.T) {
 	if sample.RequestCount != 1 || sample.LatencyP95Seconds <= 0 || sample.LatencyEwmaSeconds <= 0 {
 		t.Fatalf("unexpected reported sample stats: %+v", sample)
 	}
-	if remaining := recorder.SnapshotAndReset(); len(remaining) != 0 {
+	remaining := recorder.SnapshotAndReset()
+	defer telemetry.ReleaseEndpointStatsSlice(remaining)
+	if len(remaining) != 0 {
 		t.Fatalf("expected reporter to reset recorder window, got %+v", remaining)
 	}
 }
@@ -47,6 +49,16 @@ type fakeTelemetryClient struct {
 }
 
 func (c *fakeTelemetryClient) ReportEndpointStats(_ context.Context, req *aegisv1.ReportEndpointStatsRequest, _ ...grpc.CallOption) (*aegisv1.ReportEndpointStatsResponse, error) {
-	c.last = req
+	clone := &aegisv1.ReportEndpointStatsRequest{
+		Samples: make([]*aegisv1.EndpointStatsSample, len(req.Samples)),
+	}
+	for i, sample := range req.Samples {
+		if sample == nil {
+			continue
+		}
+		copySample := *sample
+		clone.Samples[i] = &copySample
+	}
+	c.last = clone
 	return &aegisv1.ReportEndpointStatsResponse{}, nil
 }

@@ -41,6 +41,6 @@ func (m *PrometheusHealthMetrics) RecordHealth(health EndpointHealth) {
 		if health.State == state {
 			value = 1
 		}
-		m.state.WithLabelValues(health.Service, health.InstanceID, health.Address, string(state)).Set(value)
+		m.state.WithLabelValues(health.Service, health.InstanceID, health.Address, state.String()).Set(value)
 	}
 }

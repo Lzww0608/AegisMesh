@@ -17,6 +17,7 @@ func TestScoreCalculatorFlagsSlowEndpointFromRecorderApproxP95(t *testing.T) {
 	}
 
 	stats := recorder.SnapshotAndReset()
+	defer telemetry.ReleaseEndpointStatsSlice(stats)
 	samples := make([]EndpointSample, 0, len(stats))
 	for _, stat := range stats {
 		samples = append(samples, EndpointSample{

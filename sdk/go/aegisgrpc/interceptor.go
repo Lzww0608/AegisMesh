@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func newTelemetryUnaryInterceptor(source, destination string, recorder *telemetry.Recorder, tracer *tracepkg.JSONLWriter) grpc.UnaryClientInterceptor {
+func newTelemetryUnaryInterceptor(source, destination string, recorder *telemetry.Recorder, tracer tracepkg.Writer) grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req any, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		if recorder == nil && tracer == nil {
 			return invoker(ctx, method, req, reply, cc, opts...)

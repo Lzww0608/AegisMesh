@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/aegismesh/aegismesh/pkg/align"
 )
 
 const (
@@ -86,21 +88,20 @@ type statsKey struct {
 type statsRow struct {
 	key          statsKey
 	metrics      RowMetrics
+	counters     statsCounters
+	mu           sync.Mutex
+	ewma         *EWMA
+	activeHist   *shardedLatencyHistogram
+	scratchHist  *shardedLatencyHistogram
+	windowStart  time.Time
+}
+
+type statsCounters struct {
 	requestCount atomic.Int64
 	errorCount   atomic.Int64
 	timeoutCount atomic.Int64
 	inflight     atomic.Int64
-
-	mu          sync.Mutex
-	ewma        *EWMA
-	activeHist  *latencyHistogram
-	scratchHist *latencyHistogram
-	windowStart time.Time
-}
-
-type latencyHistogram struct {
-	count   uint64
-	buckets [latencyHistogramBuckets]uint64
+	_            align.Pad48
 }
 
 type legacyRowMetrics struct {
@@ -135,7 +136,7 @@ func (r *Recorder) Start(destination, method, upstream string) func(status strin
 	started := r.now()
 	key := makeStatsKey(destination, method, "", upstream)
 	row := r.rowFor(key, started)
-	row.inflight.Add(1)
+	row.counters.inflight.Add(1)
 
 	var once sync.Once
 	return func(status string) {
@@ -167,9 +168,17 @@ func (r *Recorder) Observe(obs Observation) {
 }
 
 func (r *Recorder) Snapshot() []EndpointStats {
-	return r.snapshot(false)
+	stats := r.snapshot(false)
+	if len(stats) == 0 {
+		ReleaseEndpointStatsSlice(stats)
+		return nil
+	}
+	clone := cloneEndpointStatsSlice(stats)
+	ReleaseEndpointStatsSlice(stats)
+	return clone
 }
 
+// SnapshotAndReset returns a pooled stats slice. Call ReleaseEndpointStatsSlice when done.
 func (r *Recorder) SnapshotAndReset() []EndpointStats {
 	return r.snapshot(true)
 }
@@ -180,21 +189,22 @@ func (r *Recorder) finish(row *statsRow, obs Observation) {
 
 func (r *Recorder) recordObservation(row *statsRow, obs Observation, decrementInflight bool) {
 	if decrementInflight {
-		decrementPositive(&row.inflight)
+		decrementPositive(&row.counters.inflight)
+	}
+
+	row.counters.requestCount.Add(1)
+	if obs.Error || obs.Status != "OK" {
+		row.counters.errorCount.Add(1)
+	}
+	if obs.Timeout || obs.Status == "DEADLINE_EXCEEDED" {
+		row.counters.timeoutCount.Add(1)
 	}
 
 	row.mu.Lock()
-	row.requestCount.Add(1)
-	if obs.Error || obs.Status != "OK" {
-		row.errorCount.Add(1)
-	}
-	if obs.Timeout || obs.Status == "DEADLINE_EXCEEDED" {
-		row.timeoutCount.Add(1)
-	}
 	row.ewma.Observe(obs.Latency)
 	row.activeHist.Record(obs.Latency)
 	latencyEWMA := row.ewma.Value()
-	inflight := row.inflight.Load()
+	inflight := row.counters.inflight.Load()
 	metrics := row.metrics
 	row.mu.Unlock()
 
@@ -212,8 +222,8 @@ func (r *Recorder) rowFor(key statsKey, now time.Time) *statsRow {
 			key:         key,
 			metrics:     r.bindMetrics(key),
 			ewma:        NewEWMA(defaultEWMAAlpha),
-			activeHist:  &latencyHistogram{},
-			scratchHist: &latencyHistogram{},
+			activeHist:  &shardedLatencyHistogram{},
+			scratchHist: &shardedLatencyHistogram{},
 			windowStart: now,
 		}
 		shard.rows[key] = row
@@ -248,7 +258,7 @@ func (r *Recorder) shardFor(key statsKey) *recorderShard {
 
 func (r *Recorder) snapshot(reset bool) []EndpointStats {
 	now := r.now()
-	stats := make([]EndpointStats, 0, r.rowCount())
+	stats := acquireEndpointStatsSlice(r.rowCount())
 	for i := range r.shards {
 		shard := &r.shards[i]
 		shard.mu.Lock()
@@ -287,8 +297,8 @@ func (r *Recorder) rowCount() int {
 
 func (row *statsRow) snapshot(source string, key statsKey, now time.Time, reset bool) (EndpointStats, bool) {
 	row.mu.Lock()
-	requestCount := row.requestCount.Load()
-	inflight := row.inflight.Load()
+	requestCount := row.counters.requestCount.Load()
+	inflight := row.counters.inflight.Load()
 	if requestCount == 0 && inflight == 0 {
 		row.mu.Unlock()
 		return EndpointStats{}, false
@@ -301,8 +311,8 @@ func (row *statsRow) snapshot(source string, key statsKey, now time.Time, reset 
 		EndpointID:   key.endpointID,
 		Upstream:     key.upstream,
 		RequestCount: requestCount,
-		ErrorCount:   row.errorCount.Load(),
-		TimeoutCount: row.timeoutCount.Load(),
+		ErrorCount:   row.counters.errorCount.Load(),
+		TimeoutCount: row.counters.timeoutCount.Load(),
 		Inflight:     inflight,
 		LatencyEWMA:  row.ewma.Value(),
 		LatencyP95:   row.activeHist.Quantile(0.95),
@@ -310,9 +320,9 @@ func (row *statsRow) snapshot(source string, key statsKey, now time.Time, reset 
 		WindowEnd:    now,
 	}
 	if reset {
-		row.requestCount.Store(0)
-		row.errorCount.Store(0)
-		row.timeoutCount.Store(0)
+		row.counters.requestCount.Store(0)
+		row.counters.errorCount.Store(0)
+		row.counters.timeoutCount.Store(0)
 		row.activeHist, row.scratchHist = row.scratchHist, row.activeHist
 		row.activeHist.Reset()
 		row.scratchHist.Reset()
@@ -320,46 +330,6 @@ func (row *statsRow) snapshot(source string, key statsKey, now time.Time, reset 
 	}
 	row.mu.Unlock()
 	return stat, true
-}
-
-func (h *latencyHistogram) Record(sample time.Duration) {
-	if sample < 0 {
-		sample = 0
-	}
-	idx := latencyBucketIndex(uint64(sample))
-	h.buckets[idx]++
-	h.count++
-}
-
-func (h *latencyHistogram) Quantile(q float64) time.Duration {
-	if h.count == 0 {
-		return 0
-	}
-	if q <= 0 {
-		q = 0
-	}
-	if q > 1 {
-		q = 1
-	}
-	target := uint64(q*float64(h.count) + 0.999999999)
-	if target == 0 {
-		target = 1
-	}
-	var seen uint64
-	for i, count := range h.buckets {
-		seen += count
-		if seen >= target {
-			return time.Duration(latencyBucketUpperBounds[i])
-		}
-	}
-	return time.Duration(latencyBucketUpperBounds[len(latencyBucketUpperBounds)-1])
-}
-
-func (h *latencyHistogram) Reset() {
-	for i := range h.buckets {
-		h.buckets[i] = 0
-	}
-	h.count = 0
 }
 
 func makeStatsKey(destination, method, endpointID, upstream string) statsKey {

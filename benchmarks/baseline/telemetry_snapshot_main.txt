@@ -1,0 +1,109 @@
+# telemetry SnapshotAndReset shards (count=10)
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/pkg/telemetry
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=1000-2         	   85297	     13843 ns/op	   12316 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=1000-2         	   86828	     13589 ns/op	   12316 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=1000-2         	   87567	     13729 ns/op	   12316 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=1000-2         	   87597	     13798 ns/op	   12316 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=1000-2         	   88813	     13584 ns/op	   12316 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=1000-2         	   86868	     13838 ns/op	   12316 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=1000-2         	   90838	     13761 ns/op	   12316 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=1000-2         	   83528	     13599 ns/op	   12316 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=1000-2         	   88714	     13589 ns/op	   12316 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=1000-2         	   81135	     13716 ns/op	   12316 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=10000-2        	   87001	     13638 ns/op	   12327 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=10000-2        	   89054	     13177 ns/op	   12327 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=10000-2        	   90828	     13265 ns/op	   12327 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=10000-2        	   91478	     13264 ns/op	   12327 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=10000-2        	   91048	     13129 ns/op	   12327 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=10000-2        	   91263	     13100 ns/op	   12327 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=10000-2        	   91898	     13072 ns/op	   12327 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=10000-2        	   92259	     12877 ns/op	   12327 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=10000-2        	   92650	     12912 ns/op	   12327 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=10000-2        	   92714	     12847 ns/op	   12327 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=100000-2       	   76386	     15755 ns/op	   12436 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=100000-2       	   77499	     15059 ns/op	   12436 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=100000-2       	   78764	     15230 ns/op	   12436 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=100000-2       	   78488	     15229 ns/op	   12436 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=100000-2       	   78655	     15460 ns/op	   12436 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=100000-2       	   71730	     16822 ns/op	   12436 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=100000-2       	   70675	     16779 ns/op	   12436 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=100000-2       	   71458	     16707 ns/op	   12436 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=100000-2       	   71191	     16817 ns/op	   12436 B/op	       2 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=1/observations=100000-2       	   71793	     16757 ns/op	   12436 B/op	       2 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/pkg/telemetry	18974.232s
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/pkg/telemetry
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=1000-2         	   13396	     89025 ns/op	   12552 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=1000-2         	   13377	     90099 ns/op	   12551 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=1000-2         	   13038	     89925 ns/op	   12551 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=1000-2         	   13292	     89658 ns/op	   12551 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=1000-2         	   13528	     87879 ns/op	   12551 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=1000-2         	   13233	     89486 ns/op	   12551 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=1000-2         	   13190	     89980 ns/op	   12551 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=1000-2         	   12846	     88576 ns/op	   12551 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=1000-2         	   13435	     90316 ns/op	   12551 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=1000-2         	   12570	     88254 ns/op	   12551 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=10000-2        	   13119	     91248 ns/op	   12564 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=10000-2        	   13364	     91592 ns/op	   12564 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=10000-2        	   13354	     91150 ns/op	   12564 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=10000-2        	   13220	     90720 ns/op	   12564 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=10000-2        	   13305	     87215 ns/op	   12564 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=10000-2        	   13816	     86779 ns/op	   12564 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=10000-2        	   13785	     86544 ns/op	   12564 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=10000-2        	   13962	     87241 ns/op	   12564 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=10000-2        	   14100	     85140 ns/op	   12564 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=10000-2        	   14089	     85259 ns/op	   12564 B/op	       4 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=100000-2       	   13556	     88562 ns/op	   12679 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=100000-2       	   13626	     88005 ns/op	   12679 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=100000-2       	   13724	     87104 ns/op	   12679 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=100000-2       	   13802	     87005 ns/op	   12679 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=100000-2       	   13788	     87045 ns/op	   12679 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=100000-2       	   13730	     87174 ns/op	   12679 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=100000-2       	   13773	     87303 ns/op	   12679 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=100000-2       	   13716	     85639 ns/op	   12679 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=100000-2       	   14031	     85274 ns/op	   12679 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=8/observations=100000-2       	   14082	     85697 ns/op	   12679 B/op	       5 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/pkg/telemetry	5422.431s
+goos: linux
+goarch: amd64
+pkg: github.com/aegismesh/aegismesh/pkg/telemetry
+cpu: 13th Gen Intel(R) Core(TM) i9-13900K
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=1000-2         	    1749	    693751 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=1000-2         	    1712	    712252 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=1000-2         	    1762	    683524 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=1000-2         	    1616	    703186 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=1000-2         	    1735	    701129 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=1000-2         	    1633	    704355 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=1000-2         	    1622	    673261 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=1000-2         	    1884	    689879 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=1000-2         	    1734	    669389 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=1000-2         	    1630	    668878 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=10000-2        	    1647	    682141 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=10000-2        	    1740	    681935 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=10000-2        	    1761	    689555 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=10000-2        	    1742	    686804 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=10000-2        	    1687	    685102 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=10000-2        	    1711	    679492 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=10000-2        	    1874	    711471 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=10000-2        	    1776	    696100 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=10000-2        	    1789	    691892 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=10000-2        	    1693	    703339 ns/op	   12672 B/op	       5 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=100000-2       	    1756	    699197 ns/op	   12808 B/op	       6 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=100000-2       	    1779	    686923 ns/op	   12808 B/op	       6 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=100000-2       	    1646	    687073 ns/op	   12808 B/op	       6 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=100000-2       	    1779	    694979 ns/op	   12808 B/op	       6 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=100000-2       	    1830	    685541 ns/op	   12808 B/op	       6 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=100000-2       	    1755	    686198 ns/op	   12808 B/op	       6 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=100000-2       	    1814	    664379 ns/op	   12808 B/op	       6 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=100000-2       	    1813	    662286 ns/op	   12808 B/op	       6 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=100000-2       	    1779	    655071 ns/op	   12808 B/op	       6 allocs/op
+BenchmarkRecorderSnapshotAndResetP95/upstreams=64/observations=100000-2       	    1780	    669118 ns/op	   12808 B/op	       6 allocs/op
+PASS
+ok  	github.com/aegismesh/aegismesh/pkg/telemetry	518.310s

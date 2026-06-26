@@ -4,6 +4,8 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+
+	"github.com/aegismesh/aegismesh/pkg/align"
 )
 
 var ErrOpen = errors.New("circuit breaker open")
@@ -20,7 +22,7 @@ type Breaker struct {
 type EndpointLimiter struct {
 	inflight atomic.Int64
 	max      int64
-	_        [48]byte
+	_        align.Pad48
 }
 
 func NewBreaker(cfg Config) *Breaker {

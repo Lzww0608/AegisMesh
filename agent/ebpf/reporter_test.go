@@ -26,7 +26,7 @@ func TestReporterAggregatesCollectorEventsAndReportsTelemetry(t *testing.T) {
 	if err := reporter.Start(ctx); err != nil {
 		t.Fatalf("start reporter: %v", err)
 	}
-	collector.events <- TCPEvent{RemoteAddr: "10.0.0.2:7001", Retransmits: 2, ObservedAt: time.Now()}
+	collector.events <- TCPEvent{RemoteKey: packEndpoint(0x0200000a, 7001), Retransmits: 2, ObservedAt: time.Now()}
 
 	if err := reporter.ReportOnce(ctx); err != nil {
 		t.Fatalf("report once: %v", err)

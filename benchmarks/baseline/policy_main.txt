@@ -2,14 +2,35 @@ goos: linux
 goarch: amd64
 pkg: github.com/aegismesh/aegismesh/pkg/policy
 cpu: 13th Gen Intel(R) Core(TM) i9-13900K
-BenchmarkFileStoreGetPolicySnapshot/methods=1-32         	 1754295	       686.7 ns/op	     768 B/op	       9 allocs/op
-BenchmarkFileStoreGetPolicySnapshot/methods=1-32         	 1729252	       696.8 ns/op	     768 B/op	       9 allocs/op
-BenchmarkFileStoreGetPolicySnapshot/methods=1-32         	 1753338	       684.6 ns/op	     768 B/op	       9 allocs/op
-BenchmarkFileStoreGetPolicySnapshot/methods=16-32        	  281751	      4449 ns/op	    4792 B/op	      59 allocs/op
-BenchmarkFileStoreGetPolicySnapshot/methods=16-32        	  271134	      4467 ns/op	    4792 B/op	      59 allocs/op
-BenchmarkFileStoreGetPolicySnapshot/methods=16-32        	  266018	      4467 ns/op	    4792 B/op	      59 allocs/op
-BenchmarkFileStoreGetPolicySnapshot/methods=128-32       	   37473	     32699 ns/op	   36376 B/op	     401 allocs/op
-BenchmarkFileStoreGetPolicySnapshot/methods=128-32       	   36609	     32272 ns/op	   36376 B/op	     401 allocs/op
-BenchmarkFileStoreGetPolicySnapshot/methods=128-32       	   37519	     32135 ns/op	   36376 B/op	     401 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=1-2         	 1382355	       774.9 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=1-2         	 1584595	       763.8 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=1-2         	 1731637	       734.6 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=1-2         	 1636736	       726.6 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=1-2         	 1618452	       724.4 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=1-2         	 1652616	       758.8 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=1-2         	 1597759	       773.7 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=1-2         	 1577472	       757.3 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=1-2         	 1518319	       769.6 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=1-2         	 1596805	       753.4 ns/op	     768 B/op	       9 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-2        	  253928	      4888 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-2        	  244021	      4747 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-2        	  248169	      4766 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-2        	  228600	      4921 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-2        	  232576	      4826 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-2        	  242229	      4739 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-2        	  243162	      5910 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-2        	  222752	      4996 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-2        	  262675	      4741 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=16-2        	  293160	      4988 ns/op	    4792 B/op	      59 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-2       	   30802	     37437 ns/op	   36376 B/op	     401 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-2       	   31034	     36202 ns/op	   36376 B/op	     401 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-2       	   33244	     38098 ns/op	   36376 B/op	     401 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-2       	   31940	     38050 ns/op	   36376 B/op	     401 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-2       	   31270	     35936 ns/op	   36376 B/op	     401 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-2       	   32728	     38962 ns/op	   36376 B/op	     401 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-2       	   31660	     35840 ns/op	   36376 B/op	     401 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-2       	   32491	     37188 ns/op	   36376 B/op	     401 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-2       	   33924	     37183 ns/op	   36376 B/op	     401 allocs/op
+BenchmarkFileStoreGetPolicySnapshot/methods=128-2       	   32654	     35995 ns/op	   36376 B/op	     401 allocs/op
 PASS
-ok  	github.com/aegismesh/aegismesh/pkg/policy	14.122s
+ok  	github.com/aegismesh/aegismesh/pkg/policy	48.233s

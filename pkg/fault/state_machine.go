@@ -1,15 +1,20 @@
 package fault
 
-import "time"
+import (
+	"time"
 
-type EndpointState string
+	"github.com/aegismesh/aegismesh/pkg/status"
+)
+
+type EndpointState = status.Code
 
 const (
-	StateHealthy  EndpointState = "HEALTHY"
-	StateDegraded EndpointState = "DEGRADED"
-	StateEjected  EndpointState = "EJECTED"
-	StateProbing  EndpointState = "PROBING"
-	StateDead     EndpointState = "DEAD"
+	StateUnspecified = status.Unspecified
+	StateHealthy     = status.Healthy
+	StateDegraded    = status.Degraded
+	StateEjected     = status.Ejected
+	StateProbing     = status.Probing
+	StateDead        = status.Dead
 )
 
 type StateMachineConfig struct {
@@ -94,7 +99,7 @@ func (m *StateMachine) Apply(health *EndpointHealth, input StateInput) {
 	if now.IsZero() {
 		now = time.Now()
 	}
-	if health.State == "" {
+	if health.State == status.Unspecified {
 		health.State = StateHealthy
 	}
 	health.SlowScore = input.SlowScore

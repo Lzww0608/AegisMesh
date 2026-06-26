@@ -2,17 +2,45 @@ goos: linux
 goarch: amd64
 pkg: github.com/aegismesh/aegismesh/pkg/circuitbreaker
 cpu: 13th Gen Intel(R) Core(TM) i9-13900K
-BenchmarkBreakerSameEndpoint-32       	13114234	        92.83 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBreakerSameEndpoint-32       	13044061	        92.24 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBreakerSameEndpoint-32       	13183824	        93.20 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBreakerManyEndpoint-32       	160706556	         7.664 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBreakerManyEndpoint-32       	157249474	         7.488 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBreakerManyEndpoint-32       	160857360	         7.792 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBreakerAPISameEndpoint-32    	13383483	        89.79 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBreakerAPISameEndpoint-32    	13474032	        90.13 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBreakerAPISameEndpoint-32    	13418736	        89.44 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBreakerAPIManyEndpoint-32    	250595019	         4.772 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBreakerAPIManyEndpoint-32    	246501771	         4.785 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBreakerAPIManyEndpoint-32    	250290235	         5.987 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerSameEndpoint-2      	17980557	        63.97 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerSameEndpoint-2      	18171313	        63.20 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerSameEndpoint-2      	17181420	        65.78 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerSameEndpoint-2      	18198141	        66.05 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerSameEndpoint-2      	18448796	        63.29 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerSameEndpoint-2      	18972686	        63.92 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerSameEndpoint-2      	17926968	        65.60 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerSameEndpoint-2      	23696536	        61.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerSameEndpoint-2      	20284468	        61.19 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerSameEndpoint-2      	17490504	        65.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-2      	56503620	        25.25 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-2      	46759476	        27.36 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-2      	49792729	        25.45 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-2      	40133286	        27.70 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-2      	69409742	        26.47 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-2      	44750085	        26.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-2      	39190885	        29.05 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-2      	62916774	        16.58 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-2      	75172130	        16.79 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerManyEndpoint-2      	41423156	        28.02 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-2   	21817453	        67.96 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-2   	17531504	        72.24 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-2   	20643108	        59.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-2   	19815874	        60.79 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-2   	19044508	        64.74 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-2   	16084238	        69.91 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-2   	20375949	        60.01 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-2   	17641801	        72.83 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-2   	17316066	        62.41 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPISameEndpoint-2   	20460668	        59.63 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-2   	36998696	        27.39 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-2   	44380515	        24.73 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-2   	52168591	        25.75 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-2   	48860282	        24.29 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-2   	48340627	        25.26 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-2   	40196886	        25.72 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-2   	39643390	        25.26 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-2   	45697432	        25.62 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-2   	49088336	        24.26 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBreakerAPIManyEndpoint-2   	39785294	        34.17 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/aegismesh/aegismesh/pkg/circuitbreaker	19.129s
+ok  	github.com/aegismesh/aegismesh/pkg/circuitbreaker	52.457s
