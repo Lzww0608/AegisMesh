@@ -8,6 +8,7 @@ import (
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
 	"github.com/aegismesh/aegismesh/pkg/telemetry"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestTelemetryReporterSendsAndResetsRecorderWindow(t *testing.T) {
@@ -56,8 +57,7 @@ func (c *fakeTelemetryClient) ReportEndpointStats(_ context.Context, req *aegisv
 		if sample == nil {
 			continue
 		}
-		copySample := *sample
-		clone.Samples[i] = &copySample
+		clone.Samples[i] = proto.Clone(sample).(*aegisv1.EndpointStatsSample)
 	}
 	c.last = clone
 	return &aegisv1.ReportEndpointStatsResponse{}, nil
