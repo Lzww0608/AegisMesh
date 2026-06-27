@@ -57,7 +57,7 @@ For reliability, separate retry and recovery. Retry budget prevents amplificatio
 
 For newer mechanisms, mention the two validation runs. PROBING traffic stayed at 0.2177% of user-service trace rows. Absolute SLO scoring raised max slow_score from 0.377 to 1.007 in an all-slow control case, which is the concrete reason peer comparison alone is not enough.
 
-## Claims to avoid
+## Interview Boundaries
 
 - It is not production-grade or highly available. The file-backed registry improves restart recovery, but it is not an HA control plane.
 - DeathStarBench has not been measured yet. The repo has an integration planner; measured results come from the self-contained Docker benchmark.

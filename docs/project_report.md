@@ -4,7 +4,7 @@
 
 AegisMesh is a Go/gRPC project for one failure pattern I wanted to study closely: fail-slow. In this case an endpoint is still alive, still accepting TCP connections, and still returning responses, but it is slow enough to dominate p99 latency.
 
-The implementation has a Controller, memory and file-backed registries, YAML-backed PolicyService, a Go gRPC SDK, Prometheus/Grafana metrics, endpoint telemetry, slow_score, an endpoint state machine, adaptive P2C routing, retry budget, circuit breaking, fault injection, CI checks, verifier support for real SDK trace JSONL, Linux eBPF TCP telemetry, and a DeathStarBench integration planner. That is a lot of surface area, so the report focuses on the parts that have measured evidence.
+The implementation has a Controller, memory and file-backed registries, YAML-backed PolicyService, a Go gRPC SDK, Prometheus/Grafana metrics, endpoint telemetry, slow_score, an endpoint state machine, adaptive P2C routing, retry budget, circuit breaking, fault injection, CI checks, verifier support for real SDK trace JSONL, Linux eBPF TCP telemetry, and a DeathStarBench integration planner. This report focuses on the parts with measured evidence.
 
 The merged single-machine results live in `experiments/results/combined`: 61 latency rows, 18 retry rows, and 747 recovery rows. `experiments/scripts/check_results.py --results experiments/results/combined` finds evidence for every required comparison. In the slow-instance delay run, adaptive P2C reduced median p99 from 348.682 ms with round-robin to 32.712 ms, a 90.62% drop. Under CPU throttle, slow_score reduced median p99 from 46.596 ms to 26.559 ms. Retry budget reduced amplification from 2.000x to 1.150x. The recovery run shows the delayed endpoint reaching `slow_score=0.95`, moving through `DEGRADED`, `EJECTED`, and `PROBING`, then returning to `HEALTHY`. Two smaller checks cover probe-ratio behavior and absolute SLO scoring.
 
@@ -67,7 +67,7 @@ Hot-path microbenchmarks and `SnapshotAndReset` grids (`benchmarks/baseline/`) w
 
 The no-fault baseline is the cost of the extra layer: AegisMesh adds 13.48% p99 latency in the merged median, while throughput stays close to the no-mesh path. The tradeoff becomes worthwhile under fault. With one delayed user instance, round-robin keeps feeding the slow instance and reaches 348.682 ms median p99. Adaptive P2C holds median p99 at 32.712 ms. CPU throttle improves for the same reason: the degraded endpoint gets a lower effective routing weight.
 
-The packet-loss result is small: median p99 improves by 3.93%. I would not sell this as a big eBPF performance win. The honest claim is narrower: the eBPF path is wired into scoring, and a stronger network-fault result needs a multi-host or namespace-isolated setup.
+The packet-loss result is small: median p99 improves by 3.93%. The supported claim is narrow: the eBPF path is wired into scoring, and a stronger network-fault result needs a multi-host or namespace-isolated setup.
 
 ### Retry Amplification
 
@@ -178,4 +178,4 @@ The eBPF result also needs restraint. The code path exists, and the packet-loss 
 
 ## Conclusion
 
-AegisMesh is ready to present as a measured RPC governance project: the control loop runs, the experiments can be repeated, and the main claims have numbers behind them. In resume wording, I would keep the claims precise: adaptive P2C under slow-instance delay, slow_score under CPU throttle, bounded retry amplification, recovery through probing, restricted PROBING traffic, and absolute-SLO detection. The caveats should stay visible: single-machine evaluation, local registry persistence, file-based verifier, and DeathStarBench planning rather than measured DeathStarBench results.
+AegisMesh is a measured RPC governance project: the control loop runs, the experiments can be repeated, and the main claims have numbers behind them. Resume wording should stay precise: adaptive P2C under slow-instance delay, slow_score under CPU throttle, bounded retry amplification, recovery through probing, restricted PROBING traffic, and absolute-SLO detection. The caveats should stay visible in deeper documentation: single-machine evaluation, local registry persistence, file-based verifier, and DeathStarBench planning rather than measured DeathStarBench results.
