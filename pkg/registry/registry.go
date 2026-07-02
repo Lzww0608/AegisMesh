@@ -1,9 +1,12 @@
 package registry
 
 import (
-	"context"
 	"container/heap"
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -23,17 +26,20 @@ const (
 )
 
 var (
-	ErrInvalidInstance  = errors.New("invalid service instance")
-	ErrInstanceNotFound = errors.New("service instance not found")
+	ErrInvalidInstance           = errors.New("invalid service instance")
+	ErrInstanceNotFound          = errors.New("service instance not found")
+	ErrRegistrationEpochMismatch = errors.New("registration epoch mismatch")
 )
 
 type Instance struct {
-	ID       string
-	Service  string
-	Address  string
-	Status   InstanceStatus
-	Labels   map[string]string
-	LastSeen time.Time
+	ID                string
+	Service           string
+	Address           string
+	Status            InstanceStatus
+	Labels            map[string]string
+	LastSeen          time.Time
+	RegistrationEpoch string
+	OwnerToken        string
 }
 
 type Registry interface {
@@ -41,6 +47,14 @@ type Registry interface {
 	Heartbeat(ctx context.Context, service, id string, ttl time.Duration) error
 	List(ctx context.Context, service string) ([]Instance, error)
 	SweepExpired(ctx context.Context) int
+}
+
+type EpochHeartbeater interface {
+	HeartbeatWithEpoch(ctx context.Context, service, id, registrationEpoch string, ttl time.Duration) error
+}
+
+type OwnerHeartbeater interface {
+	HeartbeatWithOwner(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration) error
 }
 
 type Snapshotter interface {
@@ -67,6 +81,8 @@ type MemoryRegistry struct {
 	expiries   expiryHeap
 	generation atomic.Uint64
 }
+
+var registrationEpochFallback atomic.Uint64
 
 type record struct {
 	instance   Instance
@@ -146,6 +162,8 @@ func (r *MemoryRegistry) registerAt(ctx context.Context, inst Instance, ttl time
 	}
 
 	inst.LastSeen = now
+	inst.RegistrationEpoch = newRegistrationEpoch()
+	inst.OwnerToken = newOwnerToken()
 	inst.Labels = cloneLabels(inst.Labels)
 	expiresAt := inst.LastSeen.Add(ttl)
 	generation := r.generation.Add(1)
@@ -168,7 +186,57 @@ func (r *MemoryRegistry) Heartbeat(ctx context.Context, service, id string, ttl 
 	return r.heartbeatAt(ctx, service, id, ttl, r.now())
 }
 
+func (r *MemoryRegistry) HeartbeatWithEpoch(ctx context.Context, service, id, registrationEpoch string, ttl time.Duration) error {
+	if registrationEpoch == "" {
+		return ErrInvalidInstance
+	}
+	return r.heartbeatAtWithOwner(ctx, service, id, registrationEpoch, "", ttl, r.now(), true, false)
+}
+
+func (r *MemoryRegistry) HeartbeatWithOwner(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration) error {
+	if registrationEpoch == "" || ownerToken == "" {
+		return ErrInvalidInstance
+	}
+	return r.heartbeatAtWithOwner(ctx, service, id, registrationEpoch, ownerToken, ttl, r.now(), true, true)
+}
+
 func (r *MemoryRegistry) heartbeatAt(ctx context.Context, service, id string, ttl time.Duration, now time.Time) error {
+	return r.heartbeatAtWithOwner(ctx, service, id, "", "", ttl, now, false, false)
+}
+
+func (r *MemoryRegistry) heartbeatAtWithEpoch(ctx context.Context, service, id, registrationEpoch string, ttl time.Duration, now time.Time, requireEpoch bool) error {
+	return r.heartbeatAtWithOwner(ctx, service, id, registrationEpoch, "", ttl, now, requireEpoch, false)
+}
+
+func (r *MemoryRegistry) validateHeartbeatWithOwner(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration, requireEpoch, requireOwner bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if service == "" || id == "" || ttl <= 0 {
+		return ErrInvalidInstance
+	}
+
+	stateValue, ok := r.services.Load(service)
+	if !ok {
+		return ErrInstanceNotFound
+	}
+	state := stateValue.(*serviceState)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	rec, ok := state.records[id]
+	if !ok {
+		return ErrInstanceNotFound
+	}
+	if requireEpoch && rec.instance.RegistrationEpoch != registrationEpoch {
+		return ErrRegistrationEpochMismatch
+	}
+	if requireOwner && rec.instance.OwnerToken != ownerToken {
+		return ErrRegistrationEpochMismatch
+	}
+	return nil
+}
+func (r *MemoryRegistry) heartbeatAtWithOwner(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration, now time.Time, requireEpoch, requireOwner bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -190,6 +258,14 @@ func (r *MemoryRegistry) heartbeatAt(ctx context.Context, service, id string, tt
 		state.mu.Unlock()
 		return ErrInstanceNotFound
 	}
+	if requireEpoch && rec.instance.RegistrationEpoch != registrationEpoch {
+		state.mu.Unlock()
+		return ErrRegistrationEpochMismatch
+	}
+	if requireOwner && rec.instance.OwnerToken != ownerToken {
+		state.mu.Unlock()
+		return ErrRegistrationEpochMismatch
+	}
 
 	rec.instance.LastSeen = now
 	rec.expiresAt = expiresAt
@@ -201,7 +277,6 @@ func (r *MemoryRegistry) heartbeatAt(ctx context.Context, service, id string, tt
 	r.pushExpiry(expiryEntry{service: service, id: id, expiresAt: expiresAt, generation: generation})
 	return nil
 }
-
 func (r *MemoryRegistry) List(ctx context.Context, service string) ([]Instance, error) {
 	snapshot, err := r.Snapshot(ctx, service)
 	if err != nil {
@@ -488,6 +563,12 @@ func (r *MemoryRegistry) restoreRecord(inst Instance, expiresAt time.Time, filte
 	if inst.Status == status.Unspecified {
 		inst.Status = InstanceHealthy
 	}
+	if inst.RegistrationEpoch == "" {
+		inst.RegistrationEpoch = newRegistrationEpoch()
+	}
+	if inst.OwnerToken == "" {
+		inst.OwnerToken = newOwnerToken()
+	}
 	inst.Labels = cloneLabels(inst.Labels)
 
 	generation := r.generation.Add(1)
@@ -504,6 +585,16 @@ func (r *MemoryRegistry) restoreRecord(inst Instance, expiresAt time.Time, filte
 	r.pushExpiry(expiryEntry{service: inst.Service, id: inst.ID, expiresAt: expiresAt, generation: generation})
 }
 
+func newRegistrationEpoch() string {
+	var random [16]byte
+	if _, err := rand.Read(random[:]); err == nil {
+		return hex.EncodeToString(random[:])
+	}
+	return fmt.Sprintf("fallback-%d-%d", time.Now().UnixNano(), registrationEpochFallback.Add(1))
+}
+func newOwnerToken() string {
+	return newRegistrationEpoch()
+}
 func cloneLabels(labels map[string]string) map[string]string {
 	if labels == nil {
 		return nil

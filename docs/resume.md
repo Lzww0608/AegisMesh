@@ -4,7 +4,7 @@
 
 **AegisMesh：面向微服务慢故障的自适应 RPC 治理系统**
 
-- 基于 Go/gRPC 实现 Controller 控制面和 SDK 数据面，包含服务注册/TTL 心跳、gRPC resolver/balancer、Prometheus/Grafana 指标、PolicyService YAML 策略、真实 SDK trace verifier、故障注入和 Linux eBPF TCP telemetry。
+- 基于 Go/gRPC 实现 Controller 控制面和 SDK 数据面，包含服务注册/TTL 心跳、gRPC resolver/balancer、Prometheus/Grafana 指标、PolicyService file/etcd 策略、真实 SDK trace verifier、故障注入和 Linux eBPF TCP telemetry。
 - 针对 fail-slow 实现 EWMA 延迟窗口、relative + absolute SLO slow_score、`HEALTHY/DEGRADED/EJECTED/PROBING` 状态机、PROBING probe ratio、adaptive P2C 路由、retry budget 和 endpoint circuit breaker。慢节点会先降权，再摘除，恢复时只给少量探测流量。
 - 构建单机 Docker benchmark 矩阵，注入单实例 800ms delay、CPU throttle、packet loss、持续失败上游和恢复曲线；`check_results` 汇总 61 条 latency、18 条 retry、747 条 recovery 记录，覆盖 baseline、慢实例、CPU 慢故障、retry amplification、eBPF 网络信号和状态恢复。
 - 实验显示：慢实例场景下 adaptive P2C 相比 round-robin 将 median p99 latency 从 348.682 ms 降至 32.712 ms，降低 90.62%；CPU throttle 场景下 slow_score 相比 static threshold 将 median p99 从 46.596 ms 降至 26.559 ms，降低 43.00%。
@@ -22,7 +22,7 @@
 
 **AegisMesh: Adaptive RPC governance system for fail-slow microservices**
 
-- Built a Go/gRPC control plane and SDK for fail-slow RPC governance: TTL service discovery, custom resolver/balancer, PolicyService YAML snapshots, Prometheus/Grafana metrics, SDK JSONL trace verifier, fault injection, and Linux eBPF TCP telemetry.
+- Built a Go/gRPC control plane and SDK for fail-slow RPC governance: TTL service discovery, custom resolver/balancer, PolicyService file/etcd snapshots, Prometheus/Grafana metrics, SDK JSONL trace verifier, fault injection, and Linux eBPF TCP telemetry.
 - Implemented EWMA latency windows, relative + absolute SLO slow_score, endpoint state machine with PROBING probe ratio, adaptive P2C routing, retry budget, and endpoint circuit breaker. Slow endpoints are down-weighted first, then ejected, probed, and returned after recovery.
 - In a reproducible single-machine Docker benchmark, adaptive P2C reduced median p99 latency from 348.682 ms to 32.712 ms versus round-robin under a slow-instance fault, slow_score reduced CPU-throttle p99 by 43.00%, and retry budgets bounded retry amplification from 2.000x to 1.150x.
 
@@ -59,7 +59,7 @@ For newer mechanisms, mention the two validation runs. PROBING traffic stayed at
 
 ## Interview Boundaries
 
-- It is not production-grade or highly available. The file-backed registry improves restart recovery, but it is not an HA control plane.
-- DeathStarBench has not been measured yet. The repo has an integration planner; measured results come from the self-contained Docker benchmark.
+- The repo now includes a production-oriented control-plane shape: etcd registry/policy/health snapshot sharing, Controller TLS/mTLS, service-scoped bearer-token RBAC, and SDK multi-address failover. The measured evidence is still single-machine; the file-backed registry remains local restart recovery, not HA.
+- DeathStarBench has not been measured yet. The repo now has an opt-in runner that can launch an external checkout, inject AegisMesh metadata, collect artifacts, and validate the run directory; measured results still come from the self-contained Docker benchmark until a real governed DeathStarBench run is checked in.
 - Describe eBPF carefully. The single-machine packet-loss delta is 3.93% p99 improvement, so the fair claim is integrated network telemetry with a modest measured benefit.
-- Not every policy field is fully hot-applied. Retry, timeout, idempotency, and routing initialization are covered; some deeper outlier/circuit-breaker fields still come from local configuration.
+- Policy hot-apply covers retry behavior, service-scoped `outlier_detection`, and SDK `circuit_breaker.max_inflight_per_endpoint`. `routing_policy` remains dial-time only.

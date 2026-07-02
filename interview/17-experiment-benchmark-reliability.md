@@ -545,7 +545,7 @@ order -> shipment
 
 ### Q472【拓展】如果把 DeathStarBench 纳入真实实验，需要改哪些部署和观测脚本？
 
-当前项目里的 DeathStarBench 是 integration planner，不是已经跑完的 benchmark。要做成真实实验，需要补几层工作。
+当前项目里的 DeathStarBench 是 integration runner (metadata overlay + artifact validation)，不是已经跑完的 benchmark。要做成真实实验，需要补几层工作。
 
 第一，部署层。要 clone DeathStarBench，选择一个基准，比如 Hotel Reservation 或 Social Network。然后改 Compose 或 Kubernetes YAML，让 AegisMesh 能接入服务发现和 RPC 路径。DeathStarBench 里很多服务不是 Go/gRPC，需要考虑 sidecar 或网关方式，而不是直接复用 Go SDK。
 

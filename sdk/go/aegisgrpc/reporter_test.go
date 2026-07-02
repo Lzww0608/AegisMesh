@@ -2,6 +2,7 @@ package aegisgrpc
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -15,12 +16,13 @@ func TestTelemetryReporterSendsAndResetsRecorderWindow(t *testing.T) {
 	client := &fakeTelemetryClient{}
 	recorder := telemetry.NewRecorder("frontend", nil)
 	recorder.Observe(telemetry.Observation{
-		Destination: "user-service",
-		Method:      "/demo.shop.v1.UserService/GetUser",
-		EndpointID:  "user-a",
-		Upstream:    "127.0.0.1:7001",
-		Status:      "OK",
-		Latency:     100 * time.Millisecond,
+		Destination:       "user-service",
+		Method:            "/demo.shop.v1.UserService/GetUser",
+		EndpointID:        "user-a",
+		RegistrationEpoch: "epoch-1",
+		Upstream:          "127.0.0.1:7001",
+		Status:            "OK",
+		Latency:           100 * time.Millisecond,
 	})
 	reporter := newTelemetryReporter(client, recorder, time.Minute)
 
@@ -32,7 +34,7 @@ func TestTelemetryReporterSendsAndResetsRecorderWindow(t *testing.T) {
 		t.Fatalf("expected one reported sample, got %+v", client.last)
 	}
 	sample := client.last.Samples[0]
-	if sample.Source != "frontend" || sample.Service != "user-service" || sample.InstanceId != "user-a" || sample.EndpointAddress != "127.0.0.1:7001" {
+	if sample.Source != "frontend" || sample.Service != "user-service" || sample.InstanceId != "user-a" || sample.RegistrationEpoch != "epoch-1" || sample.EndpointAddress != "127.0.0.1:7001" {
 		t.Fatalf("unexpected reported sample identity: %+v", sample)
 	}
 	if sample.RequestCount != 1 || sample.LatencyP95Seconds <= 0 || sample.LatencyEwmaSeconds <= 0 {
@@ -43,6 +45,38 @@ func TestTelemetryReporterSendsAndResetsRecorderWindow(t *testing.T) {
 	if len(remaining) != 0 {
 		t.Fatalf("expected reporter to reset recorder window, got %+v", remaining)
 	}
+}
+
+func TestTelemetryReporterUsesPerReportTimeout(t *testing.T) {
+	client := blockingTelemetryClient{}
+	recorder := telemetry.NewRecorder("frontend", nil)
+	recorder.Observe(telemetry.Observation{
+		Destination:       "user-service",
+		Method:            "/demo.shop.v1.UserService/GetUser",
+		EndpointID:        "user-a",
+		RegistrationEpoch: "epoch-1",
+		Upstream:          "127.0.0.1:7001",
+		Status:            "OK",
+		Latency:           100 * time.Millisecond,
+	})
+	reporter := newTelemetryReporter(client, recorder, time.Minute)
+	reporter.requestTimeout = 10 * time.Millisecond
+
+	start := time.Now()
+	err := reporter.ReportOnce(context.Background())
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected report timeout, got %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("report timeout took too long: %s", elapsed)
+	}
+}
+
+type blockingTelemetryClient struct{}
+
+func (blockingTelemetryClient) ReportEndpointStats(ctx context.Context, _ *aegisv1.ReportEndpointStatsRequest, _ ...grpc.CallOption) (*aegisv1.ReportEndpointStatsResponse, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
 }
 
 type fakeTelemetryClient struct {

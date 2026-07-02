@@ -19,6 +19,7 @@ message ServiceInstance {
   map<string, string> labels = 5;
   int64 last_seen_unix_millis = 6;
   double slow_score = 7;
+  string registration_epoch = 8;
 }
 
 message RegisterInstanceRequest {
@@ -28,12 +29,15 @@ message RegisterInstanceRequest {
 
 message RegisterInstanceResponse {
   ServiceInstance instance = 1;
+  string owner_token = 2;
 }
 
 message HeartbeatRequest {
   string service = 1;
   string instance_id = 2;
   int64 lease_ttl_seconds = 3;
+  string registration_epoch = 4;
+  string owner_token = 5;
 }
 
 message HeartbeatResponse {

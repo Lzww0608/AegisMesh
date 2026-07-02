@@ -13,25 +13,32 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/attributes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/status"
 )
 
 const (
-	defaultRefreshInterval    = 3 * time.Second
-	maxWatchRetryBackoff      = 30 * time.Second
+	defaultRefreshInterval     = 3 * time.Second
+	maxWatchRetryBackoff       = 30 * time.Second
 	maxWatchFailuresBeforePoll = 5
+	pollTicksBeforeWatchRetry  = 5
 )
 
 var endpointIdentityByAddress sync.Map
 
+type endpointIdentity struct {
+	instanceID        string
+	registrationEpoch string
+}
+
 type addressAttributeKey string
 
 const (
-	instanceIDAttribute addressAttributeKey = "aegis.instance_id"
-	statusAttribute     addressAttributeKey = "aegis.status"
-	slowScoreAttribute  addressAttributeKey = "aegis.slow_score"
+	instanceIDAttribute        addressAttributeKey = "aegis.instance_id"
+	registrationEpochAttribute addressAttributeKey = "aegis.registration_epoch"
+	statusAttribute            addressAttributeKey = "aegis.status"
+	slowScoreAttribute         addressAttributeKey = "aegis.slow_score"
+	limiterPoolAttribute       addressAttributeKey = "aegis.limiter_pool"
 )
 
 type registryResolverBuilder struct {
@@ -51,23 +58,55 @@ func (b *registryResolverBuilder) Build(target resolver.Target, cc resolver.Clie
 	if err != nil {
 		return nil, err
 	}
+	limiterPoolID := target.URL.Query().Get(adaptiveLimiterPoolTargetKey)
+	limiterPool := loadAdaptiveLimiterPool(limiterPoolID)
+	if limiterPool == nil {
+		limiterPool = newAdaptiveLimiterPool(adaptiveDefaultMaxInflightPerTarget)
+	}
+	controllerSecurityID := target.URL.Query().Get(controllerSecurityTargetKey)
+	controllerAddressesID := target.URL.Query().Get(controllerAddressesTargetKey)
+	controllerAddressesOwned := false
+	if controllerAddressesID == "" {
+		controllerAddressesID = registerControllerAddresses(splitControllerAddresses(controllerAddr))
+		controllerAddressesOwned = true
+	}
+	cleanupBuildFailure := func() {
+		if controllerAddressesOwned {
+			unregisterControllerAddresses(controllerAddressesID)
+		}
+	}
+	controllerSecurity, ok := loadControllerSecurityConfig(controllerSecurityID)
+	if !ok {
+		cleanupBuildFailure()
+		return nil, errors.New("controller security configuration was not found")
+	}
+	controllerDialOptions, err := controllerDialOptions(controllerSecurity)
+	if err != nil {
+		cleanupBuildFailure()
+		return nil, err
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	conn, err := grpc.DialContext(ctx, controllerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.DialContext(ctx, controllerTargetForAddressesID(controllerAddressesID), controllerDialOptions...)
 	if err != nil {
 		cancel()
+		cleanupBuildFailure()
 		return nil, err
 	}
 
 	r := &registryResolver{
-		ctx:             ctx,
-		cancel:          cancel,
-		conn:            conn,
-		client:          aegisv1.NewRegistryServiceClient(conn),
-		cc:              cc,
-		service:         service,
-		refreshInterval: b.refreshInterval,
-		watchBackoff:    b.refreshInterval,
+		ctx:                   ctx,
+		cancel:                cancel,
+		conn:                  conn,
+		client:                aegisv1.NewRegistryServiceClient(conn),
+		cc:                    cc,
+		service:               service,
+		limiterPoolID:         limiterPoolID,
+		controllerSecurityID:  controllerSecurityID,
+		controllerAddressesID: controllerAddressesID,
+		limiterPool:           limiterPool,
+		refreshInterval:       b.refreshInterval,
+		watchBackoff:          b.refreshInterval,
 	}
 	r.ResolveNow(resolver.ResolveNowOptions{})
 	go r.watch()
@@ -75,13 +114,17 @@ func (b *registryResolverBuilder) Build(target resolver.Target, cc resolver.Clie
 }
 
 type registryResolver struct {
-	ctx             context.Context
-	cancel          context.CancelFunc
-	conn            *grpc.ClientConn
-	client          aegisv1.RegistryServiceClient
-	cc              resolver.ClientConn
-	service         string
-	refreshInterval time.Duration
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	conn                  *grpc.ClientConn
+	client                aegisv1.RegistryServiceClient
+	cc                    resolver.ClientConn
+	service               string
+	limiterPoolID         string
+	controllerSecurityID  string
+	controllerAddressesID string
+	limiterPool           *adaptiveLimiterPool
+	refreshInterval       time.Duration
 
 	mu            sync.Mutex
 	lastVersion   int64
@@ -96,6 +139,9 @@ func (r *registryResolver) ResolveNow(resolver.ResolveNowOptions) {
 func (r *registryResolver) Close() {
 	r.cancel()
 	_ = r.conn.Close()
+	unregisterAdaptiveLimiterPool(r.limiterPoolID)
+	unregisterControllerSecurityConfig(r.controllerSecurityID)
+	unregisterControllerAddresses(r.controllerAddressesID)
 }
 
 func (r *registryResolver) watch() {
@@ -105,7 +151,7 @@ func (r *registryResolver) watch() {
 			return
 		}
 		if status.Code(err) == codes.Unimplemented {
-			r.pollLoop()
+			r.pollLoop(false)
 			return
 		}
 
@@ -115,8 +161,11 @@ func (r *registryResolver) watch() {
 		}
 		r.resolve()
 		if r.watchFailures >= maxWatchFailuresBeforePoll {
-			r.pollLoop()
-			return
+			if !r.pollLoop(true) {
+				return
+			}
+			r.resetWatchRetry()
+			continue
 		}
 		if !r.waitWatchBackoff() {
 			return
@@ -184,17 +233,22 @@ func (r *registryResolver) nextWatchRetryDelay() time.Duration {
 	return delay
 }
 
-func (r *registryResolver) pollLoop() {
+func (r *registryResolver) pollLoop(retryWatch bool) bool {
 	r.resolve()
 	ticker := time.NewTicker(r.refreshInterval)
 	defer ticker.Stop()
 
+	polls := 0
 	for {
 		select {
 		case <-r.ctx.Done():
-			return
+			return false
 		case <-ticker.C:
 			r.resolve()
+			polls++
+			if retryWatch && polls >= pollTicksBeforeWatchRetry {
+				return true
+			}
 		}
 	}
 }
@@ -225,7 +279,7 @@ func (r *registryResolver) applyInstancesResponse(resp *aegisv1.ListInstancesRes
 	if resp.Version != 0 && resp.Version == r.lastVersion {
 		return nil
 	}
-	if err := r.cc.UpdateState(resolver.State{Addresses: instancesToAddresses(resp.Instances)}); err != nil {
+	if err := r.cc.UpdateState(resolver.State{Addresses: instancesToAddressesWithLimiterPool(resp.Instances, r.limiterPool)}); err != nil {
 		return err
 	}
 	if resp.Version != 0 {
@@ -258,6 +312,10 @@ func parseTarget(target resolver.Target) (string, string, error) {
 }
 
 func instancesToAddresses(instances []*aegisv1.ServiceInstance) []resolver.Address {
+	return instancesToAddressesWithLimiterPool(instances, nil)
+}
+
+func instancesToAddressesWithLimiterPool(instances []*aegisv1.ServiceInstance, limiterPool *adaptiveLimiterPool) []resolver.Address {
 	addresses := make([]resolver.Address, 0, len(instances))
 	for _, inst := range instances {
 		if inst == nil || inst.Address == "" {
@@ -266,17 +324,17 @@ func instancesToAddresses(instances []*aegisv1.ServiceInstance) []resolver.Addre
 		if !aegisstatus.Parse(inst.Status).Routable() {
 			continue
 		}
-		rememberEndpointID(inst.Address, inst.Id)
+		rememberEndpointIdentity(inst.Address, inst.Id, inst.RegistrationEpoch)
 		addresses = append(addresses, resolver.Address{
 			Addr:       inst.Address,
 			ServerName: inst.Id,
-			Attributes: addressAttributes(inst.Id, aegisstatus.Parse(inst.Status), inst.SlowScore),
+			Attributes: addressAttributesWithLimiterPoolAndEpoch(inst.Id, inst.RegistrationEpoch, aegisstatus.Parse(inst.Status), inst.SlowScore, limiterPool),
 		})
 	}
 	return addresses
 }
 
-func rememberEndpointID(address, endpointID string) {
+func rememberEndpointIdentity(address, endpointID, registrationEpoch string) {
 	if address == "" {
 		return
 	}
@@ -284,19 +342,49 @@ func rememberEndpointID(address, endpointID string) {
 		endpointIdentityByAddress.Delete(address)
 		return
 	}
-	endpointIdentityByAddress.Store(address, endpointID)
+	endpointIdentityByAddress.Store(address, endpointIdentity{instanceID: endpointID, registrationEpoch: registrationEpoch})
+}
+
+func endpointIdentityForAddress(address string) endpointIdentity {
+	value, _ := endpointIdentityByAddress.Load(address)
+	if identity, ok := value.(endpointIdentity); ok {
+		return identity
+	}
+	if endpointID, ok := value.(string); ok {
+		return endpointIdentity{instanceID: endpointID}
+	}
+	return endpointIdentity{}
 }
 
 func endpointIDForAddress(address string) string {
-	value, _ := endpointIdentityByAddress.Load(address)
-	endpointID, _ := value.(string)
-	return endpointID
+	return endpointIdentityForAddress(address).instanceID
 }
 
 func addressAttributes(instanceID string, statusCode aegisstatus.Code, slowScore float64) *attributes.Attributes {
-	return attributes.New(instanceIDAttribute, instanceID).
+	return addressAttributesWithLimiterPool(instanceID, statusCode, slowScore, nil)
+}
+
+func addressAttributesWithLimiterPool(instanceID string, statusCode aegisstatus.Code, slowScore float64, limiterPool *adaptiveLimiterPool) *attributes.Attributes {
+	return addressAttributesWithLimiterPoolAndEpoch(instanceID, "", statusCode, slowScore, limiterPool)
+}
+
+func addressAttributesWithLimiterPoolAndEpoch(instanceID, registrationEpoch string, statusCode aegisstatus.Code, slowScore float64, limiterPool *adaptiveLimiterPool) *attributes.Attributes {
+	attrs := attributes.New(instanceIDAttribute, instanceID).
+		WithValue(registrationEpochAttribute, registrationEpoch).
 		WithValue(statusAttribute, statusCode).
 		WithValue(slowScoreAttribute, slowScore)
+	if limiterPool != nil {
+		attrs = attrs.WithValue(limiterPoolAttribute, limiterPool)
+	}
+	return attrs
+}
+
+func limiterPoolFromAttributes(attrs *attributes.Attributes) *adaptiveLimiterPool {
+	if attrs == nil {
+		return nil
+	}
+	pool, _ := attrs.Value(limiterPoolAttribute).(*adaptiveLimiterPool)
+	return pool
 }
 
 func instanceIDFromAttributes(attrs *attributes.Attributes) string {
@@ -304,6 +392,13 @@ func instanceIDFromAttributes(attrs *attributes.Attributes) string {
 		return ""
 	}
 	value, _ := attrs.Value(instanceIDAttribute).(string)
+	return value
+}
+func registrationEpochFromAttributes(attrs *attributes.Attributes) string {
+	if attrs == nil {
+		return ""
+	}
+	value, _ := attrs.Value(registrationEpochAttribute).(string)
 	return value
 }
 

@@ -19,7 +19,9 @@ type Config struct {
 
 type FrontendConfig struct {
 	URL      string `yaml:"url" json:"url"`
+	ReadyURL string `yaml:"ready_url" json:"ready_url,omitempty"`
 	Workload string `yaml:"workload" json:"workload"`
+	Command  string `yaml:"command" json:"command,omitempty"`
 }
 
 type ServiceMapping struct {
@@ -28,10 +30,13 @@ type ServiceMapping struct {
 }
 
 type IntegrationPlan struct {
-	ComposeCommand  string            `json:"compose_command"`
-	WorkloadCommand string            `json:"workload_command"`
-	Environment     map[string]string `json:"environment"`
-	ServiceNames    []string          `json:"service_names"`
+	ComposeCommand     string            `json:"compose_command"`
+	ComposeDownCommand string            `json:"compose_down_command"`
+	WorkloadCommand    string            `json:"workload_command"`
+	FrontendURL        string            `json:"frontend_url"`
+	ReadyURL           string            `json:"ready_url"`
+	Environment        map[string]string `json:"environment"`
+	ServiceNames       []string          `json:"service_names"`
 }
 
 func ParseConfig(raw []byte) (Config, error) {
@@ -55,22 +60,34 @@ func (c Config) Plan() IntegrationPlan {
 	sort.Strings(serviceNames)
 	sort.Strings(mappingParts)
 
-	workload := c.Frontend.Workload
-	if workload == "" {
-		workload = "wrk2"
-	}
-	frontendURL := c.Frontend.URL
-	if frontendURL == "" {
-		frontendURL = "http://localhost:8080"
+	frontendURL := frontendURL(c)
+	readyURL := readyURL(c)
+	workloadCommand := c.Frontend.Command
+	if workloadCommand == "" {
+		workload := c.Frontend.Workload
+		if workload == "" {
+			workload = "wrk2"
+		}
+		workloadCommand = fmt.Sprintf("%s -t4 -c64 -d60s %s", workload, frontendURL)
 	}
 
 	return IntegrationPlan{
-		ComposeCommand:  fmt.Sprintf("docker compose -f %s up -d", c.ComposeFile),
-		WorkloadCommand: fmt.Sprintf("%s -t4 -c64 -d60s %s", workload, frontendURL),
+		ComposeCommand:     fmt.Sprintf("docker compose -f %s up -d", shellQuote(c.ComposeFile)),
+		ComposeDownCommand: fmt.Sprintf("docker compose -f %s down --remove-orphans", shellQuote(c.ComposeFile)),
+		WorkloadCommand:    workloadCommand,
+		FrontendURL:        frontendURL,
+		ReadyURL:           readyURL,
 		Environment: map[string]string{
 			"AEGIS_CONTROLLER":  c.Controller,
 			"AEGIS_SERVICE_MAP": strings.Join(mappingParts, ","),
 		},
 		ServiceNames: serviceNames,
 	}
+}
+
+func readyURL(c Config) string {
+	if c.Frontend.ReadyURL != "" {
+		return c.Frontend.ReadyURL
+	}
+	return frontendURL(c)
 }

@@ -9,16 +9,20 @@ import (
 	"google.golang.org/grpc"
 )
 
-const defaultTelemetryReportInterval = 5 * time.Second
+const (
+	defaultTelemetryReportInterval = 5 * time.Second
+	defaultTelemetryReportTimeout  = 2 * time.Second
+)
 
 type telemetryClient interface {
 	ReportEndpointStats(ctx context.Context, in *aegisv1.ReportEndpointStatsRequest, opts ...grpc.CallOption) (*aegisv1.ReportEndpointStatsResponse, error)
 }
 
 type telemetryReporter struct {
-	client   telemetryClient
-	recorder *telemetry.Recorder
-	interval time.Duration
+	client         telemetryClient
+	recorder       *telemetry.Recorder
+	interval       time.Duration
+	requestTimeout time.Duration
 	protoSamplesPoolHolder
 }
 
@@ -27,9 +31,10 @@ func newTelemetryReporter(client telemetryClient, recorder *telemetry.Recorder, 
 		interval = defaultTelemetryReportInterval
 	}
 	return &telemetryReporter{
-		client:   client,
-		recorder: recorder,
-		interval: interval,
+		client:         client,
+		recorder:       recorder,
+		interval:       interval,
+		requestTimeout: defaultTelemetryReportTimeout,
 	}
 }
 
@@ -65,7 +70,14 @@ func (r *telemetryReporter) ReportOnce(ctx context.Context) error {
 	}
 	samples = samples[:len(stats)]
 
-	_, err := r.client.ReportEndpointStats(ctx, &aegisv1.ReportEndpointStatsRequest{Samples: samples})
+	reportCtx := ctx
+	cancel := func() {}
+	if r.requestTimeout > 0 {
+		reportCtx, cancel = context.WithTimeout(ctx, r.requestTimeout)
+	}
+	defer cancel()
+
+	_, err := r.client.ReportEndpointStats(reportCtx, &aegisv1.ReportEndpointStatsRequest{Samples: samples})
 	return err
 }
 

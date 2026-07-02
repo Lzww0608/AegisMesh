@@ -19,39 +19,42 @@ const (
 var latencyBucketUpperBounds = buildLatencyBucketUpperBounds()
 
 type Observation struct {
-	Source      string
-	Destination string
-	Method      string
-	EndpointID  string
-	Upstream    string
-	Status      string
-	Latency     time.Duration
-	Error       bool
-	Timeout     bool
+	Source            string
+	Destination       string
+	Method            string
+	EndpointID        string
+	RegistrationEpoch string
+	Upstream          string
+	Status            string
+	Latency           time.Duration
+	Error             bool
+	Timeout           bool
 }
 
 type EndpointStats struct {
-	Source       string
-	Destination  string
-	Method       string
-	EndpointID   string
-	Upstream     string
-	RequestCount int64
-	ErrorCount   int64
-	TimeoutCount int64
-	Inflight     int64
-	LatencyEWMA  time.Duration
-	LatencyP95   time.Duration
-	WindowStart  time.Time
-	WindowEnd    time.Time
+	Source            string
+	Destination       string
+	Method            string
+	EndpointID        string
+	RegistrationEpoch string
+	Upstream          string
+	RequestCount      int64
+	ErrorCount        int64
+	TimeoutCount      int64
+	Inflight          int64
+	LatencyEWMA       time.Duration
+	LatencyP95        time.Duration
+	WindowStart       time.Time
+	WindowEnd         time.Time
 }
 
 type MetricLabels struct {
-	Source          string
-	Destination     string
-	Method          string
-	EndpointID      string
-	EndpointAddress string
+	Source            string
+	Destination       string
+	Method            string
+	EndpointID        string
+	RegistrationEpoch string
+	EndpointAddress   string
 }
 
 type MetricsSink interface {
@@ -79,21 +82,22 @@ type recorderShard struct {
 }
 
 type statsKey struct {
-	destination string
-	method      string
-	endpointID  string
-	upstream    string
+	destination       string
+	method            string
+	endpointID        string
+	registrationEpoch string
+	upstream          string
 }
 
 type statsRow struct {
-	key          statsKey
-	metrics      RowMetrics
-	counters     statsCounters
-	mu           sync.Mutex
-	ewma         *EWMA
-	activeHist   *shardedLatencyHistogram
-	scratchHist  *shardedLatencyHistogram
-	windowStart  time.Time
+	key         statsKey
+	metrics     RowMetrics
+	counters    statsCounters
+	mu          sync.Mutex
+	ewma        *EWMA
+	activeHist  *shardedLatencyHistogram
+	scratchHist *shardedLatencyHistogram
+	windowStart time.Time
 }
 
 type statsCounters struct {
@@ -134,7 +138,7 @@ func NewRecorderWithClock(source string, metrics any, now func() time.Time) *Rec
 
 func (r *Recorder) Start(destination, method, upstream string) func(status string) {
 	started := r.now()
-	key := makeStatsKey(destination, method, "", upstream)
+	key := makeStatsKey(destination, method, "", "", upstream)
 	row := r.rowFor(key, started)
 	row.counters.inflight.Add(1)
 
@@ -143,24 +147,26 @@ func (r *Recorder) Start(destination, method, upstream string) func(status strin
 		once.Do(func() {
 			latency := r.now().Sub(started)
 			r.finish(row, Observation{
-				Source:      r.source,
-				Destination: key.destination,
-				Method:      key.method,
-				EndpointID:  key.endpointID,
-				Upstream:    key.upstream,
-				Status:      normalizeStatus(status),
-				Latency:     latency,
+				Source:            r.source,
+				Destination:       key.destination,
+				Method:            key.method,
+				EndpointID:        key.endpointID,
+				RegistrationEpoch: key.registrationEpoch,
+				Upstream:          key.upstream,
+				Status:            normalizeStatus(status),
+				Latency:           latency,
 			})
 		})
 	}
 }
 
 func (r *Recorder) Observe(obs Observation) {
-	key := makeStatsKey(obs.Destination, obs.Method, obs.EndpointID, obs.Upstream)
+	key := makeStatsKey(obs.Destination, obs.Method, obs.EndpointID, obs.RegistrationEpoch, obs.Upstream)
 	obs.Source = r.source
 	obs.Destination = key.destination
 	obs.Method = key.method
 	obs.EndpointID = key.endpointID
+	obs.RegistrationEpoch = key.registrationEpoch
 	obs.Upstream = key.upstream
 	obs.Status = normalizeStatus(obs.Status)
 	row := r.rowFor(key, r.now())
@@ -237,11 +243,12 @@ func (r *Recorder) bindMetrics(key statsKey) RowMetrics {
 		return nil
 	}
 	labels := MetricLabels{
-		Source:          r.source,
-		Destination:     key.destination,
-		Method:          key.method,
-		EndpointID:      key.endpointID,
-		EndpointAddress: key.upstream,
+		Source:            r.source,
+		Destination:       key.destination,
+		Method:            key.method,
+		EndpointID:        key.endpointID,
+		RegistrationEpoch: key.registrationEpoch,
+		EndpointAddress:   key.upstream,
 	}
 	if sink, ok := r.metrics.(MetricsSink); ok {
 		return sink.CreateRowMetrics(labels)
@@ -305,19 +312,20 @@ func (row *statsRow) snapshot(source string, key statsKey, now time.Time, reset 
 	}
 
 	stat := EndpointStats{
-		Source:       source,
-		Destination:  key.destination,
-		Method:       key.method,
-		EndpointID:   key.endpointID,
-		Upstream:     key.upstream,
-		RequestCount: requestCount,
-		ErrorCount:   row.counters.errorCount.Load(),
-		TimeoutCount: row.counters.timeoutCount.Load(),
-		Inflight:     inflight,
-		LatencyEWMA:  row.ewma.Value(),
-		LatencyP95:   row.activeHist.Quantile(0.95),
-		WindowStart:  row.windowStart,
-		WindowEnd:    now,
+		Source:            source,
+		Destination:       key.destination,
+		Method:            key.method,
+		EndpointID:        key.endpointID,
+		RegistrationEpoch: key.registrationEpoch,
+		Upstream:          key.upstream,
+		RequestCount:      requestCount,
+		ErrorCount:        row.counters.errorCount.Load(),
+		TimeoutCount:      row.counters.timeoutCount.Load(),
+		Inflight:          inflight,
+		LatencyEWMA:       row.ewma.Value(),
+		LatencyP95:        row.activeHist.Quantile(0.95),
+		WindowStart:       row.windowStart,
+		WindowEnd:         now,
 	}
 	if reset {
 		row.counters.requestCount.Store(0)
@@ -332,12 +340,13 @@ func (row *statsRow) snapshot(source string, key statsKey, now time.Time, reset 
 	return stat, true
 }
 
-func makeStatsKey(destination, method, endpointID, upstream string) statsKey {
+func makeStatsKey(destination, method, endpointID, registrationEpoch, upstream string) statsKey {
 	return statsKey{
-		destination: firstNonEmpty(destination, "unknown"),
-		method:      firstNonEmpty(method, "unknown"),
-		endpointID:  strings.TrimSpace(endpointID),
-		upstream:    firstNonEmpty(upstream, "unknown"),
+		destination:       firstNonEmpty(destination, "unknown"),
+		method:            firstNonEmpty(method, "unknown"),
+		endpointID:        strings.TrimSpace(endpointID),
+		registrationEpoch: strings.TrimSpace(registrationEpoch),
+		upstream:          firstNonEmpty(upstream, "unknown"),
 	}
 }
 
@@ -370,13 +379,14 @@ func decrementPositive(value *atomic.Int64) int64 {
 
 func (m legacyRowMetrics) Record(status string, latency time.Duration, latencyEWMA time.Duration, inflight int64) {
 	m.sink.Record(Observation{
-		Source:      m.source,
-		Destination: m.key.destination,
-		Method:      m.key.method,
-		EndpointID:  m.key.endpointID,
-		Upstream:    m.key.upstream,
-		Status:      status,
-		Latency:     latency,
+		Source:            m.source,
+		Destination:       m.key.destination,
+		Method:            m.key.method,
+		EndpointID:        m.key.endpointID,
+		RegistrationEpoch: m.key.registrationEpoch,
+		Upstream:          m.key.upstream,
+		Status:            status,
+		Latency:           latency,
 	}, latencyEWMA, inflight)
 }
 
@@ -389,6 +399,7 @@ func statsKeyHash(key statsKey) uint64 {
 	h = hashString(h, key.destination)
 	h = hashString(h, key.method)
 	h = hashString(h, key.endpointID)
+	h = hashString(h, key.registrationEpoch)
 	h = hashString(h, key.upstream)
 	return h
 }

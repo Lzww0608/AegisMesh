@@ -10,5 +10,6 @@ Files produced by the scripts:
 - `figures/`: summary files and optional plots generated from measured CSV files
 - `probe_slo_summary.md`: measured summary for PROBING probe-ratio and absolute-SLO runs
 - `runs/*/probe_ratio_summary.json` and `runs/*/absolute_slo_summary.json`: per-run probe-ratio and absolute-SLO summaries
+- `runs/deathstarbench-*`: opt-in DeathStarBench runner artifacts such as `run_manifest.json`, `integration_plan.json`, compose overlay, workload output, compose logs, and `latency.csv`
 
 Do not fill result rows by hand. Generate them from scripts or a real benchmark run, then record the run environment in `docs/evaluation.md`.

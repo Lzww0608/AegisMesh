@@ -56,6 +56,20 @@ func (r *FileRegistry) Heartbeat(ctx context.Context, service, id string, ttl ti
 	return r.persist()
 }
 
+func (r *FileRegistry) HeartbeatWithEpoch(ctx context.Context, service, id, registrationEpoch string, ttl time.Duration) error {
+	if err := r.memory.HeartbeatWithEpoch(ctx, service, id, registrationEpoch, ttl); err != nil {
+		return err
+	}
+	return r.persist()
+}
+
+func (r *FileRegistry) HeartbeatWithOwner(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration) error {
+	if err := r.memory.HeartbeatWithOwner(ctx, service, id, registrationEpoch, ownerToken, ttl); err != nil {
+		return err
+	}
+	return r.persist()
+}
+
 func (r *FileRegistry) List(ctx context.Context, service string) ([]Instance, error) {
 	return r.memory.List(ctx, service)
 }

@@ -10,31 +10,58 @@ import (
 
 var ErrOpen = errors.New("circuit breaker open")
 
+const defaultMaxInflightPerEndpoint = int64(128)
+
 type Config struct {
 	MaxInflightPerEndpoint int64
 }
 
 type Breaker struct {
-	max      int64
+	max      *MaxInflight
 	limiters sync.Map
+}
+
+type MaxInflight struct {
+	value atomic.Int64
 }
 
 type EndpointLimiter struct {
 	inflight atomic.Int64
-	max      int64
+	max      *MaxInflight
 	_        align.Pad48
 }
 
 func NewBreaker(cfg Config) *Breaker {
-	if cfg.MaxInflightPerEndpoint <= 0 {
-		cfg.MaxInflightPerEndpoint = 128
+	return &Breaker{max: NewMaxInflight(cfg.MaxInflightPerEndpoint)}
+}
+
+func NewMaxInflight(max int64) *MaxInflight {
+	limit := &MaxInflight{}
+	limit.Set(max)
+	return limit
+}
+
+func (m *MaxInflight) Set(max int64) {
+	if m == nil {
+		return
 	}
-	return &Breaker{max: cfg.MaxInflightPerEndpoint}
+	m.value.Store(normalizeMaxInflight(max))
+}
+
+func (m *MaxInflight) Load() int64 {
+	if m == nil {
+		return defaultMaxInflightPerEndpoint
+	}
+	return normalizeMaxInflight(m.value.Load())
 }
 
 func NewEndpointLimiter(max int64) *EndpointLimiter {
-	if max <= 0 {
-		max = 128
+	return NewEndpointLimiterWithMax(NewMaxInflight(max))
+}
+
+func NewEndpointLimiterWithMax(max *MaxInflight) *EndpointLimiter {
+	if max == nil {
+		max = NewMaxInflight(defaultMaxInflightPerEndpoint)
 	}
 	return &EndpointLimiter{max: max}
 }
@@ -45,11 +72,15 @@ func (l *EndpointLimiter) TryAcquire() bool {
 	}
 	for {
 		current := l.inflight.Load()
-		if current >= l.max {
+		if current >= l.max.Load() {
 			return false
 		}
 		if l.inflight.CompareAndSwap(current, current+1) {
-			return true
+			if current+1 <= l.max.Load() {
+				return true
+			}
+			l.Release()
+			return false
 		}
 	}
 }
@@ -80,7 +111,28 @@ func (l *EndpointLimiter) Max() int64 {
 	if l == nil {
 		return 0
 	}
-	return l.max
+	return l.max.Load()
+}
+
+func (l *EndpointLimiter) SetMax(max int64) {
+	if l == nil {
+		return
+	}
+	l.max.Set(max)
+}
+
+func (b *Breaker) SetMaxInflightPerEndpoint(max int64) {
+	if b == nil || b.max == nil {
+		return
+	}
+	b.max.Set(max)
+}
+
+func (b *Breaker) MaxInflightPerEndpoint() int64 {
+	if b == nil || b.max == nil {
+		return 0
+	}
+	return b.max.Load()
 }
 
 func (b *Breaker) TryAcquire(endpoint string) error {
@@ -123,7 +175,7 @@ func (b *Breaker) limiter(endpoint string) *EndpointLimiter {
 	if value, ok := b.limiters.Load(endpoint); ok {
 		return value.(*EndpointLimiter)
 	}
-	limiter := NewEndpointLimiter(b.max)
+	limiter := NewEndpointLimiterWithMax(b.max)
 	value, _ := b.limiters.LoadOrStore(endpoint, limiter)
 	return value.(*EndpointLimiter)
 }
@@ -141,4 +193,11 @@ func normalizeEndpoint(endpoint string) string {
 		return "unknown"
 	}
 	return endpoint
+}
+
+func normalizeMaxInflight(max int64) int64 {
+	if max <= 0 {
+		return defaultMaxInflightPerEndpoint
+	}
+	return max
 }

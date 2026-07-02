@@ -312,7 +312,7 @@ route distribution 不需要保存所有 trace，只需要按 route 计数和总
 
 我会删 DeathStarBench adapter，至少从主线介绍里删掉。
 
-原因是当前它是 integration planner，不是完整实测闭环。它对未来扩展有价值，但如果面试官觉得项目太大，它最容易被认为是“看起来很高级但没跑完”的部分。
+原因是当前它是 integration runner (metadata overlay + artifact validation)，不是完整实测闭环。它对未来扩展有价值，但如果面试官觉得项目太大，它最容易被认为是“看起来很高级但没跑完”的部分。
 
 我会保留 slow_score、状态机、adaptive P2C、retry budget、verifier 和实验脚本。这些都直接服务 fail-slow 主线，也有结果支撑。eBPF 我会作为 optional enhancement 讲，不放在最前面。
 

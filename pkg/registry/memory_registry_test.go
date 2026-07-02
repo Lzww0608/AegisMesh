@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -361,5 +362,50 @@ func receiveSnapshot(t *testing.T, updates <-chan InstanceSnapshot) InstanceSnap
 	case <-time.After(time.Second):
 		t.Fatalf("timed out waiting for registry snapshot")
 		return InstanceSnapshot{}
+	}
+}
+
+func TestMemoryRegistryOwnerHeartbeatFencesStaleOwner(t *testing.T) {
+	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
+	reg := NewMemoryRegistry(func() time.Time { return now })
+	ctx := context.Background()
+
+	if err := reg.Register(ctx, Instance{ID: "user-a", Service: "user-service", Address: "old:7001"}, time.Minute); err != nil {
+		t.Fatalf("register original: %v", err)
+	}
+	instances, err := reg.List(ctx, "user-service")
+	if err != nil {
+		t.Fatalf("list original: %v", err)
+	}
+	original := instances[0]
+	if original.RegistrationEpoch == "" || original.OwnerToken == "" {
+		t.Fatalf("expected generated owner credentials, got %+v", original)
+	}
+
+	if err := reg.HeartbeatWithOwner(ctx, "user-service", "user-a", "wrong", original.OwnerToken, time.Minute); !errors.Is(err, ErrRegistrationEpochMismatch) {
+		t.Fatalf("expected epoch mismatch, got %v", err)
+	}
+	if err := reg.HeartbeatWithOwner(ctx, "user-service", "user-a", original.RegistrationEpoch, "wrong", time.Minute); !errors.Is(err, ErrRegistrationEpochMismatch) {
+		t.Fatalf("expected owner token mismatch, got %v", err)
+	}
+
+	now = now.Add(time.Second)
+	if err := reg.HeartbeatWithOwner(ctx, "user-service", "user-a", original.RegistrationEpoch, original.OwnerToken, time.Minute); err != nil {
+		t.Fatalf("heartbeat with current owner: %v", err)
+	}
+
+	if err := reg.Register(ctx, Instance{ID: "user-a", Service: "user-service", Address: "new:7001"}, time.Minute); err != nil {
+		t.Fatalf("register replacement: %v", err)
+	}
+	instances, err = reg.List(ctx, "user-service")
+	if err != nil {
+		t.Fatalf("list replacement: %v", err)
+	}
+	replacement := instances[0]
+	if replacement.RegistrationEpoch == original.RegistrationEpoch || replacement.OwnerToken == original.OwnerToken {
+		t.Fatalf("replacement reused owner credentials: old=%+v new=%+v", original, replacement)
+	}
+	if err := reg.HeartbeatWithOwner(ctx, "user-service", "user-a", original.RegistrationEpoch, original.OwnerToken, time.Minute); !errors.Is(err, ErrRegistrationEpochMismatch) {
+		t.Fatalf("expected stale owner heartbeat to be fenced, got %v", err)
 	}
 }

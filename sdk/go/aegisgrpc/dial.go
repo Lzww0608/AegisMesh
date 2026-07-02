@@ -2,6 +2,7 @@ package aegisgrpc
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"sync"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/telemetry"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/balancer/roundrobin"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/resolver"
 )
@@ -23,11 +25,31 @@ const (
 var registerOnce sync.Once
 
 func TargetForService(controllerAddr, service string) string {
-	return (&url.URL{
+	return targetForServiceWithControlPlaneConfig(controllerAddr, service, "", "", "")
+}
+
+func targetForServiceWithLimiterPool(controllerAddr, service, limiterPoolID string) string {
+	return targetForServiceWithControlPlaneConfig(controllerAddr, service, limiterPoolID, "", "")
+}
+
+func targetForServiceWithControlPlaneConfig(controllerAddr, service, limiterPoolID, controllerSecurityID, controllerAddressesID string) string {
+	target := &url.URL{
 		Scheme: Scheme,
 		Host:   controllerAddr,
 		Path:   "/" + service,
-	}).String()
+	}
+	query := target.Query()
+	if limiterPoolID != "" {
+		query.Set(adaptiveLimiterPoolTargetKey, limiterPoolID)
+	}
+	if controllerSecurityID != "" {
+		query.Set(controllerSecurityTargetKey, controllerSecurityID)
+	}
+	if controllerAddressesID != "" {
+		query.Set(controllerAddressesTargetKey, controllerAddressesID)
+	}
+	target.RawQuery = query.Encode()
+	return target.String()
 }
 
 func DialService(ctx context.Context, controllerAddr, service string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
@@ -43,12 +65,30 @@ func DialServiceFromWithOptions(ctx context.Context, source, controllerAddr, ser
 	registerDefaultBalancer()
 	options = normalizeDialOptions(options)
 
-	policies := &policyManager{}
+	controllerAddrs := effectiveControllerAddresses(controllerAddr, options)
+	if len(controllerAddrs) == 0 {
+		return nil, errors.New("controller address is required")
+	}
+	controllerSecurity := effectiveControllerSecurityConfig(options)
+	controlPlaneDialOptions, err := controllerDialOptions(controllerSecurity)
+	if err != nil {
+		return nil, err
+	}
+	controllerAddressesID := registerControllerAddresses(controllerAddrs)
+	controllerAddressesOwned := true
+	defer func() {
+		if controllerAddressesOwned {
+			unregisterControllerAddresses(controllerAddressesID)
+		}
+	}()
+	controlPlaneTarget := controllerTargetForAddressesID(controllerAddressesID)
+
+	limiterPool := newAdaptiveLimiterPool(adaptiveDefaultMaxInflightPerTarget)
+	policies := &policyManager{circuitBreaker: limiterPool}
 	if !options.DisablePolicy {
-		if snapshot := loadInitialPolicy(ctx, controllerAddr, service, policies); snapshot != nil {
+		if snapshot := loadInitialPolicy(ctx, controlPlaneTarget, service, policies, controlPlaneDialOptions); snapshot != nil {
 			options = applyPolicySnapshotToDialOptions(options, snapshot)
 		}
-		startPolicyWatcher(ctx, controllerAddr, service, policies)
 	}
 
 	serviceConfig, err := serviceConfigForRoutingPolicy(options.RoutingPolicy)
@@ -59,7 +99,6 @@ func DialServiceFromWithOptions(ctx context.Context, source, controllerAddr, ser
 	var recorder *telemetry.Recorder
 	if !options.DisableTelemetry {
 		recorder = telemetry.NewRecorder(source, telemetry.DefaultPrometheusMetrics())
-		startReporter(ctx, controllerAddr, recorder)
 	}
 	tracer, err := traceWriterFromOptions(options)
 	if err != nil {
@@ -67,8 +106,12 @@ func DialServiceFromWithOptions(ctx context.Context, source, controllerAddr, ser
 	}
 	retrySource := newDynamicRetrySource(options, policies)
 
+	transportCredentials := options.TransportCredentials
+	if transportCredentials == nil {
+		transportCredentials = insecure.NewCredentials()
+	}
 	dialOptions := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(transportCredentials),
 		grpc.WithDefaultServiceConfig(serviceConfig),
 		grpc.WithChainUnaryInterceptor(
 			newRetryUnaryInterceptorFromSource(retrySource),
@@ -77,11 +120,28 @@ func DialServiceFromWithOptions(ctx context.Context, source, controllerAddr, ser
 	}
 	dialOptions = append(dialOptions, opts...)
 
-	return grpc.DialContext(ctx, TargetForService(controllerAddr, service), dialOptions...)
+	limiterPoolID := registerAdaptiveLimiterPool(limiterPool)
+	controllerSecurityID := registerControllerSecurityConfig(controllerSecurity)
+	conn, err := grpc.DialContext(ctx, targetForServiceWithControlPlaneConfig(controllerAddrs[0], service, limiterPoolID, controllerSecurityID, controllerAddressesID), dialOptions...)
+	if err != nil {
+		unregisterAdaptiveLimiterPool(limiterPoolID)
+		unregisterControllerSecurityConfig(controllerSecurityID)
+		unregisterControllerAddresses(controllerAddressesID)
+		return nil, err
+	}
+	controllerAddressesOwned = false
+	connCtx := contextForClientConn(conn)
+	if !options.DisablePolicy {
+		startPolicyWatcher(connCtx, controlPlaneTarget, service, policies, controlPlaneDialOptions)
+	}
+	if recorder != nil {
+		startReporter(connCtx, controlPlaneTarget, recorder, controlPlaneDialOptions)
+	}
+	return conn, nil
 }
 
-func startReporter(ctx context.Context, controllerAddr string, recorder *telemetry.Recorder) {
-	conn, err := grpc.DialContext(ctx, controllerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func startReporter(ctx context.Context, controllerAddr string, recorder *telemetry.Recorder, dialOptions []grpc.DialOption) {
+	conn, err := grpc.DialContext(ctx, controllerAddr, dialOptions...)
 	if err != nil {
 		return
 	}
@@ -92,8 +152,26 @@ func startReporter(ctx context.Context, controllerAddr string, recorder *telemet
 	}()
 }
 
+func contextForClientConn(conn *grpc.ClientConn) context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer cancel()
+		for {
+			state := conn.GetState()
+			if state == connectivity.Shutdown {
+				return
+			}
+			if !conn.WaitForStateChange(context.Background(), state) {
+				return
+			}
+		}
+	}()
+	return ctx
+}
+
 func registerDefaultResolver() {
 	registerOnce.Do(func() {
 		resolver.Register(newRegistryResolverBuilder())
+		resolver.Register(newControllerResolverBuilder())
 	})
 }

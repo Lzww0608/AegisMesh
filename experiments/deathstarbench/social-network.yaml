@@ -4,6 +4,7 @@ compose_file: socialNetwork/docker-compose.yml
 controller: 127.0.0.1:9000
 frontend:
   url: http://localhost:8080
+  ready_url: http://localhost:8080
   workload: wrk2
 services:
   nginx-thrift:

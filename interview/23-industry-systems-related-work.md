@@ -202,7 +202,7 @@ AegisMesh 当前把 eBPF 当增强信号，而不是唯一判断依据，这个�
 
 第三，工程闭环。Controller、SDK、policy、metrics、trace verifier、fault injector、eBPF、Docker benchmark 都能跑。
 
-第四，结果和边界。能给出 p99、amplification、recovery 曲线，也能承认单机实验、非 HA、DeathStarBench 只是 planner。
+第四，结果和边界。能给出 p99、amplification、recovery 曲线，也能承认单机实验、非 HA、DeathStarBench runner 仍不是 measured benchmark。
 
 成熟系统说明你知道 industry context；个人项目说明你能把一个具体技术问题拆开、实现、验证、复盘。
 

@@ -4,39 +4,32 @@
 
 ### Q533【简单】项目当前有哪些明显的生产化缺口？
 
-当前 AegisMesh 已经有比较完整的实验闭环，但还不能说是生产级 service mesh。主要缺口有几类。
+当前 AegisMesh 已经补上了控制面安全和 registry HA 的基础工程形态，但仍不能直接宣称是完整生产级 service mesh。
 
-第一是安全。SDK、agent、experiment recorder 到 Controller 的 gRPC 连接现在使用 `insecure.NewCredentials()`，也就是说没有 TLS/mTLS。Registry、Telemetry、PolicyService 也没有认证和授权。任何能连到 Controller 的客户端，理论上都可以注册实例、上报 telemetry、读取策略。
+第一，安全面已经从“完全 plaintext/insecure”推进到可配置的 Controller TLS/mTLS、service-scoped bearer token RBAC、静态 mTLS 证书主体 RBAC 映射、默认拒绝无 TLS/auth 启动，以及 SDK/agent/recorder/demo registration 的控制面安全配置。生产部署应使用 TLS/mTLS、`--auth-tokens-file`/`--auth-tokens-env` 或 `--auth-cert-principals-file`，本地 demo 才显式使用 `--insecure-dev`。
 
-第二是高可用。Controller 当前是单进程控制面，registry 支持 memory 和 file-backed 两种后端。file-backed registry 可以解决单机重启后的部分恢复问题，但它不是多副本一致性存储。多副本 Controller、leader election、etcd/Consul 这类共享存储还没接。
+第二，HA 面已经有 etcd registry backend、多 controller 共享 service lease、CAS heartbeat、watch 更新、SDK 控制面多地址 ordered failover。file/file-v2 registry 仍然只是单 controller 本地重启恢复，不是 HA 后端。
 
-第三是配置治理。Policy YAML 可以热加载和 WatchPolicy 下发，但还没有权限控制、审计、灰度发布、回滚、dry-run 和策略校验流水线。配置错了，影响范围需要靠人工控制。
+第三，仍未完全生产化的是强一致 health ownership 和策略治理面。当前 runbook 已支持通过 etcd 共享 registry、policy snapshot 和非过期 health snapshot，避免多个 controller 读取不同本地 policy file，也能在 failover 后恢复近期的 EJECTED/DEGRADED/PROBING 状态。但 health 仍是 telemetry 驱动的最终一致观测缓存，不是 leader 协调的强一致状态机。策略写入、审批、回滚和审计也还没有做成完整管理平面。
 
-第四是生产观测和运维。Prometheus metrics 已经有了，但 metrics endpoint 没有鉴权；verifier 主要是文件型 trace 验证；eBPF agent 需要较高权限，部署安全边界还需要补。
+第四，RBAC 已经从纯方法级角色授权推进到 token 和静态 mTLS 证书主体都可绑定 service scope：`sdk:user-service=...` 这类 principal 只能访问对应 service 的 registry、policy 和 telemetry 请求。但它还不是完整 IAM：instance/source 级归属、动态租户策略、审计流、自动轮换和动态 service owner 映射仍未完成。
 
-第五是保护策略还可以继续做深。现在有 retry budget、inflight breaker、endpoint 状态机、PROBING ratio 和 absolute SLO score，但完整的 rate limit、租户隔离、全局最小健康实例数、紧急开关、审计追踪还没做完。
-
-所以面试里我会说：这是一个面向 fail-slow 治理的实验型 RPC governance system，核心算法和闭环已经跑通；生产化还要补安全、HA、配置平台和运维控制面。
-
+所以面试里更准确的说法是：项目已经具备生产化控制面的基础安全、service 级授权、etcd-backed registry/policy/health snapshot 共享形态，但完整生产级还需要强一致 health ownership、instance/source 级授权、审计和发布治理。
 ### Q534【简单】Controller 和 SDK 之间是否启用了 TLS？
 
-当前没有启用。SDK 里 `DialServiceFromWithOptions`、resolver、policy watcher、telemetry reporter 都使用了 `grpc.WithTransportCredentials(insecure.NewCredentials())`。eBPF agent 和 experiment recorder 连接 Controller 时也是 insecure credentials。Controller 侧是普通 `grpc.NewServer()`，没有加载证书。
+现在代码已经支持。Controller 通过 `--tls-cert-file`、`--tls-key-file`、`--tls-ca-file` 和 `--tls-require-client-cert` 启用 TLS/mTLS；SDK 通过 `DialOptions.TransportCredentials` 连接业务 upstream，通过 `DialOptions.ControllerSecurity` 或 `AEGIS_CONTROLLER_*` 环境变量连接控制面。agent、experiment-recorder 和 demo registration 也复用同一套 `security.ClientConfigFromEnv("AEGIS_CONTROLLER")`。
 
-这适合本地 demo 和 Docker Compose 实验，因为部署简单，也方便抓包排查。但生产环境不能这么跑。生产里至少要换成 TLS，服务间治理最好用 mTLS。这样 Controller 能确认 SDK 的身份，SDK 也能确认自己连的是正确 Controller。
+生产模式下 Controller 默认要求 TLS+auth；`--insecure-dev` 会绕过启动时的 TLS/auth 要求，只应作为本地 demo 或测试模式使用。带 bearer token 的 plaintext 连接还需要额外的 `--auth-allow-insecure`，避免误把 token 发到明文链路。
 
-改造方向是：在 DialOptions 里支持 `credentials.TransportCredentials` 或 TLS config，Controller 启动时支持 `--tls-cert`、`--tls-key`、`--client-ca`。如果接 SPIFFE/SPIRE，可以让证书轮换和 workload identity 自动化。
-
+mTLS 不只用于传输加密和客户端证书校验，现在也可以通过 `--auth-cert-principals-file` 把 URI SAN、DNS SAN 或无 SAN 证书的 CN 静态映射成 RBAC principal。token 仍然是权威来源：请求里有 token 时按 token 授权，无效 token 不会回退到证书。下一步生产化应接动态 SPIFFE/SPIRE 或 IAM，把证书主体和 service/namespace owner 自动关联起来。
 ### Q535【简单】服务注册是否有认证？
 
-当前没有。`RegistryService.RegisterInstance` 接收 `ServiceInstance` 和 lease TTL，只要客户端能连到 Controller，就可以声明自己是某个 service 的某个 instance。
+现在 RegistryService 可以通过 Controller bearer token RBAC 保护。`registry` role 可以 `RegisterInstance`、`Heartbeat`、`ListInstances` 和 `WatchInstances`；`reader` 只能读；`sdk` 只能读 registry、读 policy 并上报 telemetry，不能注册实例。token 还可以写成 `role:service=token` 或 `role:service-a+service-b=token`，把权限限制在具体 service 上。Controller 启用 token 后，所有 gRPC unary/stream 方法都会经过同一套拦截器。
 
-这在 demo 里没问题，因为所有进程都是同一个实验环境里启动的。但生产里风险很大。恶意进程可以把自己注册成 `payment-service`，或者注册大量假实例污染 resolver 地址列表。即使不是恶意攻击，误配置也可能让服务注册到错误 service 名下。
-
-生产化需要把注册身份和运行身份绑定。比如使用 mTLS，Controller 从客户端证书里拿到 workload identity，再校验它是否有权注册某个 service。`ServiceInstance.service` 不能只相信客户端自己填的字符串。
-
+这个能力解决了“任何人能连上 Controller 就能注册实例”的最低安全边界，并且 scoped token 或证书 principal 已经能按 `ServiceInstance.service`、policy service、telemetry sample service 做精确 service 名称校验。它还不是完整资源级授权：`instance_id`、telemetry `source`、动态 service owner、token/证书轮换和审计仍需要补齐；生产级下一步应把 principal 映射到真实 service owner，并扩展到实例和来源维度。
 ### Q536【简单】Policy YAML 是否有权限控制和审计？
 
-当前没有完整权限控制和审计。PolicyService 从 YAML 文件加载策略，Controller 定时 reload，并通过 `GetPolicy` 和 `WatchPolicy` 提供给 SDK。谁能改这个 YAML，主要取决于文件系统权限和部署流程。
+当前没有完整策略写入权限控制和审计。PolicyService 可以从本地 YAML 文件加载，也可以从 etcd 读取共享 protobuf `PolicySnapshot`，并通过 `GetPolicy` 和 `WatchPolicy` 提供给 SDK。谁能写入文件或 etcd key，主要仍取决于外部部署流程和 etcd 权限配置。
 
 这对实验够用，但生产里策略属于高风险配置。比如把 `CreateOrder` 错误标成可重试，可能造成重复订单；把 outlier 阈值设得太低，可能让大量 endpoint 被摘除；把 retry budget 放太宽，故障时会放大下游压力。
 
@@ -82,7 +75,7 @@ eBPF agent 要加载内核 BPF 程序，通常需要 root 或 `CAP_BPF`、`CAP_P
 
 如果用 file-backed registry，Controller 会从 JSON 快照恢复还没过期的实例记录，包括 instance 基本信息和 `expires_at`。这能让 Controller 重启后保留一部分服务发现数据。
 
-但 health state 通常会丢失。`HealthManager` 里的 slow_score、consecutive windows、EJECTED/PROBING 转换计数这些是内存态。Controller 重启后状态机会从初始状态重新积累 telemetry。Prometheus 指标本地内存也会重置，不过外部 Prometheus 已经抓走的历史还在 Prometheus 里。
+如果启用了 `--health-state-backend etcd`，`HealthManager` 里的 slow_score、consecutive windows、EJECTED/PROBING 转换时间这些会以带 `UpdatedAt` 的 endpoint snapshot 写入 etcd。Controller 重启或 failover 后会加载非过期 snapshot，并继续 EJECTED/PROBING 的时间语义。没有启用该 backend 时，这些状态仍是内存态，会从新 telemetry 重新积累。Prometheus 指标本地内存也会重置，不过外部 Prometheus 已经抓走的历史还在 Prometheus 里。
 
 Policy YAML 会重新从文件加载，所以策略可以恢复。SDK 侧的本地 EWMA、retry budget、trace writer 状态属于业务进程，不跟 Controller 重启直接绑定。
 
@@ -106,7 +99,7 @@ leader election 解决“谁来做主动动作”。比如定期 sweep expired i
 
 有些设计也可以不用单 leader，而是把状态迁移做成 CAS 写入：每个副本都可以尝试更新，但必须基于修订号比较，写失败就重试或放弃。这会更复杂。
 
-我会先选 etcd + leader election。服务注册和策略读取走 etcd，Controller 副本无状态化；health state 更新用 revision 控制；定时任务由 leader 执行。这样工程边界清楚，面试里也好解释。
+当前代码已经先落了 etcd-backed registry、policy 和 health snapshot 共享；health snapshot 用 UpdatedAt 做较新覆盖，并用 max-age 控制 staleness。下一步如果要继续生产化，我会再加 leader election 或 endpoint ownership，让同一个 endpoint 的 health 状态机只由一个 owner 推进。这样工程边界清楚，面试里也好解释。
 
 ### Q544【深度】Health state 是否应该持久化？持久化后会不会恢复旧故障状态造成误判？
 
@@ -114,7 +107,7 @@ Health state 可以持久化，但不能像 registry 那样简单恢复。
 
 registry 里的实例 lease 有明确过期时间，恢复时只要看 `expires_at`。health state 更微妙。比如某个 endpoint 在 Controller 崩溃前是 EJECTED，重启后如果直接恢复 EJECTED，可能会继续隔离一个已经恢复的实例；如果完全不恢复，又可能在故障仍然存在时短时间把流量打回慢实例。
 
-比较稳的做法是持久化带时间戳和 TTL 的 health state。恢复时按状态区别处理：
+当前比较稳的做法已经落到 runbook 里的 health snapshot backend：持久化带 `UpdatedAt` 和 max-age 的 health state。恢复时按状态区别处理：
 
 1. `HEALTHY` 可以恢复，但 slow_score 要快速用新 telemetry 覆盖。
 2. `DEGRADED` 可以短期恢复，过期后回到 HEALTHY 或 UNKNOWN。
@@ -176,7 +169,7 @@ mTLS 时还要校验客户端证书。Controller 不能只确认“连接加密�
 
 ### Q548【深度】policy file 被错误修改后，如何回滚和限制 blast radius？
 
-首先要阻止坏配置直接全量生效。PolicyService 目前是文件 reload，生产化时应该在加载前做 validation。比如 retry attempts 不能过大，非幂等方法默认不能开启 retry，eject threshold 不能低于 degraded threshold，probe ratio 不能超过上限。
+首先要阻止坏配置直接全量生效。PolicyService 现在支持文件 reload 和 etcd snapshot watch，但策略写入仍应在进入文件或 etcd 前做 validation。比如 retry attempts 不能过大，非幂等方法默认不能开启 retry，eject threshold 不能低于 degraded threshold，probe ratio 不能超过上限。
 
 然后是限制影响范围。策略应该有 service、namespace、tenant、caller、method 等 scope。一次变更只影响目标 scope，不应该默认全局生效。高风险字段，比如 retry、outlier ejection、circuit breaker，可以要求灰度比例或 allowlist。
 
@@ -260,7 +253,7 @@ SPIRE 是 SPIFFE 的实现，可以给 workload 自动签发和轮换 SVID 证�
 
 这样服务注册就能从“客户端说自己是 user-service”变成“证书证明它属于 user-service 或某个 service account”。Telemetry 上报、Policy Watch、Registry List 都可以按 identity 做授权。
 
-对面试来说，这个回答要落到项目上：当前 AegisMesh 没有 mTLS；生产化改造时，SPIFFE/SPIRE 可以替换手工证书管理，并把 source/service 字段从自声明变成可校验身份。
+对面试来说，这个回答要落到项目上：当前 AegisMesh 已支持文件证书形式的 TLS/mTLS、token RBAC 和静态证书主体 RBAC 映射；生产化改造时，SPIFFE/SPIRE 可以替换手工证书管理，并把 source/service 字段从自声明变成可校验身份。
 
 ### Q554【拓展】零信任网络中 RPC 治理组件应承担哪些安全职责？
 

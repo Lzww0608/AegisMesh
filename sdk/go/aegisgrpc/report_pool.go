@@ -47,6 +47,7 @@ func fillProtoSample(dst *aegisv1.EndpointStatsSample, stat telemetry.EndpointSt
 	dst.Source = stat.Source
 	dst.Service = stat.Destination
 	dst.InstanceId = stat.EndpointID
+	dst.RegistrationEpoch = stat.RegistrationEpoch
 	dst.EndpointAddress = stat.Upstream
 	dst.Method = stat.Method
 	dst.RequestCount = stat.RequestCount

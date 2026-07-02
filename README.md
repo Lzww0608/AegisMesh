@@ -8,12 +8,12 @@ That makes AegisMesh useful to discuss in interviews because the core claims con
 
 ## What It Implements
 
-- Controller-side service registry with TTL leases, memory and file-backed backends, and health state overlay.
-- YAML-backed `PolicyService` with SDK `GetPolicy` and `WatchPolicy` support.
-- Go gRPC SDK with Aegis resolver, adaptive P2C balancer, unary telemetry, retry budget, trace JSONL, and endpoint circuit breaker.
+- Controller-side service registry with TTL leases, memory/file/etcd backends, and health state overlay.
+- file/etcd-backed `PolicyService` with SDK `GetPolicy` and `WatchPolicy` support, including hot-apply for outlier detection and circuit-breaker max in-flight limits.
+- Go gRPC SDK with Aegis resolver, adaptive P2C balancer, unary telemetry, retry budget, trace JSONL, endpoint circuit breaker, and control-plane multi-address failover.
 - `slow_score` built from latency, error, in-flight, and optional Linux TCP signals.
 - Endpoint state machine: `HEALTHY`, `DEGRADED`, `EJECTED`, `PROBING`, `DEAD`.
-- Prometheus/Grafana observability, fault injection helpers, a trace verifier, and Linux eBPF telemetry plumbing.
+- Controller TLS/mTLS, service-scoped bearer-token RBAC, etcd registry/policy/health snapshot sharing, Prometheus/Grafana observability, fault injection helpers, a trace verifier, and Linux eBPF telemetry plumbing.
 
 ## Core Mechanisms
 
@@ -89,6 +89,7 @@ interview/                  system design interview question bank
 - [docs/project_report.md](docs/project_report.md): full project report and experiment narrative.
 - [docs/evaluation.md](docs/evaluation.md): measurement log and result sources.
 - [docs/experiments.md](docs/experiments.md): reproduction runbook.
+- [docs/control_plane_production.md](docs/control_plane_production.md): HA/security deployment runbook.
 - [docs/resume.md](docs/resume.md): resume wording and interview talking points.
 - [interview/README.md](interview/README.md): structured interview question bank.
 - [agent/ebpf/README.md](agent/ebpf/README.md): Linux eBPF validation notes.

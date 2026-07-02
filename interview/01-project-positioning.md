@@ -148,7 +148,7 @@ AegisMesh 的处理方式是把超时和重试放在更大的控制逻辑里：s
 
 最接近生产系统的是 SDK 数据面、telemetry、retry budget、method-level idempotency、Prometheus 指标、PolicyService 和状态机。这些模块的设计和真实 RPC 治理系统比较接近，也有测试和实验支撑。
 
-最像原型验证的是控制面的高可用和外部生态接入。当前 file-backed registry 只能解决本地重启恢复，不是 etcd/Raft 级别的 HA。DeathStarBench 目前是 integration planner，不是完成的外部 benchmark。eBPF telemetry 有真实采集代码，但 endpoint mapping 和多机网络实验还可以继续加强。
+最像原型验证的是控制面的高可用和外部生态接入。当前 file-backed registry 只能解决本地重启恢复，不是 etcd/Raft 级别的 HA。DeathStarBench 目前是 integration runner (metadata overlay + artifact validation)，不是完成的外部 benchmark。eBPF telemetry 有真实采集代码，但 endpoint mapping 和多机网络实验还可以继续加强。
 
 所以我会把项目定位为“有治理链路和实验结果的系统项目”，而不是生产级 service mesh。
 

@@ -164,17 +164,21 @@ func (r *FileRegistryV2) Register(ctx context.Context, inst Instance, ttl time.D
 	}
 
 	now := r.now()
+	inst.LastSeen = now
+	inst.RegistrationEpoch = newRegistrationEpoch()
+	inst.OwnerToken = newOwnerToken()
+	inst.Labels = cloneLabels(inst.Labels)
 	record, err := newRegisterWALRecord(inst, ttl, now)
 	if err != nil {
 		return err
 	}
 
-	r.writes.RLock()
+	r.writes.Lock()
 	err = r.wal.Append(ctx, record)
 	if err == nil {
-		err = r.memory.registerAt(context.Background(), inst, ttl, now)
+		r.memory.restoreRecord(inst, now.Add(ttl), false)
 	}
-	r.writes.RUnlock()
+	r.writes.Unlock()
 	if err != nil {
 		return err
 	}
@@ -182,6 +186,24 @@ func (r *FileRegistryV2) Register(ctx context.Context, inst Instance, ttl time.D
 }
 
 func (r *FileRegistryV2) Heartbeat(ctx context.Context, service, id string, ttl time.Duration) error {
+	return r.heartbeat(ctx, service, id, "", "", ttl, false, false)
+}
+
+func (r *FileRegistryV2) HeartbeatWithEpoch(ctx context.Context, service, id, registrationEpoch string, ttl time.Duration) error {
+	if registrationEpoch == "" {
+		return ErrInvalidInstance
+	}
+	return r.heartbeat(ctx, service, id, registrationEpoch, "", ttl, true, false)
+}
+
+func (r *FileRegistryV2) HeartbeatWithOwner(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration) error {
+	if registrationEpoch == "" || ownerToken == "" {
+		return ErrInvalidInstance
+	}
+	return r.heartbeat(ctx, service, id, registrationEpoch, ownerToken, ttl, true, true)
+}
+
+func (r *FileRegistryV2) heartbeat(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration, requireEpoch, requireOwner bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -192,22 +214,22 @@ func (r *FileRegistryV2) Heartbeat(ctx context.Context, service, id string, ttl 
 	now := r.now()
 	record := newHeartbeatWALRecord(service, id, ttl, now)
 
-	r.writes.RLock()
-	if !r.memory.recordExists(service, id) {
-		r.writes.RUnlock()
-		return ErrInstanceNotFound
+	r.writes.Lock()
+	validateErr := r.memory.validateHeartbeatWithOwner(context.Background(), service, id, registrationEpoch, ownerToken, ttl, requireEpoch, requireOwner)
+	if validateErr != nil {
+		r.writes.Unlock()
+		return validateErr
 	}
 	err := r.wal.Append(ctx, record)
 	if err == nil {
-		err = r.memory.heartbeatAt(context.Background(), service, id, ttl, now)
+		err = r.memory.heartbeatAtWithOwner(context.Background(), service, id, registrationEpoch, ownerToken, ttl, now, requireEpoch, requireOwner)
 	}
-	r.writes.RUnlock()
+	r.writes.Unlock()
 	if err != nil {
 		return err
 	}
 	return r.maybeCompact(ctx)
 }
-
 func (r *FileRegistryV2) List(ctx context.Context, service string) ([]Instance, error) {
 	return r.memory.List(ctx, service)
 }
@@ -311,12 +333,14 @@ func (r *FileRegistryV2) applyWALRecord(record fileRegistryWALRecord) error {
 			statusCode = InstanceHealthy
 		}
 		inst := Instance{
-			ID:       record.id,
-			Service:  record.service,
-			Address:  record.address,
-			Status:   statusCode,
-			Labels:   payload.Labels,
-			LastSeen: record.timestamp,
+			ID:                record.id,
+			Service:           record.service,
+			Address:           record.address,
+			Status:            statusCode,
+			Labels:            payload.Labels,
+			LastSeen:          record.timestamp,
+			RegistrationEpoch: payload.RegistrationEpoch,
+			OwnerToken:        payload.OwnerToken,
 		}
 		r.memory.restoreHistorical(inst, record.timestamp.Add(record.ttl))
 	case fileRegistryWALOpHeartbeat:
@@ -409,8 +433,10 @@ var (
 )
 
 type fileRegistryRegisterPayload struct {
-	Status string            `json:"status,omitempty"`
-	Labels map[string]string `json:"labels,omitempty"`
+	Status            string            `json:"status,omitempty"`
+	Labels            map[string]string `json:"labels,omitempty"`
+	RegistrationEpoch string            `json:"registration_epoch,omitempty"`
+	OwnerToken        string            `json:"owner_token,omitempty"`
 }
 
 type fileRegistryWALRecord struct {
@@ -429,7 +455,12 @@ type fileRegistryWALRecord struct {
 }
 
 func newRegisterWALRecord(inst Instance, ttl time.Duration, now time.Time) (fileRegistryWALRecord, error) {
-	payload, err := json.Marshal(fileRegistryRegisterPayload{Status: inst.Status.String(), Labels: inst.Labels})
+	payload, err := json.Marshal(fileRegistryRegisterPayload{
+		Status:            inst.Status.String(),
+		Labels:            inst.Labels,
+		RegistrationEpoch: inst.RegistrationEpoch,
+		OwnerToken:        inst.OwnerToken,
+	})
 	if err != nil {
 		return fileRegistryWALRecord{}, err
 	}

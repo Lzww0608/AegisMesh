@@ -7,6 +7,7 @@ import (
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
 	"github.com/aegismesh/aegismesh/pkg/fault"
 	"github.com/aegismesh/aegismesh/pkg/registry"
+	"github.com/aegismesh/aegismesh/pkg/security"
 	aegisstatus "github.com/aegismesh/aegismesh/pkg/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -60,6 +61,9 @@ func NewRegistryServiceWithHealth(store registry.Registry, defaultLease time.Dur
 }
 
 func (s *RegistryService) RegisterInstance(ctx context.Context, req *aegisv1.RegisterInstanceRequest) (*aegisv1.RegisterInstanceResponse, error) {
+	if err := security.AuthorizeControllerPrincipal(ctx, aegisv1.RegistryService_RegisterInstance_FullMethodName, req); err != nil {
+		return nil, err
+	}
 	if req == nil || req.Instance == nil {
 		return nil, status.Error(codes.InvalidArgument, "instance is required")
 	}
@@ -76,19 +80,29 @@ func (s *RegistryService) RegisterInstance(ctx context.Context, req *aegisv1.Reg
 	}
 	for _, registered := range instances {
 		if registered.ID == inst.ID {
-			return &aegisv1.RegisterInstanceResponse{Instance: instanceToProto(registered)}, nil
+			return &aegisv1.RegisterInstanceResponse{Instance: instanceToProto(registered), OwnerToken: registered.OwnerToken}, nil
 		}
 	}
 	return nil, status.Error(codes.Internal, "registered instance was not visible")
 }
 
 func (s *RegistryService) Heartbeat(ctx context.Context, req *aegisv1.HeartbeatRequest) (*aegisv1.HeartbeatResponse, error) {
+	if err := security.AuthorizeControllerPrincipal(ctx, aegisv1.RegistryService_Heartbeat_FullMethodName, req); err != nil {
+		return nil, err
+	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "heartbeat request is required")
 	}
+	if req.RegistrationEpoch == "" || req.OwnerToken == "" {
+		return nil, status.Error(codes.InvalidArgument, "registration epoch and owner token are required")
+	}
+	ownerStore, ok := s.store.(registry.OwnerHeartbeater)
+	if !ok {
+		return nil, status.Error(codes.Internal, "registry store does not support fenced heartbeat")
+	}
 
 	lease := s.leaseTTL(req.LeaseTtlSeconds)
-	if err := s.store.Heartbeat(ctx, req.Service, req.InstanceId, lease); err != nil {
+	if err := ownerStore.HeartbeatWithOwner(ctx, req.Service, req.InstanceId, req.RegistrationEpoch, req.OwnerToken, lease); err != nil {
 		return nil, statusFromRegistryError(err)
 	}
 
@@ -105,6 +119,9 @@ func (s *RegistryService) Heartbeat(ctx context.Context, req *aegisv1.HeartbeatR
 }
 
 func (s *RegistryService) ListInstances(ctx context.Context, req *aegisv1.ListInstancesRequest) (*aegisv1.ListInstancesResponse, error) {
+	if err := security.AuthorizeControllerPrincipal(ctx, aegisv1.RegistryService_ListInstances_FullMethodName, req); err != nil {
+		return nil, err
+	}
 	if req == nil || req.Service == "" {
 		return nil, status.Error(codes.InvalidArgument, "service is required")
 	}
@@ -117,6 +134,9 @@ func (s *RegistryService) ListInstances(ctx context.Context, req *aegisv1.ListIn
 }
 
 func (s *RegistryService) WatchInstances(req *aegisv1.WatchInstancesRequest, stream aegisv1.RegistryService_WatchInstancesServer) error {
+	if err := security.AuthorizeControllerPrincipal(stream.Context(), aegisv1.RegistryService_WatchInstances_FullMethodName, req); err != nil {
+		return err
+	}
 	if req == nil || req.Service == "" {
 		return status.Error(codes.InvalidArgument, "service is required")
 	}
@@ -138,6 +158,17 @@ func (s *RegistryService) WatchInstances(req *aegisv1.WatchInstancesRequest, str
 		}
 		ticker = time.NewTicker(registryWatchFallbackInterval)
 		ticks = ticker.C
+	}
+	restartClosedWatches := func(view instancesView) {
+		if registryUpdates == nil {
+			registryUpdates = s.watchRegistry(ctx, req.Service, view.registryVersion)
+		}
+		if s.health != nil && healthUpdates == nil {
+			healthUpdates = s.watchHealth(ctx, req.Service, view.healthVersion)
+		}
+		if registryUpdates == nil || (s.health != nil && healthUpdates == nil) {
+			ensureTicker()
+		}
 	}
 	if registryUpdates == nil || (s.health != nil && healthUpdates == nil) {
 		ensureTicker()
@@ -177,6 +208,7 @@ func (s *RegistryService) WatchInstances(req *aegisv1.WatchInstancesRequest, str
 			if err != nil {
 				return err
 			}
+			restartClosedWatches(view)
 		}
 		if registryUpdates == nil && (s.health == nil || healthUpdates == nil) {
 			ensureTicker()
@@ -239,16 +271,29 @@ func (s *RegistryService) overlayHealth(inst registry.Instance) (registry.Instan
 	if s.health == nil {
 		return inst, slowScore
 	}
-	if state, ok := s.health.HealthState(inst.Service, inst.ID); ok {
-		inst.Status = state
-	}
 	if provider, ok := s.health.(healthSnapshotProvider); ok {
-		if health, ok := provider.Get(inst.Service, inst.ID); ok {
+		if health, ok := provider.Get(inst.Service, inst.ID); ok && healthMatchesInstance(health, inst) {
 			inst.Status = health.State
 			slowScore = health.SlowScore
 		}
+		return inst, slowScore
+	}
+	if state, ok := s.health.HealthState(inst.Service, inst.ID); ok {
+		inst.Status = state
 	}
 	return inst, slowScore
+}
+
+func healthMatchesInstance(health fault.EndpointHealth, inst registry.Instance) bool {
+	return healthMatchesInstanceAddress(health.Address, inst.Address) && healthMatchesInstanceRegistrationEpoch(health.RegistrationEpoch, inst.RegistrationEpoch)
+}
+
+func healthMatchesInstanceAddress(healthAddress, instanceAddress string) bool {
+	return healthAddress == "" || instanceAddress == "" || healthAddress == instanceAddress
+}
+
+func healthMatchesInstanceRegistrationEpoch(healthEpoch, instanceEpoch string) bool {
+	return healthEpoch == "" || instanceEpoch == "" || healthEpoch == instanceEpoch
 }
 
 func (s *RegistryService) watchRegistry(ctx context.Context, service string, afterVersion int64) <-chan registry.InstanceSnapshot {
@@ -332,6 +377,7 @@ func instanceToProto(inst registry.Instance) *aegisv1.ServiceInstance {
 		Status:             inst.Status.String(),
 		Labels:             cloneProtoLabels(inst.Labels),
 		LastSeenUnixMillis: inst.LastSeen.UnixMilli(),
+		RegistrationEpoch:  inst.RegistrationEpoch,
 	}
 }
 
@@ -354,6 +400,8 @@ func statusFromRegistryError(err error) error {
 		return status.Error(codes.InvalidArgument, err.Error())
 	case registry.ErrInstanceNotFound:
 		return status.Error(codes.NotFound, err.Error())
+	case registry.ErrRegistrationEpochMismatch:
+		return status.Error(codes.FailedPrecondition, err.Error())
 	default:
 		return status.Error(codes.Internal, err.Error())
 	}

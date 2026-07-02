@@ -3,15 +3,49 @@ package controller
 import (
 	"context"
 	"io"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
 	"github.com/aegismesh/aegismesh/pkg/fault"
 	"github.com/aegismesh/aegismesh/pkg/registry"
+	"github.com/aegismesh/aegismesh/pkg/security"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
+func TestRegistryServiceReturnsOwnerTokenAndRequiresFencedHeartbeat(t *testing.T) {
+	now := time.Date(2026, 6, 29, 14, 0, 0, 0, time.UTC)
+	store := registry.NewMemoryRegistry(func() time.Time { return now })
+	service := NewRegistryService(store, 30*time.Second)
+	ctx := context.Background()
+
+	registered, err := service.RegisterInstance(ctx, &aegisv1.RegisterInstanceRequest{
+		Instance: &aegisv1.ServiceInstance{Id: "user-a", Service: "user-service", Address: "127.0.0.1:7001"},
+	})
+	if err != nil {
+		t.Fatalf("register instance: %v", err)
+	}
+	epoch := registered.GetInstance().GetRegistrationEpoch()
+	token := registered.GetOwnerToken()
+	if epoch == "" || token == "" {
+		t.Fatalf("expected owner credentials in register response: %+v", registered)
+	}
+
+	_, err = service.Heartbeat(ctx, &aegisv1.HeartbeatRequest{Service: "user-service", InstanceId: "user-a"})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("expected missing owner credentials to be invalid, got %v", err)
+	}
+	_, err = service.Heartbeat(ctx, &aegisv1.HeartbeatRequest{Service: "user-service", InstanceId: "user-a", RegistrationEpoch: epoch, OwnerToken: "wrong"})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("expected stale owner to fail precondition, got %v", err)
+	}
+	if _, err := service.Heartbeat(ctx, &aegisv1.HeartbeatRequest{Service: "user-service", InstanceId: "user-a", RegistrationEpoch: epoch, OwnerToken: token}); err != nil {
+		t.Fatalf("heartbeat with owner credentials: %v", err)
+	}
+}
 func TestRegistryServiceRegistersAndListsInstances(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -48,6 +82,19 @@ func TestRegistryServiceRegistersAndListsInstances(t *testing.T) {
 	}
 }
 
+func TestRegistryServiceDirectHandlerHonorsPropagatedPrincipalScope(t *testing.T) {
+	store := registry.NewMemoryRegistry(time.Now)
+	service := NewRegistryService(store, 30*time.Second)
+	ctx := security.ContextWithPrincipal(context.Background(), security.Principal{Role: security.RoleSDK, Services: []string{"user-service"}})
+
+	if _, err := service.ListInstances(ctx, &aegisv1.ListInstancesRequest{Service: "user-service"}); err != nil {
+		t.Fatalf("expected scoped principal to list own service: %v", err)
+	}
+	_, err := service.ListInstances(ctx, &aegisv1.ListInstancesRequest{Service: "order-service"})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("expected direct handler to reject out-of-scope service, got %v", err)
+	}
+}
 func TestRegistryServiceUsesDefaultLeaseWhenRequestOmitsTTL(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -174,6 +221,64 @@ func TestRegistryServiceWatchInstancesSendsInitialAndRegistryUpdates(t *testing.
 	}
 }
 
+func TestRegistryServiceWatchInstancesReopensClosedRegistryWatch(t *testing.T) {
+	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	store := &closingFirstWatchRegistry{
+		MemoryRegistry: registry.NewMemoryRegistry(func() time.Time { return now }),
+		firstClosed:    make(chan struct{}),
+	}
+	service := NewRegistryService(store, 30*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream := newRegistryWatchTestStream(ctx)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- service.WatchInstances(&aegisv1.WatchInstancesRequest{Service: "user-service"}, stream)
+	}()
+
+	initial := stream.receive(t)
+	if len(initial.Instances) != 0 || initial.Version == 0 {
+		t.Fatalf("expected initial empty versioned snapshot, got %+v", initial)
+	}
+	select {
+	case <-store.firstClosed:
+	case <-time.After(time.Second):
+		t.Fatalf("first registry watch did not close")
+	}
+
+	registerTestInstance(t, store, "user-service", "user-a", "127.0.0.1:7001")
+	updated := stream.receiveWithin(t, 5*time.Second)
+	if updated.Version == initial.Version || len(updated.Instances) != 1 || updated.Instances[0].Id != "user-a" {
+		t.Fatalf("expected reopened registry watch update, got %+v after %+v", updated, initial)
+	}
+	if got := store.watchCalls.Load(); got < 2 {
+		t.Fatalf("expected registry watch to be reopened, calls=%d", got)
+	}
+
+	cancel()
+	select {
+	case <-errCh:
+	case <-time.After(time.Second):
+		t.Fatalf("watch did not exit after context cancellation")
+	}
+}
+
+type closingFirstWatchRegistry struct {
+	*registry.MemoryRegistry
+	watchCalls  atomic.Int32
+	firstClosed chan struct{}
+}
+
+func (s *closingFirstWatchRegistry) Watch(ctx context.Context, service string, afterVersion int64) (<-chan registry.InstanceSnapshot, error) {
+	if s.watchCalls.Add(1) == 1 {
+		updates := make(chan registry.InstanceSnapshot)
+		close(updates)
+		close(s.firstClosed)
+		return updates, nil
+	}
+	return s.MemoryRegistry.Watch(ctx, service, afterVersion)
+}
+
 type versionedHealthProvider struct {
 	health  fault.EndpointHealth
 	version int64
@@ -225,10 +330,15 @@ func (s *registryWatchTestStream) Send(resp *aegisv1.ListInstancesResponse) erro
 
 func (s *registryWatchTestStream) receive(t *testing.T) *aegisv1.ListInstancesResponse {
 	t.Helper()
+	return s.receiveWithin(t, time.Second)
+}
+
+func (s *registryWatchTestStream) receiveWithin(t *testing.T, timeout time.Duration) *aegisv1.ListInstancesResponse {
+	t.Helper()
 	select {
 	case resp := <-s.sent:
 		return resp
-	case <-time.After(time.Second):
+	case <-time.After(timeout):
 		t.Fatalf("timed out waiting for watch response")
 		return nil
 	}

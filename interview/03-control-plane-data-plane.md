@@ -184,7 +184,7 @@ Registry lease 适合放到 etcd、Consul 或 Kubernetes API 这类带 watch 和
 
 Policy snapshot 应该是带修订号的。写入时用 revision 或 CAS，SDK watch 时按 revision 判断是否更新。这样多个 Controller 下发的是同一个修订语义。
 
-health state 麻烦一些，因为它是从 telemetry 算出来的动态状态。可以按 service 或 endpoint 做一致性哈希，让同一个 endpoint 的 telemetry 由同一个 Controller 分片处理；也可以把窗口聚合结果写到共享存储，但要注意写放大和延迟。
+health state 麻烦一些，因为它是从 telemetry 算出来的动态状态。当前代码已经支持把非过期 endpoint health snapshot 写到 etcd，Controller 启动或 watch 到更新时恢复/合并状态，用于 failover 后保留近期 EJECTED/DEGRADED/PROBING 信号。但它仍是最终一致观测缓存；更强的 active-active 形态还需要按 service 或 endpoint 做一致性哈希/leader ownership，避免多个 Controller 同时推进同一个 endpoint 状态机。
 
 我更倾向于“注册和策略强一致，health 最终一致”。健康分数本来就是近似信号，不值得为每个分数更新付出强一致成本。
 
@@ -214,7 +214,7 @@ Envoy/Istio 是成熟的 sidecar mesh 体系，功能和生态更完整。AegisM
 
 实例启动时创建 lease，心跳时续租。实例异常退出后 lease 过期，key 自动消失。Controller 或 SDK 可以 watch service 前缀，拿到新增、更新和删除事件。
 
-health state 和 policy 不建议混在同一个 key 里。health 可以放 `/aegis/health/{service}/{instance}`，带较短 TTL 或修订；policy 可以放 `/aegis/policy/{service}`，使用 revision 做修订控制。
+health state 和 policy 不建议混在同一个 key 里。当前 health snapshot 放在独立 `/aegismesh/health/v1/services/{service}/instances/{instance}` 前缀下，带 `UpdatedAt` 和 max-age 过滤；policy 放在 `/aegismesh/policy/v1/services/{service}/snapshot`，使用 revision 做修订控制。
 
 这样注册、健康和策略各自有清晰的生命周期。
 

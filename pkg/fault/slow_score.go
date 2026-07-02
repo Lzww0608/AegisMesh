@@ -30,31 +30,33 @@ func DefaultScoreWeights() ScoreWeights {
 }
 
 type EndpointSample struct {
-	Service       string
-	InstanceID    string
-	Address       string
-	Method        string
-	RequestCount  int64
-	ErrorCount    int64
-	TimeoutCount  int64
-	Inflight      int64
-	Capacity      int64
-	LatencyEWMA   time.Duration
-	LatencyP95    time.Duration
-	TCPRetransmit int64
-	ConnectError  int64
+	Service           string
+	InstanceID        string
+	Address           string
+	RegistrationEpoch string
+	Method            string
+	RequestCount      int64
+	ErrorCount        int64
+	TimeoutCount      int64
+	Inflight          int64
+	Capacity          int64
+	LatencyEWMA       time.Duration
+	LatencyP95        time.Duration
+	TCPRetransmit     int64
+	ConnectError      int64
 }
 
 type EndpointScore struct {
-	Service         string
-	InstanceID      string
-	Address         string
-	Method          string
-	Score           float64
-	LatencyScore    float64
-	ErrorScore      float64
-	InflightScore   float64
-	RetransmitScore float64
+	Service           string
+	InstanceID        string
+	Address           string
+	RegistrationEpoch string
+	Method            string
+	Score             float64
+	LatencyScore      float64
+	ErrorScore        float64
+	InflightScore     float64
+	RetransmitScore   float64
 }
 
 type ScoreCalculator struct {
@@ -109,6 +111,11 @@ func aggregateEndpointSample(current EndpointSample, sample EndpointSample) Endp
 	}
 	if current.Address == "" {
 		current.Address = sample.Address
+	}
+	if current.RegistrationEpoch == "" {
+		current.RegistrationEpoch = sample.RegistrationEpoch
+	} else if sample.RegistrationEpoch != "" && current.RegistrationEpoch != sample.RegistrationEpoch {
+		current.RegistrationEpoch = ""
 	}
 	if current.Method != "" && sample.Method != "" && current.Method != sample.Method {
 		current.Method = ""
@@ -169,15 +176,16 @@ func (c *ScoreCalculator) calculateService(service string, samples []EndpointSam
 			c.weights.RetransmitWeight*retransmitScore
 
 		out[ScoreKey(service, sample.InstanceID)] = EndpointScore{
-			Service:         service,
-			InstanceID:      sample.InstanceID,
-			Address:         sample.Address,
-			Method:          sample.Method,
-			Score:           score,
-			LatencyScore:    latencyScore,
-			ErrorScore:      errorScore,
-			InflightScore:   inflightScore,
-			RetransmitScore: retransmitScore,
+			Service:           service,
+			InstanceID:        sample.InstanceID,
+			Address:           sample.Address,
+			RegistrationEpoch: sample.RegistrationEpoch,
+			Method:            sample.Method,
+			Score:             score,
+			LatencyScore:      latencyScore,
+			ErrorScore:        errorScore,
+			InflightScore:     inflightScore,
+			RetransmitScore:   retransmitScore,
 		}
 	}
 }

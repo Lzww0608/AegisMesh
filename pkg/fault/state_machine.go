@@ -37,38 +37,30 @@ func DefaultStateMachineConfig() StateMachineConfig {
 	}
 }
 
-type StateInput struct {
-	Now         time.Time
-	SlowScore   float64
-	SuccessRate float64
-}
-
-type EndpointHealth struct {
-	Service                 string
-	InstanceID              string
-	Address                 string
-	State                   EndpointState
-	SlowScore               float64
-	ConsecutiveSlowWindows  int
-	ConsecutiveEjectWindows int
-	LastTransitionAt        time.Time
-	EjectedAt               time.Time
-}
-
-func NewEndpointHealth(service, instanceID, address string) EndpointHealth {
-	return EndpointHealth{
-		Service:    service,
-		InstanceID: instanceID,
-		Address:    address,
-		State:      StateHealthy,
+func resolveStateMachineConfig(base, override StateMachineConfig) StateMachineConfig {
+	base = defaultStateMachineConfig(base)
+	if override.DegradedThreshold > 0 {
+		base.DegradedThreshold = override.DegradedThreshold
 	}
+	if override.EjectThreshold > 0 {
+		base.EjectThreshold = override.EjectThreshold
+	}
+	if override.ConsecutiveWindows > 0 {
+		base.ConsecutiveWindows = override.ConsecutiveWindows
+	}
+	if override.EjectionDuration > 0 {
+		base.EjectionDuration = override.EjectionDuration
+	}
+	if override.RecoveryThreshold > 0 {
+		base.RecoveryThreshold = override.RecoveryThreshold
+	}
+	if override.ProbeSuccessThreshold > 0 {
+		base.ProbeSuccessThreshold = override.ProbeSuccessThreshold
+	}
+	return base
 }
 
-type StateMachine struct {
-	cfg StateMachineConfig
-}
-
-func NewStateMachine(cfg StateMachineConfig) *StateMachine {
+func defaultStateMachineConfig(cfg StateMachineConfig) StateMachineConfig {
 	defaults := DefaultStateMachineConfig()
 	if cfg.DegradedThreshold <= 0 {
 		cfg.DegradedThreshold = defaults.DegradedThreshold
@@ -88,7 +80,49 @@ func NewStateMachine(cfg StateMachineConfig) *StateMachine {
 	if cfg.ProbeSuccessThreshold <= 0 {
 		cfg.ProbeSuccessThreshold = defaults.ProbeSuccessThreshold
 	}
-	return &StateMachine{cfg: cfg}
+	return cfg
+}
+
+type StateInput struct {
+	Now         time.Time
+	SlowScore   float64
+	SuccessRate float64
+}
+
+type EndpointHealth struct {
+	Service                 string
+	InstanceID              string
+	Address                 string
+	RegistrationEpoch       string
+	State                   EndpointState
+	SlowScore               float64
+	ConsecutiveSlowWindows  int
+	ConsecutiveEjectWindows int
+	LastTransitionAt        time.Time
+	EjectedAt               time.Time
+	UpdatedAt               time.Time
+}
+
+func NewEndpointHealth(service, instanceID, address string, registrationEpoch ...string) EndpointHealth {
+	epoch := ""
+	if len(registrationEpoch) > 0 {
+		epoch = registrationEpoch[0]
+	}
+	return EndpointHealth{
+		Service:           service,
+		InstanceID:        instanceID,
+		Address:           address,
+		RegistrationEpoch: epoch,
+		State:             StateHealthy,
+	}
+}
+
+type StateMachine struct {
+	cfg StateMachineConfig
+}
+
+func NewStateMachine(cfg StateMachineConfig) *StateMachine {
+	return &StateMachine{cfg: defaultStateMachineConfig(cfg)}
 }
 
 func (m *StateMachine) Apply(health *EndpointHealth, input StateInput) {

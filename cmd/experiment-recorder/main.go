@@ -15,8 +15,7 @@ import (
 	"time"
 
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"github.com/aegismesh/aegismesh/pkg/security"
 )
 
 func main() {
@@ -33,7 +32,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	conn, err := grpc.DialContext(ctx, *controllerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := security.DialController(ctx, *controllerAddr, security.ClientConfigFromEnv("AEGIS_CONTROLLER"))
 	if err != nil {
 		log.Fatalf("dial controller: %v", err)
 	}

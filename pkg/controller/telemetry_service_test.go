@@ -18,7 +18,8 @@ func TestTelemetryServiceReportsStatsAndReturnsHealth(t *testing.T) {
 	registerTestInstance(t, store, "user-service", "user-c", "127.0.0.1:7003")
 
 	manager := fault.NewHealthManager(fault.HealthManagerConfig{
-		Now: func() time.Time { return now },
+		Now:        func() time.Time { return now },
+		LatencySLO: 100 * time.Millisecond,
 		StateMachine: fault.StateMachineConfig{
 			DegradedThreshold:  1.5,
 			EjectThreshold:     2.5,
@@ -52,6 +53,101 @@ func TestTelemetryServiceReportsStatsAndReturnsHealth(t *testing.T) {
 	}
 }
 
+func TestTelemetryServiceDropsStaleRegistrationEpochSamples(t *testing.T) {
+	now := time.Date(2026, 6, 29, 15, 0, 0, 0, time.UTC)
+	store := registry.NewMemoryRegistry(func() time.Time { return now })
+	registerTestInstance(t, store, "user-service", "user-a", "127.0.0.1:7001")
+	instances, err := store.List(context.Background(), "user-service")
+	if err != nil {
+		t.Fatalf("list registered instance: %v", err)
+	}
+	epoch := instances[0].RegistrationEpoch
+	manager := fault.NewHealthManager(fault.HealthManagerConfig{
+		Now:        func() time.Time { return now },
+		LatencySLO: 100 * time.Millisecond,
+		StateMachine: fault.StateMachineConfig{
+			DegradedThreshold:  0.2,
+			EjectThreshold:     0.4,
+			ConsecutiveWindows: 1,
+		},
+	})
+	service := NewTelemetryService(store, manager, nil)
+
+	stale, err := service.ReportEndpointStats(context.Background(), &aegisv1.ReportEndpointStatsRequest{Samples: []*aegisv1.EndpointStatsSample{{
+		Service:           "user-service",
+		InstanceId:        "user-a",
+		RegistrationEpoch: "stale-epoch",
+		RequestCount:      100,
+		LatencyP95Seconds: 1.0,
+		Capacity:          100,
+	}}})
+	if err != nil {
+		t.Fatalf("report stale sample: %v", err)
+	}
+	if len(stale.Endpoints) != 0 {
+		t.Fatalf("expected stale epoch sample to be dropped, got %+v", stale.Endpoints)
+	}
+
+	current, err := service.ReportEndpointStats(context.Background(), &aegisv1.ReportEndpointStatsRequest{Samples: []*aegisv1.EndpointStatsSample{{
+		Service:           "user-service",
+		InstanceId:        "user-a",
+		RegistrationEpoch: epoch,
+		RequestCount:      100,
+		LatencyP95Seconds: 1.0,
+		Capacity:          100,
+	}}})
+	if err != nil {
+		t.Fatalf("report current sample: %v", err)
+	}
+	got := findHealth(current.Endpoints, "user-a")
+	if got == nil || got.GetRegistrationEpoch() != epoch || got.State != fault.StateEjected.String() {
+		t.Fatalf("expected current epoch health, got %+v", current.Endpoints)
+	}
+}
+func TestTelemetryServicePersistsHealthSnapshot(t *testing.T) {
+	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
+	store := registry.NewMemoryRegistry(func() time.Time { return now })
+	registerTestInstance(t, store, "user-service", "user-a", "127.0.0.1:7001")
+	registerTestInstance(t, store, "user-service", "user-b", "127.0.0.1:7002")
+	manager := fault.NewHealthManager(fault.HealthManagerConfig{
+		Now:        func() time.Time { return now },
+		LatencySLO: 100 * time.Millisecond,
+		StateMachine: fault.StateMachineConfig{
+			DegradedThreshold:  0.2,
+			EjectThreshold:     0.4,
+			ConsecutiveWindows: 1,
+			EjectionDuration:   time.Minute,
+		},
+	})
+	healthStore := &recordingHealthSnapshotStore{}
+	service := NewTelemetryServiceWithHealthStore(store, manager, nil, healthStore)
+
+	_, err := service.ReportEndpointStats(context.Background(), &aegisv1.ReportEndpointStatsRequest{
+		Samples: []*aegisv1.EndpointStatsSample{
+			{Service: "user-service", EndpointAddress: "127.0.0.1:7002", RequestCount: 100, LatencyP95Seconds: 0.05, Capacity: 100},
+			{
+				Service:           "user-service",
+				EndpointAddress:   "127.0.0.1:7001",
+				RequestCount:      100,
+				LatencyP95Seconds: 1.0,
+				Capacity:          100,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("report endpoint stats: %v", err)
+	}
+	var slow fault.EndpointHealth
+	for _, health := range healthStore.saved {
+		if health.InstanceID == "user-a" {
+			slow = health
+			break
+		}
+	}
+	if slow.Service != "user-service" || slow.State != fault.StateEjected || slow.UpdatedAt.IsZero() {
+		t.Fatalf("unexpected persisted slow health snapshot: %+v", slow)
+	}
+}
 func TestTelemetryServiceResolvesDockerPeerAddressByUniquePort(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -95,6 +191,25 @@ func TestRegistryServiceOverlaysHealthStateOnDiscoveredInstances(t *testing.T) {
 	}
 }
 
+func TestRegistryServiceSkipsHealthOverlayWhenAddressMismatch(t *testing.T) {
+	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
+	store := registry.NewMemoryRegistry(func() time.Time { return now })
+	registerTestInstance(t, store, "user-service", "user-c", "127.0.0.1:7003")
+
+	health := staticHealthProvider{state: fault.StateEjected, slowScore: 1.75, address: "127.0.0.1:7103"}
+	service := NewRegistryServiceWithHealth(store, 30*time.Second, health)
+
+	resp, err := service.ListInstances(context.Background(), &aegisv1.ListInstancesRequest{Service: "user-service"})
+	if err != nil {
+		t.Fatalf("list instances: %v", err)
+	}
+	if len(resp.Instances) != 1 {
+		t.Fatalf("expected one instance, got %d", len(resp.Instances))
+	}
+	if resp.Instances[0].Status != registry.InstanceHealthy.String() || resp.Instances[0].SlowScore != 0 {
+		t.Fatalf("expected address-mismatched health overlay to be skipped, got %+v", resp.Instances[0])
+	}
+}
 func TestRegistryServiceOverlaysSlowScoreOnDiscoveredInstances(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -136,6 +251,7 @@ func findHealth(endpoints []*aegisv1.EndpointHealth, instanceID string) *aegisv1
 type staticHealthProvider struct {
 	state     fault.EndpointState
 	slowScore float64
+	address   string
 }
 
 func (p staticHealthProvider) HealthState(service, instanceID string) (fault.EndpointState, bool) {
@@ -148,5 +264,30 @@ func (p staticHealthProvider) Get(service, instanceID string) (fault.EndpointHea
 		InstanceID: instanceID,
 		State:      p.state,
 		SlowScore:  p.slowScore,
+		Address:    p.address,
 	}, true
 }
+
+type recordingHealthSnapshotStore struct {
+	saved []fault.EndpointHealth
+}
+
+func (s *recordingHealthSnapshotStore) Load(context.Context) ([]fault.EndpointHealth, int64, error) {
+	return append([]fault.EndpointHealth(nil), s.saved...), 0, nil
+}
+
+func (s *recordingHealthSnapshotStore) Save(_ context.Context, health []fault.EndpointHealth) (int64, error) {
+	s.saved = append([]fault.EndpointHealth(nil), health...)
+	return 1, nil
+}
+
+func (s *recordingHealthSnapshotStore) Watch(ctx context.Context, _ int64) (<-chan fault.HealthStoreEvent, error) {
+	ch := make(chan fault.HealthStoreEvent)
+	go func() {
+		<-ctx.Done()
+		close(ch)
+	}()
+	return ch, nil
+}
+
+func (s *recordingHealthSnapshotStore) Close() error { return nil }

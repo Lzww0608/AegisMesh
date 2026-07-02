@@ -18,7 +18,7 @@ DeathStarBench 主要用来验证真实微服务拓扑里的性能和可靠性�
 
 ### Q590【简单】项目里的 DeathStarBench adapter 目前输出什么？
 
-当前 adapter 读取 `experiments/deathstarbench/social-network.yaml`，输出一个 JSON 格式的 integration plan。
+当前 adapter 默认读取 `experiments/deathstarbench/social-network.yaml`，输出一个 JSON 格式的 integration plan；显式使用 `--run` 时，会针对本地 DeathStarBench checkout 生成 compose metadata overlay、启动 compose、等待 frontend、执行 workload、收集 artifacts，并写出 `run_manifest.json`。
 
 这个 plan 里主要有四类信息：
 
@@ -33,7 +33,7 @@ DeathStarBench 主要用来验证真实微服务拓扑里的性能和可靠性�
 go run ./cmd/deathstarbench-adapter --config experiments/deathstarbench/social-network.yaml
 ```
 
-它不会 clone DeathStarBench，不会修改外部服务代码，也不会自动跑 benchmark。它现在是 plan generator，不是完整 benchmark runner。
+它不会自动 clone DeathStarBench，也不会修改外部服务代码；`--run` 需要传入本地 `--repo-dir`。它现在是 opt-in runner，但默认 overlay 只是 metadata injection，不等于 sidecar/proxy 流量治理，所以仍不是完成的 DeathStarBench benchmark result。
 
 ### Q591【简单】为什么 Social Network workload 比 shop demo 更有说服力？
 
@@ -45,9 +45,9 @@ Social Network workload 更有说服力，是因为服务图更复杂，请求�
 
 所以 Social Network 不是为了替代 shop demo，而是下一层验证。shop demo 说明机制能跑，Social Network 才更能说明机制在复杂拓扑里有没有价值。
 
-### Q592【简单】integration plan generator 和真正接入 benchmark 有什么区别？
+### Q592【简单】integration runner/plan generator 和真正接入 benchmark 有什么区别？
 
-integration plan generator 只是把接入所需的信息整理出来。它告诉你用哪个 compose 文件、入口 URL 是什么、wrk2 怎么跑、哪些 DeathStarBench 服务映射到 AegisMesh service 名。
+integration runner/plan generator 分两层：默认 plan 会整理 compose 文件、入口 URL、wrk2 命令和 DeathStarBench 到 AegisMesh 的服务映射；显式 runner 会把 plan 变成可执行的 compose/workload/artifact/validation 流程。
 
 真正接入 benchmark 要做的事多得多：
 
@@ -129,7 +129,7 @@ services:
 
 第五是实验脚本。包括 inject-delay、inject-cpu、inject-loss、reset-faults、collect-results、merge-results、check-results。没有清理脚本，实验很容易互相污染。
 
-当前 adapter 只提供 plan。真正开始接入时，第一步应该把 plan 变成可执行的启动和 workload 脚本。
+当前 adapter 已经提供 opt-in runner 和 metadata overlay。下一步不是再把 plan 变成脚本，而是让 sidecar/proxy 或服务改造真正消费这些 metadata，使 DeathStarBench 的服务调用路径经过 AegisMesh 治理。
 
 ### Q597【简单】benchmark 中如何采集端到端 latency 和 per-service latency？
 

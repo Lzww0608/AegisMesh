@@ -10,7 +10,7 @@
 
 第二，Controller 不是 HA 控制面。现在有 memory registry 和 file-backed registry。file-backed 能解决 Controller 重启后的部分恢复问题，但不是 etcd/Consul 那种多副本一致性存储。
 
-第三，DeathStarBench 目前是 integration planner，不是已经跑完的 benchmark。仓库能生成 Social Network 接入计划，但还没有完成外部 DeathStarBench 真实压测结果。
+第三，DeathStarBench 目前是 integration runner (metadata overlay + artifact validation)，不是已经跑完的 benchmark。仓库能生成 Social Network 接入计划，但还没有完成外部 DeathStarBench 真实压测结果。
 
 第四，eBPF 是增强信号，不是完整网络诊断平台。当前采集 TCP retransmit、connect error、connect latency，并融合进 telemetry。它不是 Cilium/Hubble 那种完整流量可视化系统。
 
@@ -34,7 +34,7 @@
 
 真正完整集成还要做更多事：拉取外部 DeathStarBench repo，改造或包装服务调用路径，让流量经过 AegisMesh SDK 或代理，采集真实 trace 和 metrics，注入可重复故障，跑出 p99、throughput、retry amplification、recovery curve。
 
-所以简历里我会写“DeathStarBench integration planner”，不会写“已在 DeathStarBench 上完成评测”。这个边界讲清楚，反而显得更可信。
+所以简历里我会写“DeathStarBench integration runner (metadata overlay + artifact validation)”，不会写“已在 DeathStarBench 上完成评测”。这个边界讲清楚，反而显得更可信。
 
 ### Q648【简单】你会如何解释单机实验和生产集群的差距？
 

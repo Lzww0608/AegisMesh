@@ -460,3 +460,45 @@ func TestFileRegistryV2BatchCloseFlushesBufferedWAL(t *testing.T) {
 		t.Fatalf("expected Close to flush batch WAL, got %+v", instances)
 	}
 }
+
+func TestFileRegistryV2ReplaysOwnerCredentials(t *testing.T) {
+	current := time.Date(2026, 6, 29, 13, 0, 0, 0, time.UTC)
+	path := filepath.Join(t.TempDir(), "registry.json")
+	ctx := context.Background()
+
+	first, err := NewFileRegistryV2(path, func() time.Time { return current }, WithFileRegistryV2SyncMode(FileRegistrySyncAlways), WithFileRegistryV2CompactBytes(0))
+	if err != nil {
+		t.Fatalf("new file registry v2: %v", err)
+	}
+	if err := first.Register(ctx, Instance{ID: "user-a", Service: "user-service", Address: "user-a:7001"}, time.Minute); err != nil {
+		t.Fatalf("register instance: %v", err)
+	}
+	instances, err := first.List(ctx, "user-service")
+	if err != nil {
+		t.Fatalf("list first registry: %v", err)
+	}
+	registered := instances[0]
+	if registered.RegistrationEpoch == "" || registered.OwnerToken == "" {
+		t.Fatalf("expected owner credentials before replay, got %+v", registered)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("close first registry: %v", err)
+	}
+
+	current = current.Add(10 * time.Second)
+	second, err := NewFileRegistryV2(path, func() time.Time { return current }, WithFileRegistryV2SyncMode(FileRegistrySyncAlways), WithFileRegistryV2CompactBytes(0))
+	if err != nil {
+		t.Fatalf("reload file registry v2: %v", err)
+	}
+	defer second.Close()
+	instances, err = second.List(ctx, "user-service")
+	if err != nil {
+		t.Fatalf("list replayed registry: %v", err)
+	}
+	if len(instances) != 1 || instances[0].RegistrationEpoch != registered.RegistrationEpoch || instances[0].OwnerToken != registered.OwnerToken {
+		t.Fatalf("owner credentials did not replay: before=%+v after=%+v", registered, instances)
+	}
+	if err := second.HeartbeatWithOwner(ctx, "user-service", "user-a", registered.RegistrationEpoch, registered.OwnerToken, time.Minute); err != nil {
+		t.Fatalf("heartbeat with replayed owner credentials: %v", err)
+	}
+}

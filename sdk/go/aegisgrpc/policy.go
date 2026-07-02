@@ -11,7 +11,6 @@ import (
 	retrypkg "github.com/aegismesh/aegismesh/pkg/retry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -20,15 +19,24 @@ const (
 	defaultPolicyWatchBackoff = 2 * time.Second
 )
 
+type circuitBreakerPolicyApplier interface {
+	SetMaxInflightPerEndpoint(max int64)
+}
+
 type policyManager struct {
-	v atomic.Value // stores *compiledPolicy
+	v              atomic.Value // stores *compiledPolicy
+	circuitBreaker circuitBreakerPolicyApplier
 }
 
 func (m *policyManager) Update(snapshot *aegisv1.PolicySnapshot) {
 	if m == nil || snapshot == nil {
 		return
 	}
-	m.v.Store(compilePolicySnapshot(snapshot))
+	policy := compilePolicySnapshot(snapshot)
+	m.v.Store(policy)
+	if m.circuitBreaker != nil {
+		m.circuitBreaker.SetMaxInflightPerEndpoint(policy.circuitBreaker.maxInflightPerEndpoint)
+	}
 }
 
 func (m *policyManager) Load() *compiledPolicy {
@@ -40,10 +48,15 @@ func (m *policyManager) Load() *compiledPolicy {
 }
 
 type compiledPolicy struct {
-	version      int64
-	routing      RoutingPolicy
-	defaultRetry compiledRetryPatch
-	methods      map[string]compiledMethod
+	version        int64
+	routing        RoutingPolicy
+	defaultRetry   compiledRetryPatch
+	circuitBreaker compiledCircuitBreakerPolicy
+	methods        map[string]compiledMethod
+}
+
+type compiledCircuitBreakerPolicy struct {
+	maxInflightPerEndpoint int64
 }
 
 type compiledMethod struct {
@@ -64,9 +77,10 @@ type compiledRetryPatch struct {
 
 func compilePolicySnapshot(snapshot *aegisv1.PolicySnapshot) *compiledPolicy {
 	policy := &compiledPolicy{
-		version:      snapshot.Revision,
-		routing:      RoutingPolicy(snapshot.RoutingPolicy),
-		defaultRetry: compileRetryPatch(snapshot.Retry),
+		version:        snapshot.Revision,
+		routing:        RoutingPolicy(snapshot.RoutingPolicy),
+		defaultRetry:   compileRetryPatch(snapshot.Retry),
+		circuitBreaker: compileCircuitBreakerPolicy(snapshot.CircuitBreaker),
 	}
 	if len(snapshot.Methods) == 0 {
 		return policy
@@ -91,6 +105,13 @@ func compilePolicySnapshot(snapshot *aegisv1.PolicySnapshot) *compiledPolicy {
 	return policy
 }
 
+func compileCircuitBreakerPolicy(policy *aegisv1.CircuitBreakerPolicy) compiledCircuitBreakerPolicy {
+	max := adaptiveDefaultMaxInflightPerTarget
+	if policy != nil && policy.MaxInflightPerEndpoint > 0 {
+		max = policy.MaxInflightPerEndpoint
+	}
+	return compiledCircuitBreakerPolicy{maxInflightPerEndpoint: max}
+}
 func compileRetryPatch(policy *aegisv1.RetryPolicy) compiledRetryPatch {
 	if !policyRetryHasAnyField(policy) {
 		return compiledRetryPatch{}
@@ -233,11 +254,11 @@ func retryPolicyAndBudgetConfig(options DialOptions) (RetryPolicy, retrypkg.Budg
 	return retry.toPolicy(), retry.budget
 }
 
-func loadInitialPolicy(ctx context.Context, controllerAddr, service string, manager *policyManager) *aegisv1.PolicySnapshot {
+func loadInitialPolicy(ctx context.Context, controllerAddr, service string, manager *policyManager, dialOptions []grpc.DialOption) *aegisv1.PolicySnapshot {
 	policyCtx, cancel := context.WithTimeout(ctx, defaultPolicyFetchTimeout)
 	defer cancel()
 
-	conn, err := grpc.DialContext(policyCtx, controllerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.DialContext(policyCtx, controllerAddr, dialOptions...)
 	if err != nil {
 		return nil
 	}
@@ -251,10 +272,10 @@ func loadInitialPolicy(ctx context.Context, controllerAddr, service string, mana
 	return snapshot
 }
 
-func startPolicyWatcher(ctx context.Context, controllerAddr, service string, manager *policyManager) {
+func startPolicyWatcher(ctx context.Context, controllerAddr, service string, manager *policyManager, dialOptions []grpc.DialOption) {
 	go func() {
 		for ctx.Err() == nil {
-			err := watchPolicyOnce(ctx, controllerAddr, service, manager)
+			err := watchPolicyOnce(ctx, controllerAddr, service, manager, dialOptions)
 			if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 				return
 			}
@@ -269,8 +290,8 @@ func startPolicyWatcher(ctx context.Context, controllerAddr, service string, man
 	}()
 }
 
-func watchPolicyOnce(ctx context.Context, controllerAddr, service string, manager *policyManager) error {
-	conn, err := grpc.DialContext(ctx, controllerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func watchPolicyOnce(ctx context.Context, controllerAddr, service string, manager *policyManager, dialOptions []grpc.DialOption) error {
+	conn, err := grpc.DialContext(ctx, controllerAddr, dialOptions...)
 	if err != nil {
 		return err
 	}

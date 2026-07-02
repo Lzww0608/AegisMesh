@@ -156,6 +156,20 @@ Useful variants:
 | no_ebpf_network_score | isolate application-only telemetry |
 | ebpf_network_score | include retransmit/connect signals |
 
+## DeathStarBench Runner Contract
+
+DeathStarBench runs are recorded separately from the measured single-machine Docker matrix. A valid runner directory lives under `experiments/results/runs/deathstarbench-*` and must include `run_manifest.json`, `integration_plan.json`, `aegis-compose.override.yml`, workload stdout/stderr, compose ps/logs, and `latency.csv` with the standard latency schema.
+
+Validation command:
+
+```bash
+go run ./cmd/deathstarbench-adapter --validate-run experiments/results/runs/deathstarbench-social-network-<timestamp>
+```
+
+The validator rejects plan-only directories and failed runs. It checks that the manifest completed, `integration_plan.json` and the metadata overlay are non-empty, workload stdout is non-empty, workload stderr exists, compose ps and logs are non-empty, `latency.csv` has at least one data row, the Aegis service map is present, and the injection mode is known. Use `--require-governed-traffic` only after a sidecar/proxy or service rewrite actually routes DeathStarBench calls through AegisMesh; that stricter mode requires both `mode=sidecar_proxy` and `traffic_governance=sidecar_proxy`. The current generated overlay records `traffic_governance=metadata_only`.
+
+Do not merge DeathStarBench runner artifacts into `experiments/results/combined` or quote them as benchmark results until a real governed run and its validation output are checked in.
+
 ## Reporting guardrail
 
-Do not write `X%`, `Ys`, or a benchmark table until the rows come from a real run. The schema files in `experiments/results` define columns only; they are not results.
+Do not write `X%`, `Ys`, or a benchmark table until the rows come from a real run. The schema files in `experiments/results` define columns only; they are not results. A DeathStarBench plan or metadata-only runner manifest is also not a benchmark result.

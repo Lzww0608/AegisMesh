@@ -2,6 +2,7 @@ package policy
 
 import (
 	"os"
+	"sort"
 	"sync"
 
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
@@ -80,6 +81,23 @@ func (s *FileStore) Get(service string) (*aegisv1.PolicySnapshot, bool) {
 		return nil, false
 	}
 	return proto.Clone(snapshot).(*aegisv1.PolicySnapshot), true
+}
+
+func (s *FileStore) List() []*aegisv1.PolicySnapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	out := make([]*aegisv1.PolicySnapshot, 0, len(s.policies))
+	for _, snapshot := range s.policies {
+		if snapshot == nil {
+			continue
+		}
+		out = append(out, proto.Clone(snapshot).(*aegisv1.PolicySnapshot))
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Service < out[j].Service
+	})
+	return out
 }
 
 func (s *FileStore) ReloadIfChanged() error {

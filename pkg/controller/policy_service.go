@@ -5,6 +5,7 @@ import (
 	"time"
 
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
+	"github.com/aegismesh/aegismesh/pkg/security"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -32,7 +33,10 @@ func NewPolicyService(store PolicyStore, reloadInterval time.Duration) *PolicySe
 	return &PolicyService{store: store, reloadInterval: reloadInterval}
 }
 
-func (s *PolicyService) GetPolicy(_ context.Context, req *aegisv1.GetPolicyRequest) (*aegisv1.PolicySnapshot, error) {
+func (s *PolicyService) GetPolicy(ctx context.Context, req *aegisv1.GetPolicyRequest) (*aegisv1.PolicySnapshot, error) {
+	if err := security.AuthorizeControllerPrincipal(ctx, aegisv1.PolicyService_GetPolicy_FullMethodName, req); err != nil {
+		return nil, err
+	}
 	if req == nil || req.Service == "" {
 		return nil, status.Error(codes.InvalidArgument, "service is required")
 	}
@@ -47,6 +51,9 @@ func (s *PolicyService) GetPolicy(_ context.Context, req *aegisv1.GetPolicyReque
 }
 
 func (s *PolicyService) WatchPolicy(req *aegisv1.WatchPolicyRequest, stream aegisv1.PolicyService_WatchPolicyServer) error {
+	if err := security.AuthorizeControllerPrincipal(stream.Context(), aegisv1.PolicyService_WatchPolicy_FullMethodName, req); err != nil {
+		return err
+	}
 	if req == nil || req.Service == "" {
 		return status.Error(codes.InvalidArgument, "service is required")
 	}
@@ -79,10 +86,19 @@ func (s *PolicyService) WatchPolicy(req *aegisv1.WatchPolicyRequest, stream aegi
 	}
 }
 
+const deletedPolicyRevision int64 = -1
+
 func (s *PolicyService) sendIfChanged(service string, lastRevision *int64, stream aegisv1.PolicyService_WatchPolicyServer) error {
 	snapshot, ok := s.store.Get(service)
 	if !ok {
-		return status.Error(codes.NotFound, "policy not found")
+		if *lastRevision == 0 {
+			return status.Error(codes.NotFound, "policy not found")
+		}
+		if *lastRevision == deletedPolicyRevision {
+			return nil
+		}
+		*lastRevision = deletedPolicyRevision
+		return stream.Send(&aegisv1.PolicySnapshot{Service: service, Revision: deletedPolicyRevision})
 	}
 	if snapshot.Revision == *lastRevision {
 		return nil

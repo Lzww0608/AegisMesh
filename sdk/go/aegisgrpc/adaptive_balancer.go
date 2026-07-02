@@ -208,6 +208,10 @@ func newAdaptivePickerItem(sc balancer.SubConn, address resolver.Address) (adapt
 	if statusValue == aegisstatus.Degraded {
 		staticCost++
 	}
+	limiter := circuitbreaker.NewEndpointLimiter(adaptiveDefaultMaxInflightPerTarget)
+	if limiterPool := limiterPoolFromAttributes(address.Attributes); limiterPool != nil {
+		limiter = limiterPool.limiter(address.Addr)
+	}
 
 	return adaptivePickerItem{
 		subConn:         sc,
@@ -217,7 +221,7 @@ func newAdaptivePickerItem(sc balancer.SubConn, address resolver.Address) (adapt
 		latencyPenalty:  1,
 		staticCost:      staticCost,
 		stats:           statsForEndpoint(address.Addr),
-		limiter:         circuitbreaker.NewEndpointLimiter(adaptiveDefaultMaxInflightPerTarget),
+		limiter:         limiter,
 	}, true
 }
 

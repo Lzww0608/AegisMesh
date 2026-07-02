@@ -32,8 +32,12 @@ RESULTS_DIR ?= experiments/results
 RUNS_DIR ?= experiments/results/runs
 COMBINED_DIR ?= experiments/results/combined
 RUN_ID ?= $(shell date +%Y%m%d-%H%M%S)
+DSB_CONFIG ?= experiments/deathstarbench/social-network.yaml
+DSB_REPO_DIR ?=
+DSB_RUN_DIR ?= experiments/results/runs/deathstarbench-social-network-$(RUN_ID)
+DSB_STARTUP_TIMEOUT ?= 90s
 
-.PHONY: demo-up demo-down observability-up dashboard experiments-up experiments-down load inject-delay inject-loss inject-cpu reset-faults bench bench-required bench-probe-ratio bench-absolute-slo summarize-probe-slo check-results record-recovery report test test-race microbench microbench-baseline microbench-baseline-full microbench-race microbench-quick microbench-adaptive
+.PHONY: demo-up demo-down observability-up dashboard experiments-up experiments-down load inject-delay inject-loss inject-cpu reset-faults bench bench-required bench-probe-ratio bench-absolute-slo summarize-probe-slo deathstarbench-plan deathstarbench-run check-deathstarbench-run check-results record-recovery report test test-race microbench microbench-baseline microbench-baseline-full microbench-race microbench-quick microbench-adaptive
 
 demo-up:
 	$(COMPOSE) $(DEMO_COMPOSE) up -d --build
@@ -94,6 +98,17 @@ summarize-probe-slo:
 
 bench-single-machine:
 	RUN_ID=$(RUN_ID) RUNS_DIR=$(RUNS_DIR) REQUESTS=$(REQUESTS) CONCURRENCY=$(CONCURRENCY) TARGET=$(TARGET) DEVICE=$(DEVICE) DELAY=$(DELAY) JITTER=$(JITTER) LOSS=$(LOSS) CPUS=$(CPUS) bash experiments/scripts/run_single_machine_experiments.sh
+
+
+deathstarbench-plan:
+	go run ./cmd/deathstarbench-adapter --config $(DSB_CONFIG)
+
+deathstarbench-run:
+	@test -n "$(DSB_REPO_DIR)" || (echo "usage: make deathstarbench-run DSB_REPO_DIR=/path/to/DeathStarBench" && exit 1)
+	go run ./cmd/deathstarbench-adapter --config $(DSB_CONFIG) --run --repo-dir "$(DSB_REPO_DIR)" --out "$(DSB_RUN_DIR)" --startup-timeout $(DSB_STARTUP_TIMEOUT)
+
+check-deathstarbench-run:
+	go run ./cmd/deathstarbench-adapter --validate-run "$(DSB_RUN_DIR)"
 
 check-results:
 	python experiments/scripts/check_results.py --results $(RESULTS_DIR)

@@ -6,6 +6,8 @@ import (
 
 	aegisv1 "github.com/aegismesh/aegismesh/api/proto/aegis/v1"
 	retrypkg "github.com/aegismesh/aegismesh/pkg/retry"
+	"github.com/aegismesh/aegismesh/pkg/security"
+	"google.golang.org/grpc/credentials"
 )
 
 type RoutingPolicy string
@@ -24,13 +26,16 @@ const (
 )
 
 type DialOptions struct {
-	RoutingPolicy    RoutingPolicy
-	RetryMode        RetryMode
-	RetryPolicy      RetryPolicy
-	RetryBudget      retrypkg.BudgetConfig
-	DisableTelemetry bool
-	DisablePolicy    bool
-	TraceLogPath     string
+	RoutingPolicy        RoutingPolicy
+	RetryMode            RetryMode
+	RetryPolicy          RetryPolicy
+	RetryBudget          retrypkg.BudgetConfig
+	TransportCredentials credentials.TransportCredentials
+	ControllerSecurity   security.ClientConfig
+	ControllerAddrs      []string
+	DisableTelemetry     bool
+	DisablePolicy        bool
+	TraceLogPath         string
 }
 
 func DefaultDialOptions() DialOptions {
