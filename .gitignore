@@ -5,12 +5,17 @@
 *.out
 *.word
 
-# Experiment artifacts: track only final summaries (*_summary.md / *_summary.json).
+# Experiment artifacts: track checked-in summaries and validated combined evidence.
 experiments/results/runs/**
 !experiments/results/runs/**/
 !experiments/results/runs/**/*_summary.json
 
-experiments/results/combined/
+experiments/results/combined/**
+!experiments/results/combined/
+!experiments/results/combined/*.csv
+!experiments/results/combined/figures/
+experiments/results/combined/figures/**
+!experiments/results/combined/figures/summary.md
 experiments/results/figures/
 experiments/results/runs/**/figures/
 
