@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TestSecureGRPCServerAuthorizesMTLSCertificatePrincipal locks the secure grpc server authorizes mtls certificate principal contract so future changes do not regress it.
 func TestSecureGRPCServerAuthorizesMTLSCertificatePrincipal(t *testing.T) {
 	dir := t.TempDir()
 	caCert, caKey := writeCertificateAuthority(t, dir)
@@ -89,6 +90,8 @@ func TestSecureGRPCServerAuthorizesMTLSCertificatePrincipal(t *testing.T) {
 	_, err = invalidTokenClient.client.Check(context.Background(), &healthpb.HealthCheckRequest{})
 	assertStatusCode(t, err, codes.Unauthenticated)
 }
+
+// TestSecureGRPCServerRequiresMTLSAndAuthorizedToken locks the secure grpc server requires mtls and authorized token contract so future changes do not regress it.
 func TestSecureGRPCServerRequiresMTLSAndAuthorizedToken(t *testing.T) {
 	dir := t.TempDir()
 	caCert, caKey := writeCertificateAuthority(t, dir)
@@ -176,11 +179,13 @@ func TestSecureGRPCServerRequiresMTLSAndAuthorizedToken(t *testing.T) {
 	}
 }
 
+// healthClientConn carries health client conn state for authorization checks.
 type healthClientConn struct {
 	client healthpb.HealthClient
 	close  func() error
 }
 
+// dialHealthClient opens a gRPC connection using AegisMesh controller and security options.
 func dialHealthClient(t *testing.T, addr string, cfg ClientConfig) healthClientConn {
 	t.Helper()
 	conn, err := dialHealthClientConn(addr, cfg)
@@ -190,6 +195,7 @@ func dialHealthClient(t *testing.T, addr string, cfg ClientConfig) healthClientC
 	return healthClientConn{client: healthpb.NewHealthClient(conn), close: conn.Close}
 }
 
+// dialHealthClientConn opens a gRPC connection using AegisMesh controller and security options.
 func dialHealthClientConn(addr string, cfg ClientConfig) (*grpc.ClientConn, error) {
 	opts, err := ClientDialOptions(cfg)
 	if err != nil {
@@ -200,6 +206,7 @@ func dialHealthClientConn(addr string, cfg ClientConfig) (*grpc.ClientConn, erro
 	return grpc.DialContext(ctx, addr, append(opts, grpc.WithBlock())...)
 }
 
+// assertStatusCode provides the shared assert status code helper for authorization checks.
 func assertStatusCode(t *testing.T, err error, code codes.Code) {
 	t.Helper()
 	if status.Code(err) != code {

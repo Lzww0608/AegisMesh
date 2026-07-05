@@ -15,6 +15,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/status"
 )
 
+// InstanceStatus mirrors the endpoint status vocabulary used by registry records.
 type InstanceStatus = status.Code
 
 const (
@@ -31,6 +32,7 @@ var (
 	ErrRegistrationEpochMismatch = errors.New("registration epoch mismatch")
 )
 
+// Instance is the controller-owned service discovery record for one endpoint.
 type Instance struct {
 	ID                string
 	Service           string
@@ -42,6 +44,7 @@ type Instance struct {
 	OwnerToken        string
 }
 
+// Registry is the minimal service-discovery contract shared by memory, file, and lease-backed registries.
 type Registry interface {
 	Register(ctx context.Context, inst Instance, ttl time.Duration) error
 	Heartbeat(ctx context.Context, service, id string, ttl time.Duration) error
@@ -49,22 +52,27 @@ type Registry interface {
 	SweepExpired(ctx context.Context) int
 }
 
+// EpochHeartbeater refreshes leases only when the caller presents the active epoch.
 type EpochHeartbeater interface {
 	HeartbeatWithEpoch(ctx context.Context, service, id, registrationEpoch string, ttl time.Duration) error
 }
 
+// OwnerHeartbeater refreshes leases only for the current epoch and owner token.
 type OwnerHeartbeater interface {
 	HeartbeatWithOwner(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration) error
 }
 
+// Snapshotter returns versioned registry snapshots for watch and resolver flows.
 type Snapshotter interface {
 	Snapshot(ctx context.Context, service string) (InstanceSnapshot, error)
 }
 
+// Watcher streams versioned registry snapshots after a caller-supplied revision.
 type Watcher interface {
 	Watch(ctx context.Context, service string, afterVersion int64) (<-chan InstanceSnapshot, error)
 }
 
+// InstanceSnapshot is an immutable point-in-time view of instances for one service.
 type InstanceSnapshot struct {
 	Service   string
 	Version   int64
@@ -73,31 +81,35 @@ type InstanceSnapshot struct {
 	nextExpiresAt time.Time
 }
 
+// MemoryRegistry stores service instances in memory with TTL expiry and watches.
 type MemoryRegistry struct {
 	now func() time.Time
 
-	services   sync.Map // map[string]*serviceState
+	services   sync.Map // map[string]*serviceState; each state owns per-service record locking.
 	expiryMu   sync.Mutex
 	expiries   expiryHeap
-	generation atomic.Uint64
+	generation atomic.Uint64 // fences stale expiry heap entries from refreshed records.
 }
 
 var registrationEpochFallback atomic.Uint64
 
+// record carries record state for registry persistence and watch paths.
 type record struct {
 	instance   Instance
 	expiresAt  time.Time
 	generation uint64
 }
 
+// serviceState owns one service namespace, its immutable snapshot, and watcher signal.
 type serviceState struct {
 	mu       sync.Mutex
 	records  map[string]record
-	snapshot atomic.Pointer[InstanceSnapshot]
+	snapshot atomic.Pointer[InstanceSnapshot] // published snapshots are never mutated after Store.
 	version  atomic.Int64
 	notify   chan struct{}
 }
 
+// expiryEntry carries expiry entry state for registry persistence and watch paths.
 type expiryEntry struct {
 	service    string
 	id         string
@@ -105,29 +117,36 @@ type expiryEntry struct {
 	generation uint64
 }
 
+// expiredRecord carries expired record state for registry persistence and watch paths.
 type expiredRecord struct {
 	service string
 	id      string
 }
 
+// expiryHeap carries expiry heap state for registry persistence and watch paths.
 type expiryHeap []expiryEntry
 
+// Len reports the number of entries in the collection.
 func (h expiryHeap) Len() int {
 	return len(h)
 }
 
+// Less reports whether one collection entry sorts before another.
 func (h expiryHeap) Less(i, j int) bool {
 	return h[i].expiresAt.Before(h[j].expiresAt)
 }
 
+// Swap swaps two collection entries in place.
 func (h expiryHeap) Swap(i, j int) {
 	h[i], h[j] = h[j], h[i]
 }
 
+// Push adds an entry to the heap while preserving heap.Interface semantics.
 func (h *expiryHeap) Push(x any) {
 	*h = append(*h, x.(expiryEntry))
 }
 
+// Pop removes and returns the heap tail entry for heap.Interface semantics.
 func (h *expiryHeap) Pop() any {
 	old := *h
 	n := len(old)
@@ -136,6 +155,7 @@ func (h *expiryHeap) Pop() any {
 	return entry
 }
 
+// NewMemoryRegistry initializes memory registry with package defaults for this package's call path.
 func NewMemoryRegistry(now func() time.Time) *MemoryRegistry {
 	if now == nil {
 		now = time.Now
@@ -143,10 +163,12 @@ func NewMemoryRegistry(now func() time.Time) *MemoryRegistry {
 	return &MemoryRegistry{now: now}
 }
 
+// Register stores a fresh instance lease and assigns a new ownership fence.
 func (r *MemoryRegistry) Register(ctx context.Context, inst Instance, ttl time.Duration) error {
 	return r.registerAt(ctx, inst, ttl, r.now())
 }
 
+// registerAt performs Register against an injected clock for deterministic tests.
 func (r *MemoryRegistry) registerAt(ctx context.Context, inst Instance, ttl time.Duration, now time.Time) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -166,6 +188,7 @@ func (r *MemoryRegistry) registerAt(ctx context.Context, inst Instance, ttl time
 	inst.OwnerToken = newOwnerToken()
 	inst.Labels = cloneLabels(inst.Labels)
 	expiresAt := inst.LastSeen.Add(ttl)
+	// The generation travels with both the record and heap entry so old expiry entries cannot delete refreshed leases.
 	generation := r.generation.Add(1)
 
 	state := r.serviceState(inst.Service)
@@ -182,10 +205,12 @@ func (r *MemoryRegistry) registerAt(ctx context.Context, inst Instance, ttl time
 	return nil
 }
 
+// Heartbeat refreshes the instance lease using the current registration fence.
 func (r *MemoryRegistry) Heartbeat(ctx context.Context, service, id string, ttl time.Duration) error {
 	return r.heartbeatAt(ctx, service, id, ttl, r.now())
 }
 
+// HeartbeatWithEpoch refreshes the instance lease using the current registration fence.
 func (r *MemoryRegistry) HeartbeatWithEpoch(ctx context.Context, service, id, registrationEpoch string, ttl time.Duration) error {
 	if registrationEpoch == "" {
 		return ErrInvalidInstance
@@ -193,6 +218,7 @@ func (r *MemoryRegistry) HeartbeatWithEpoch(ctx context.Context, service, id, re
 	return r.heartbeatAtWithOwner(ctx, service, id, registrationEpoch, "", ttl, r.now(), true, false)
 }
 
+// HeartbeatWithOwner refreshes the instance lease using the current registration fence.
 func (r *MemoryRegistry) HeartbeatWithOwner(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration) error {
 	if registrationEpoch == "" || ownerToken == "" {
 		return ErrInvalidInstance
@@ -200,14 +226,17 @@ func (r *MemoryRegistry) HeartbeatWithOwner(ctx context.Context, service, id, re
 	return r.heartbeatAtWithOwner(ctx, service, id, registrationEpoch, ownerToken, ttl, r.now(), true, true)
 }
 
+// heartbeatAt refreshes the instance lease using the current registration fence.
 func (r *MemoryRegistry) heartbeatAt(ctx context.Context, service, id string, ttl time.Duration, now time.Time) error {
 	return r.heartbeatAtWithOwner(ctx, service, id, "", "", ttl, now, false, false)
 }
 
+// heartbeatAtWithEpoch refreshes the instance lease using the current registration fence.
 func (r *MemoryRegistry) heartbeatAtWithEpoch(ctx context.Context, service, id, registrationEpoch string, ttl time.Duration, now time.Time, requireEpoch bool) error {
 	return r.heartbeatAtWithOwner(ctx, service, id, registrationEpoch, "", ttl, now, requireEpoch, false)
 }
 
+// validateHeartbeatWithOwner checks the epoch/token fence without extending the lease.
 func (r *MemoryRegistry) validateHeartbeatWithOwner(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration, requireEpoch, requireOwner bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -236,6 +265,8 @@ func (r *MemoryRegistry) validateHeartbeatWithOwner(ctx context.Context, service
 	}
 	return nil
 }
+
+// heartbeatAtWithOwner refreshes a lease after validating any requested ownership fence.
 func (r *MemoryRegistry) heartbeatAtWithOwner(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration, now time.Time, requireEpoch, requireOwner bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -250,6 +281,7 @@ func (r *MemoryRegistry) heartbeatAtWithOwner(ctx context.Context, service, id, 
 	}
 	state := stateValue.(*serviceState)
 	expiresAt := now.Add(ttl)
+	// The generation travels with both the record and heap entry so old expiry entries cannot delete refreshed leases.
 	generation := r.generation.Add(1)
 
 	state.mu.Lock()
@@ -277,6 +309,8 @@ func (r *MemoryRegistry) heartbeatAtWithOwner(ctx context.Context, service, id, 
 	r.pushExpiry(expiryEntry{service: service, id: id, expiresAt: expiresAt, generation: generation})
 	return nil
 }
+
+// List returns a point-in-time list of instances visible to the caller.
 func (r *MemoryRegistry) List(ctx context.Context, service string) ([]Instance, error) {
 	snapshot, err := r.Snapshot(ctx, service)
 	if err != nil {
@@ -285,6 +319,7 @@ func (r *MemoryRegistry) List(ctx context.Context, service string) ([]Instance, 
 	return snapshot.Instances, nil
 }
 
+// Snapshot returns an immutable snapshot of the current snapshot state.
 func (r *MemoryRegistry) Snapshot(ctx context.Context, service string) (InstanceSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return InstanceSnapshot{}, err
@@ -308,10 +343,12 @@ func (r *MemoryRegistry) Snapshot(ctx context.Context, service string) (Instance
 	return cloneInstanceSnapshot(*snapshot), nil
 }
 
+// SweepExpired removes expired sweep expired records from the backing store.
 func (r *MemoryRegistry) SweepExpired(ctx context.Context) int {
 	return len(r.sweepExpiredRecords(ctx))
 }
 
+// sweepExpiredRecords removes expired sweep expired records records from the backing store.
 func (r *MemoryRegistry) sweepExpiredRecords(ctx context.Context) []expiredRecord {
 	if err := ctx.Err(); err != nil {
 		return nil
@@ -350,6 +387,7 @@ func (r *MemoryRegistry) sweepExpiredRecords(ctx context.Context) []expiredRecor
 	return expired
 }
 
+// Watch streams backing-source changes to callers until the source or context closes.
 func (r *MemoryRegistry) Watch(ctx context.Context, service string, afterVersion int64) (<-chan InstanceSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -364,6 +402,7 @@ func (r *MemoryRegistry) Watch(ctx context.Context, service string, afterVersion
 	return updates, nil
 }
 
+// watch streams backing-source changes to callers until the source or context closes.
 func (r *MemoryRegistry) watch(ctx context.Context, service string, state *serviceState, afterVersion int64, updates chan InstanceSnapshot) {
 	defer close(updates)
 
@@ -404,6 +443,7 @@ func (r *MemoryRegistry) watch(ctx context.Context, service string, state *servi
 	}
 }
 
+// serviceState returns service state data for MemoryRegistry callers without handing out mutable receiver state.
 func (r *MemoryRegistry) serviceState(service string) *serviceState {
 	if state, ok := r.services.Load(service); ok {
 		return state.(*serviceState)
@@ -413,6 +453,7 @@ func (r *MemoryRegistry) serviceState(service string) *serviceState {
 	return actual.(*serviceState)
 }
 
+// newServiceState initializes service state with package defaults for this package's call path.
 func newServiceState(service string) *serviceState {
 	state := &serviceState{
 		records: make(map[string]record),
@@ -425,6 +466,7 @@ func newServiceState(service string) *serviceState {
 	return state
 }
 
+// rebuildSnapshotLocked rebuilds the immutable service snapshot and wakes active watchers.
 func (s *serviceState) rebuildSnapshotLocked(service string, now time.Time) {
 	instances := make([]Instance, 0, len(s.records))
 	var nextExpiresAt time.Time
@@ -451,12 +493,14 @@ func (s *serviceState) rebuildSnapshotLocked(service string, now time.Time) {
 	s.notify = make(chan struct{})
 }
 
+// pushExpiry records a lease deadline in the shared expiry heap under its own lock.
 func (r *MemoryRegistry) pushExpiry(entry expiryEntry) {
 	r.expiryMu.Lock()
 	heap.Push(&r.expiries, entry)
 	r.expiryMu.Unlock()
 }
 
+// popExpired returns pop expired data for MemoryRegistry callers without handing out mutable receiver state.
 func (r *MemoryRegistry) popExpired(now time.Time) (expiryEntry, bool) {
 	r.expiryMu.Lock()
 	defer r.expiryMu.Unlock()
@@ -467,6 +511,7 @@ func (r *MemoryRegistry) popExpired(now time.Time) (expiryEntry, bool) {
 	return heap.Pop(&r.expiries).(expiryEntry), true
 }
 
+// sweepExpiredForService removes expired sweep expired for service records from the backing store.
 func (r *MemoryRegistry) sweepExpiredForService(ctx context.Context, service string, state *serviceState, now time.Time) int {
 	if err := ctx.Err(); err != nil {
 		return 0
@@ -489,6 +534,7 @@ func (r *MemoryRegistry) sweepExpiredForService(ctx context.Context, service str
 	return expired
 }
 
+// recordExists records record exists in the current accounting window.
 func (r *MemoryRegistry) recordExists(service, id string) bool {
 	stateValue, ok := r.services.Load(service)
 	if !ok {
@@ -501,6 +547,7 @@ func (r *MemoryRegistry) recordExists(service, id string) bool {
 	return ok
 }
 
+// deleteRecord returns delete record data for MemoryRegistry callers without handing out mutable receiver state.
 func (r *MemoryRegistry) deleteRecord(service, id string, now time.Time) bool {
 	stateValue, ok := r.services.Load(service)
 	if !ok {
@@ -517,10 +564,12 @@ func (r *MemoryRegistry) deleteRecord(service, id string, now time.Time) bool {
 	return true
 }
 
+// snapshotNeedsExpiry returns an immutable snapshot of the current snapshot needs expiry state.
 func snapshotNeedsExpiry(snapshot *InstanceSnapshot, now time.Time) bool {
 	return snapshot != nil && !snapshot.nextExpiresAt.IsZero() && !snapshot.nextExpiresAt.After(now)
 }
 
+// nextExpiryTimer provides the shared next expiry timer helper for registry persistence and watch paths.
 func nextExpiryTimer(snapshot *InstanceSnapshot, now time.Time) (*time.Timer, <-chan time.Time) {
 	if snapshot == nil || snapshot.nextExpiresAt.IsZero() {
 		return nil, nil
@@ -533,6 +582,7 @@ func nextExpiryTimer(snapshot *InstanceSnapshot, now time.Time) (*time.Timer, <-
 	return timer, timer.C
 }
 
+// stopTimer stops the expiry timer and drains its channel so later resets are not racing stale ticks.
 func stopTimer(timer *time.Timer) {
 	if timer == nil {
 		return
@@ -545,14 +595,17 @@ func stopTimer(timer *time.Timer) {
 	}
 }
 
+// restore rehydrates a live record only if it has not already expired.
 func (r *MemoryRegistry) restore(inst Instance, expiresAt time.Time) {
 	r.restoreRecord(inst, expiresAt, true)
 }
 
+// restoreHistorical replays persisted registry history without filtering expired records.
 func (r *MemoryRegistry) restoreHistorical(inst Instance, expiresAt time.Time) {
 	r.restoreRecord(inst, expiresAt, false)
 }
 
+// restoreRecord inserts replayed registry state and rebuilds the affected service snapshot.
 func (r *MemoryRegistry) restoreRecord(inst Instance, expiresAt time.Time, filterExpired bool) {
 	if inst.ID == "" || inst.Service == "" || inst.Address == "" {
 		return
@@ -571,6 +624,7 @@ func (r *MemoryRegistry) restoreRecord(inst Instance, expiresAt time.Time, filte
 	}
 	inst.Labels = cloneLabels(inst.Labels)
 
+	// The generation travels with both the record and heap entry so old expiry entries cannot delete refreshed leases.
 	generation := r.generation.Add(1)
 	state := r.serviceState(inst.Service)
 	state.mu.Lock()
@@ -585,6 +639,7 @@ func (r *MemoryRegistry) restoreRecord(inst Instance, expiresAt time.Time, filte
 	r.pushExpiry(expiryEntry{service: inst.Service, id: inst.ID, expiresAt: expiresAt, generation: generation})
 }
 
+// newRegistrationEpoch initializes registration epoch with package defaults for this package's call path.
 func newRegistrationEpoch() string {
 	var random [16]byte
 	if _, err := rand.Read(random[:]); err == nil {
@@ -592,9 +647,13 @@ func newRegistrationEpoch() string {
 	}
 	return fmt.Sprintf("fallback-%d-%d", time.Now().UnixNano(), registrationEpochFallback.Add(1))
 }
+
+// newOwnerToken initializes owner token with package defaults for this package's call path.
 func newOwnerToken() string {
 	return newRegistrationEpoch()
 }
+
+// cloneLabels returns an isolated copy of clone labels input so callers cannot mutate shared state.
 func cloneLabels(labels map[string]string) map[string]string {
 	if labels == nil {
 		return nil
@@ -606,6 +665,7 @@ func cloneLabels(labels map[string]string) map[string]string {
 	return out
 }
 
+// cloneInstances returns an isolated copy of clone instances input so callers cannot mutate shared state.
 func cloneInstances(instances []Instance) []Instance {
 	out := make([]Instance, len(instances))
 	for i, inst := range instances {
@@ -615,11 +675,13 @@ func cloneInstances(instances []Instance) []Instance {
 	return out
 }
 
+// cloneInstanceSnapshot returns an isolated copy of clone instance snapshot input so callers cannot mutate shared state.
 func cloneInstanceSnapshot(snapshot InstanceSnapshot) InstanceSnapshot {
 	snapshot.Instances = cloneInstances(snapshot.Instances)
 	return snapshot
 }
 
+// sendLatestSnapshot provides the shared send latest snapshot helper for registry persistence and watch paths.
 func sendLatestSnapshot(ctx context.Context, updates chan InstanceSnapshot, snapshot InstanceSnapshot) bool {
 	cloned := cloneInstanceSnapshot(snapshot)
 	select {

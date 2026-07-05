@@ -9,6 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// TestAsyncJSONLWriterWritesVerifierCompatibleRecord locks the async jsonl writer writes verifier compatible record contract so future changes do not regress it.
 func TestAsyncJSONLWriterWritesVerifierCompatibleRecord(t *testing.T) {
 	path := t.TempDir() + "/trace.jsonl"
 	writer, err := NewAsyncJSONLWriter(path, DefaultAsyncConfig(), nil)
@@ -45,6 +46,7 @@ func TestAsyncJSONLWriterWritesVerifierCompatibleRecord(t *testing.T) {
 	}
 }
 
+// TestAsyncJSONLWriterDrainsOnClose locks the async jsonl writer drains on close contract so future changes do not regress it.
 func TestAsyncJSONLWriterDrainsOnClose(t *testing.T) {
 	path := t.TempDir() + "/trace.jsonl"
 	cfg := DefaultAsyncConfig()
@@ -78,6 +80,7 @@ func TestAsyncJSONLWriterDrainsOnClose(t *testing.T) {
 	}
 }
 
+// TestAsyncJSONLWriterBufferReturnedAfterWrite locks the async jsonl writer buffer returned after write contract so future changes do not regress it.
 func TestAsyncJSONLWriterBufferReturnedAfterWrite(t *testing.T) {
 	path := t.TempDir() + "/trace.jsonl"
 	cfg := DefaultAsyncConfig()
@@ -100,6 +103,7 @@ func TestAsyncJSONLWriterBufferReturnedAfterWrite(t *testing.T) {
 	}
 }
 
+// TestAsyncJSONLWriterDropsWhenQueueFull locks the async jsonl writer drops when queue full contract so future changes do not regress it.
 func TestAsyncJSONLWriterDropsWhenQueueFull(t *testing.T) {
 	path := t.TempDir() + "/trace.jsonl"
 	reg := prometheus.NewRegistry()
@@ -148,6 +152,7 @@ func TestAsyncJSONLWriterDropsWhenQueueFull(t *testing.T) {
 	}
 }
 
+// mustLoadTraces returns the requested value and fails the test immediately when setup is invalid.
 func mustLoadTraces(t *testing.T, path string) []verifier.TraceRecord {
 	t.Helper()
 	file, err := os.Open(path)

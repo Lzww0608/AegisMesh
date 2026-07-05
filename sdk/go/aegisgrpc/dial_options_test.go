@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// TestServiceConfigForRoutingPolicySelectsExperimentBalancer locks the service config for routing policy selects experiment balancer contract so future changes do not regress it.
 func TestServiceConfigForRoutingPolicySelectsExperimentBalancer(t *testing.T) {
 	adaptive, err := serviceConfigForRoutingPolicy(RoutingAdaptiveP2C)
 	if err != nil {
@@ -30,6 +31,7 @@ func TestServiceConfigForRoutingPolicySelectsExperimentBalancer(t *testing.T) {
 	}
 }
 
+// TestRetryModeBuildsBudgetedUnbudgetedAndDisabledPolicies locks the retry mode builds budgeted unbudgeted and disabled policies contract so future changes do not regress it.
 func TestRetryModeBuildsBudgetedUnbudgetedAndDisabledPolicies(t *testing.T) {
 	defaults := DefaultDialOptions()
 	if defaults.RetryMode != RetryBudget {
@@ -56,6 +58,7 @@ func TestRetryModeBuildsBudgetedUnbudgetedAndDisabledPolicies(t *testing.T) {
 	}
 }
 
+// TestDefaultDialOptionsKeepsExistingBudgetShape locks the default dial options keeps existing budget shape contract so future changes do not regress it.
 func TestDefaultDialOptionsKeepsExistingBudgetShape(t *testing.T) {
 	defaults := DefaultDialOptions()
 	if defaults.RetryBudget.BudgetRatio != 0.15 || defaults.RetryBudget.MinBudget != 10 || defaults.RetryBudget.Window != 10*time.Second {
@@ -63,6 +66,7 @@ func TestDefaultDialOptionsKeepsExistingBudgetShape(t *testing.T) {
 	}
 }
 
+// TestApplyPolicySnapshotOverridesDialOptions locks the apply policy snapshot overrides dial options contract so future changes do not regress it.
 func TestApplyPolicySnapshotOverridesDialOptions(t *testing.T) {
 	options := DefaultDialOptions()
 	snapshot := &aegisv1.PolicySnapshot{
@@ -92,6 +96,7 @@ func TestApplyPolicySnapshotOverridesDialOptions(t *testing.T) {
 	}
 }
 
+// TestDynamicRetrySourceUsesMethodPolicy locks the dynamic retry source uses method policy contract so future changes do not regress it.
 func TestDynamicRetrySourceUsesMethodPolicy(t *testing.T) {
 	source := newDynamicRetrySource(DefaultDialOptions(), &policyManager{})
 	source.Update(&aegisv1.PolicySnapshot{
@@ -140,6 +145,7 @@ func TestDynamicRetrySourceUsesMethodPolicy(t *testing.T) {
 	}
 }
 
+// TestDynamicRetrySourcePolicyForMethodIsAllocationFree locks the dynamic retry source policy for method is allocation free contract so future changes do not regress it.
 func TestDynamicRetrySourcePolicyForMethodIsAllocationFree(t *testing.T) {
 	const method = "/demo.shop.v1.UserService/GetUser"
 	source := newDynamicRetrySource(DialOptions{
@@ -193,6 +199,7 @@ func TestDynamicRetrySourcePolicyForMethodIsAllocationFree(t *testing.T) {
 	}
 }
 
+// TestDynamicRetrySourceUsesImmutableCompiledSnapshot locks the dynamic retry source uses immutable compiled snapshot contract so future changes do not regress it.
 func TestDynamicRetrySourceUsesImmutableCompiledSnapshot(t *testing.T) {
 	const method = "/demo.shop.v1.UserService/GetUser"
 	snapshot := &aegisv1.PolicySnapshot{
@@ -245,6 +252,7 @@ func TestDynamicRetrySourceUsesImmutableCompiledSnapshot(t *testing.T) {
 	}
 }
 
+// TestDynamicRetrySourceMethodBudgetsDoNotOversubscribeConcurrent locks the dynamic retry source method budgets do not oversubscribe concurrent contract so future changes do not regress it.
 func TestDynamicRetrySourceMethodBudgetsDoNotOversubscribeConcurrent(t *testing.T) {
 	methods := []string{
 		"/demo.shop.v1.UserService/GetUser",
@@ -289,6 +297,7 @@ func TestDynamicRetrySourceMethodBudgetsDoNotOversubscribeConcurrent(t *testing.
 	}
 }
 
+// acquireRetryBudgetConcurrently provides the shared acquire retry budget concurrently helper for resolver, picker, and reporter state.
 func acquireRetryBudgetConcurrently(budget *retrypkg.Budget, goroutines int) int64 {
 	var successes atomic.Int64
 	var wg sync.WaitGroup
@@ -308,6 +317,7 @@ func acquireRetryBudgetConcurrently(budget *retrypkg.Budget, goroutines int) int
 	return successes.Load()
 }
 
+// TestPolicyRetryToSDKPolicyKeepsRetryableCodes locks the policy retry to sdk policy keeps retryable codes contract so future changes do not regress it.
 func TestPolicyRetryToSDKPolicyKeepsRetryableCodes(t *testing.T) {
 	options := DefaultDialOptions()
 	updated := applyPolicySnapshotToDialOptions(options, &aegisv1.PolicySnapshot{
@@ -322,6 +332,7 @@ func TestPolicyRetryToSDKPolicyKeepsRetryableCodes(t *testing.T) {
 	}
 }
 
+// TestDynamicRetrySourceRebuildsBudgetOnRevisionChange locks the dynamic retry source rebuilds budget on revision change contract so future changes do not regress it.
 func TestDynamicRetrySourceRebuildsBudgetOnRevisionChange(t *testing.T) {
 	source := newDynamicRetrySource(DialOptions{
 		RoutingPolicy: RoutingAdaptiveP2C,

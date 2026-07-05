@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// TestGrafanaDashboardContainsRequiredAegisPanels locks the grafana dashboard contains required aegis panels contract so future changes do not regress it.
 func TestGrafanaDashboardContainsRequiredAegisPanels(t *testing.T) {
 	raw, err := os.ReadFile("../../dashboard/grafana/aegismesh-overview.json")
 	if err != nil {

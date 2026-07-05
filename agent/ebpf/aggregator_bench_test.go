@@ -8,6 +8,7 @@ import (
 
 var benchmarkNetworkSamples []NetworkSample
 
+// BenchmarkAggregatorObserveParallel reports latency and allocation cost for aggregator observe parallel.
 func BenchmarkAggregatorObserveParallel(b *testing.B) {
 	endpointCounts := []int{1, 8, 64}
 
@@ -29,6 +30,7 @@ func BenchmarkAggregatorObserveParallel(b *testing.B) {
 	}
 }
 
+// BenchmarkAggregatorSnapshotAndReset reports latency and allocation cost for aggregator snapshot and reset.
 func BenchmarkAggregatorSnapshotAndReset(b *testing.B) {
 	endpointCounts := []int{1, 8, 64}
 	observationCounts := []int{1_000, 10_000, 100_000}
@@ -60,6 +62,7 @@ func BenchmarkAggregatorSnapshotAndReset(b *testing.B) {
 	}
 }
 
+// makeBenchmarkEndpointRefs provides the shared make benchmark endpoint refs helper for the eBPF telemetry path.
 func makeBenchmarkEndpointRefs(endpoints int) map[string]EndpointRef {
 	refs := make(map[string]EndpointRef, endpoints)
 	for i := 0; i < endpoints; i++ {
@@ -73,6 +76,7 @@ func makeBenchmarkEndpointRefs(endpoints int) map[string]EndpointRef {
 	return refs
 }
 
+// makeBenchmarkTCPEvents provides the shared make benchmark tcp events helper for the eBPF telemetry path.
 func makeBenchmarkTCPEvents(endpoints, observations int) []TCPEvent {
 	events := make([]TCPEvent, observations)
 	observedAt := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
@@ -88,6 +92,7 @@ func makeBenchmarkTCPEvents(endpoints, observations int) []TCPEvent {
 	return events
 }
 
+// benchmarkEndpointKey reports latency and allocation cost for endpoint key.
 func benchmarkEndpointKey(index, endpoints int) EndpointKey {
 	host := uint32((index%endpoints)+1)<<24 | 0x0a
 	return packEndpoint(host, 7001)

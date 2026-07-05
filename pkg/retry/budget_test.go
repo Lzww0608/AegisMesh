@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// TestBudgetAllowsRetryWithinRatioAndMinBudget locks the budget allows retry within ratio and min budget contract so future changes do not regress it.
 func TestBudgetAllowsRetryWithinRatioAndMinBudget(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	budget := NewBudget(BudgetConfig{
@@ -31,6 +32,7 @@ func TestBudgetAllowsRetryWithinRatioAndMinBudget(t *testing.T) {
 	}
 }
 
+// TestBudgetResetsAfterWindow locks the budget resets after window contract so future changes do not regress it.
 func TestBudgetResetsAfterWindow(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	budget := NewBudget(BudgetConfig{
@@ -55,6 +57,7 @@ func TestBudgetResetsAfterWindow(t *testing.T) {
 	}
 }
 
+// TestBudgetTryAcquireRetryDoesNotOversubscribeConcurrent locks the budget try acquire retry does not oversubscribe concurrent contract so future changes do not regress it.
 func TestBudgetTryAcquireRetryDoesNotOversubscribeConcurrent(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	budget := NewBudget(BudgetConfig{

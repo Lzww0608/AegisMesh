@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// TestTelemetryReporterSendsAndResetsRecorderWindow locks the telemetry reporter sends and resets recorder window contract so future changes do not regress it.
 func TestTelemetryReporterSendsAndResetsRecorderWindow(t *testing.T) {
 	client := &fakeTelemetryClient{}
 	recorder := telemetry.NewRecorder("frontend", nil)
@@ -47,6 +48,7 @@ func TestTelemetryReporterSendsAndResetsRecorderWindow(t *testing.T) {
 	}
 }
 
+// TestTelemetryReporterUsesPerReportTimeout locks the telemetry reporter uses per report timeout contract so future changes do not regress it.
 func TestTelemetryReporterUsesPerReportTimeout(t *testing.T) {
 	client := blockingTelemetryClient{}
 	recorder := telemetry.NewRecorder("frontend", nil)
@@ -72,17 +74,21 @@ func TestTelemetryReporterUsesPerReportTimeout(t *testing.T) {
 	}
 }
 
+// blockingTelemetryClient defines the client calls required for blocking telemetry client.
 type blockingTelemetryClient struct{}
 
+// ReportEndpointStats blocks until cancellation so reporter tests can exercise shutdown paths.
 func (blockingTelemetryClient) ReportEndpointStats(ctx context.Context, _ *aegisv1.ReportEndpointStatsRequest, _ ...grpc.CallOption) (*aegisv1.ReportEndpointStatsResponse, error) {
 	<-ctx.Done()
 	return nil, ctx.Err()
 }
 
+// fakeTelemetryClient defines the client calls required for fake telemetry client.
 type fakeTelemetryClient struct {
 	last *aegisv1.ReportEndpointStatsRequest
 }
 
+// ReportEndpointStats records reported batches for reporter tests without using a controller.
 func (c *fakeTelemetryClient) ReportEndpointStats(_ context.Context, req *aegisv1.ReportEndpointStatsRequest, _ ...grpc.CallOption) (*aegisv1.ReportEndpointStatsResponse, error) {
 	clone := &aegisv1.ReportEndpointStatsRequest{
 		Samples: make([]*aegisv1.EndpointStatsSample, len(req.Samples)),

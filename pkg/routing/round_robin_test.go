@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+// TestRoundRobinPickerReturnsHealthyEndpointsInOrder locks the round robin picker returns healthy endpoints in order contract so future changes do not regress it.
 func TestRoundRobinPickerReturnsHealthyEndpointsInOrder(t *testing.T) {
 	picker := NewRoundRobinPicker([]Endpoint{
 		{ID: "user-a", Address: "127.0.0.1:7001", Status: EndpointHealthy},
@@ -24,6 +25,7 @@ func TestRoundRobinPickerReturnsHealthyEndpointsInOrder(t *testing.T) {
 	}
 }
 
+// TestRoundRobinPickerSkipsUnavailableEndpoints locks the round robin picker skips unavailable endpoints contract so future changes do not regress it.
 func TestRoundRobinPickerSkipsUnavailableEndpoints(t *testing.T) {
 	picker := NewRoundRobinPicker([]Endpoint{
 		{ID: "user-a", Address: "127.0.0.1:7001", Status: EndpointUnavailable},
@@ -41,6 +43,7 @@ func TestRoundRobinPickerSkipsUnavailableEndpoints(t *testing.T) {
 	}
 }
 
+// TestRoundRobinPickerReportsNoEndpointWhenAllUnavailable locks the round robin picker reports no endpoint when all unavailable contract so future changes do not regress it.
 func TestRoundRobinPickerReportsNoEndpointWhenAllUnavailable(t *testing.T) {
 	picker := NewRoundRobinPicker([]Endpoint{
 		{ID: "user-a", Address: "127.0.0.1:7001", Status: EndpointUnavailable},

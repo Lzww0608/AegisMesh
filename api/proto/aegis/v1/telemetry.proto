@@ -4,11 +4,15 @@ package aegis.v1;
 
 option go_package = "github.com/aegismesh/aegismesh/api/proto/aegis/v1;aegisv1";
 
+// TelemetryService ingests SDK endpoint samples and exposes computed health state.
 service TelemetryService {
+  // ReportEndpointStats accepts samples that bind to active registry instances.
   rpc ReportEndpointStats(ReportEndpointStatsRequest) returns (ReportEndpointStatsResponse);
+  // ListEndpointHealth returns the controller's current slow-score and state view.
   rpc ListEndpointHealth(ListEndpointHealthRequest) returns (ListEndpointHealthResponse);
 }
 
+// EndpointStatsSample is one SDK reporting-window measurement for an endpoint.
 message EndpointStatsSample {
   string source = 1;
   string service = 2;
@@ -27,6 +31,7 @@ message EndpointStatsSample {
   int64 window_start_unix_millis = 15;
   int64 window_end_unix_millis = 16;
   int64 connect_error = 17;
+  // registration_epoch prevents stale SDK samples from updating a newer owner.
   string registration_epoch = 18;
 }
 
@@ -38,11 +43,14 @@ message ReportEndpointStatsResponse {
   repeated EndpointHealth endpoints = 1;
 }
 
+// EndpointHealth is the controller-computed health state returned to SDK clients.
 message EndpointHealth {
   string service = 1;
   string instance_id = 2;
   string endpoint_address = 3;
+  // state drives resolver visibility and adaptive routing decisions.
   string state = 4;
+  // slow_score combines latency, errors, inflight pressure, and optional TCP signals.
   double slow_score = 5;
   int64 consecutive_slow_windows = 6;
   int64 consecutive_eject_windows = 7;

@@ -15,22 +15,27 @@ import (
 
 const registryWatchFallbackInterval = 3 * time.Second
 
+// HealthStateProvider defines the health state provider contract used by this package call path.
 type HealthStateProvider interface {
 	HealthState(service, instanceID string) (fault.EndpointState, bool)
 }
 
+// healthSnapshotProvider defines the health snapshot provider contract used by this package call path.
 type healthSnapshotProvider interface {
 	Get(service, instanceID string) (fault.EndpointHealth, bool)
 }
 
+// healthVersionProvider defines the health version provider contract used by this package call path.
 type healthVersionProvider interface {
 	HealthVersion(service string) int64
 }
 
+// healthWatchProvider defines the health watch provider contract used by this package call path.
 type healthWatchProvider interface {
 	WatchHealth(ctx context.Context, service string, afterVersion int64) (<-chan int64, error)
 }
 
+// RegistryService implements the controller RPC surface for registry service.
 type RegistryService struct {
 	aegisv1.UnimplementedRegistryServiceServer
 
@@ -39,16 +44,19 @@ type RegistryService struct {
 	health       HealthStateProvider
 }
 
+// instancesView carries instances view state for this package call path.
 type instancesView struct {
 	response        *aegisv1.ListInstancesResponse
 	registryVersion int64
 	healthVersion   int64
 }
 
+// NewRegistryService initializes registry service with package defaults for this package's call path.
 func NewRegistryService(store registry.Registry, defaultLease time.Duration) *RegistryService {
 	return NewRegistryServiceWithHealth(store, defaultLease, nil)
 }
 
+// NewRegistryServiceWithHealth builds a registry service and optional health overlay.
 func NewRegistryServiceWithHealth(store registry.Registry, defaultLease time.Duration, health HealthStateProvider) *RegistryService {
 	if defaultLease <= 0 {
 		defaultLease = 30 * time.Second
@@ -60,6 +68,7 @@ func NewRegistryServiceWithHealth(store registry.Registry, defaultLease time.Dur
 	}
 }
 
+// RegisterInstance creates a fenced service lease and returns the owner token.
 func (s *RegistryService) RegisterInstance(ctx context.Context, req *aegisv1.RegisterInstanceRequest) (*aegisv1.RegisterInstanceResponse, error) {
 	if err := security.AuthorizeControllerPrincipal(ctx, aegisv1.RegistryService_RegisterInstance_FullMethodName, req); err != nil {
 		return nil, err
@@ -86,6 +95,7 @@ func (s *RegistryService) RegisterInstance(ctx context.Context, req *aegisv1.Reg
 	return nil, status.Error(codes.Internal, "registered instance was not visible")
 }
 
+// Heartbeat refreshes the instance lease using the current registration fence.
 func (s *RegistryService) Heartbeat(ctx context.Context, req *aegisv1.HeartbeatRequest) (*aegisv1.HeartbeatResponse, error) {
 	if err := security.AuthorizeControllerPrincipal(ctx, aegisv1.RegistryService_Heartbeat_FullMethodName, req); err != nil {
 		return nil, err
@@ -118,6 +128,7 @@ func (s *RegistryService) Heartbeat(ctx context.Context, req *aegisv1.HeartbeatR
 	return nil, status.Error(codes.NotFound, "instance not found")
 }
 
+// ListInstances returns the current registry view with health state overlaid.
 func (s *RegistryService) ListInstances(ctx context.Context, req *aegisv1.ListInstancesRequest) (*aegisv1.ListInstancesResponse, error) {
 	if err := security.AuthorizeControllerPrincipal(ctx, aegisv1.RegistryService_ListInstances_FullMethodName, req); err != nil {
 		return nil, err
@@ -133,6 +144,7 @@ func (s *RegistryService) ListInstances(ctx context.Context, req *aegisv1.ListIn
 	return view.response, nil
 }
 
+// WatchInstances streams registry or health changes, falling back to polling when watches close.
 func (s *RegistryService) WatchInstances(req *aegisv1.WatchInstancesRequest, stream aegisv1.RegistryService_WatchInstancesServer) error {
 	if err := security.AuthorizeControllerPrincipal(stream.Context(), aegisv1.RegistryService_WatchInstances_FullMethodName, req); err != nil {
 		return err
@@ -150,6 +162,7 @@ func (s *RegistryService) WatchInstances(req *aegisv1.WatchInstancesRequest, str
 
 	registryUpdates := s.watchRegistry(ctx, req.Service, view.registryVersion)
 	healthUpdates := s.watchHealth(ctx, req.Service, view.healthVersion)
+	// The fallback ticker is lazy: pure watch mode stays event-driven until one watch is unavailable.
 	var ticker *time.Ticker
 	var ticks <-chan time.Time
 	ensureTicker := func() {
@@ -159,6 +172,7 @@ func (s *RegistryService) WatchInstances(req *aegisv1.WatchInstancesRequest, str
 		ticker = time.NewTicker(registryWatchFallbackInterval)
 		ticks = ticker.C
 	}
+	// Closed watches are retried from the last observed version so clients do not miss later changes.
 	restartClosedWatches := func(view instancesView) {
 		if registryUpdates == nil {
 			registryUpdates = s.watchRegistry(ctx, req.Service, view.registryVersion)
@@ -216,6 +230,7 @@ func (s *RegistryService) WatchInstances(req *aegisv1.WatchInstancesRequest, str
 	}
 }
 
+// sendInstancesIfChanged sends only when the combined registry/health version changes.
 func (s *RegistryService) sendInstancesIfChanged(ctx context.Context, service string, lastSentVersion *int64, stream aegisv1.RegistryService_WatchInstancesServer) (instancesView, error) {
 	view, err := s.instancesView(ctx, service)
 	if err != nil {
@@ -231,6 +246,7 @@ func (s *RegistryService) sendInstancesIfChanged(ctx context.Context, service st
 	return view, nil
 }
 
+// instancesView joins immutable registry snapshots with current health overlays.
 func (s *RegistryService) instancesView(ctx context.Context, service string) (instancesView, error) {
 	snapshot, err := s.registrySnapshot(ctx, service)
 	if err != nil {
@@ -255,6 +271,7 @@ func (s *RegistryService) instancesView(ctx context.Context, service string) (in
 	}, nil
 }
 
+// registrySnapshot prefers versioned snapshots and falls back to a list for simple stores.
 func (s *RegistryService) registrySnapshot(ctx context.Context, service string) (registry.InstanceSnapshot, error) {
 	if snapshotter, ok := s.store.(registry.Snapshotter); ok {
 		return snapshotter.Snapshot(ctx, service)
@@ -266,6 +283,7 @@ func (s *RegistryService) registrySnapshot(ctx context.Context, service string) 
 	return registry.InstanceSnapshot{Service: service, Instances: instances}, nil
 }
 
+// overlayHealth returns overlay health data for RegistryService callers without handing out mutable receiver state.
 func (s *RegistryService) overlayHealth(inst registry.Instance) (registry.Instance, float64) {
 	slowScore := 0.0
 	if s.health == nil {
@@ -284,18 +302,22 @@ func (s *RegistryService) overlayHealth(inst registry.Instance) (registry.Instan
 	return inst, slowScore
 }
 
+// healthMatchesInstance provides the shared health matches instance helper for this package call path.
 func healthMatchesInstance(health fault.EndpointHealth, inst registry.Instance) bool {
 	return healthMatchesInstanceAddress(health.Address, inst.Address) && healthMatchesInstanceRegistrationEpoch(health.RegistrationEpoch, inst.RegistrationEpoch)
 }
 
+// healthMatchesInstanceAddress provides the shared health matches instance address helper for this package call path.
 func healthMatchesInstanceAddress(healthAddress, instanceAddress string) bool {
 	return healthAddress == "" || instanceAddress == "" || healthAddress == instanceAddress
 }
 
+// healthMatchesInstanceRegistrationEpoch provides the shared health matches instance registration epoch helper for this package call path.
 func healthMatchesInstanceRegistrationEpoch(healthEpoch, instanceEpoch string) bool {
 	return healthEpoch == "" || instanceEpoch == "" || healthEpoch == instanceEpoch
 }
 
+// watchRegistry streams registry changes to callers until the source or context closes.
 func (s *RegistryService) watchRegistry(ctx context.Context, service string, afterVersion int64) <-chan registry.InstanceSnapshot {
 	watcher, ok := s.store.(registry.Watcher)
 	if !ok {
@@ -308,6 +330,7 @@ func (s *RegistryService) watchRegistry(ctx context.Context, service string, aft
 	return updates
 }
 
+// watchHealth streams health changes to callers until the source or context closes.
 func (s *RegistryService) watchHealth(ctx context.Context, service string, afterVersion int64) <-chan int64 {
 	watcher, ok := s.health.(healthWatchProvider)
 	if !ok {
@@ -320,6 +343,7 @@ func (s *RegistryService) watchHealth(ctx context.Context, service string, after
 	return updates
 }
 
+// healthVersion returns health version data for RegistryService callers without handing out mutable receiver state.
 func (s *RegistryService) healthVersion(service string) int64 {
 	provider, ok := s.health.(healthVersionProvider)
 	if !ok {
@@ -328,6 +352,7 @@ func (s *RegistryService) healthVersion(service string) int64 {
 	return provider.HealthVersion(service)
 }
 
+// combineInstancesVersion provides the shared combine instances version helper for this package call path.
 func combineInstancesVersion(registryVersion, healthVersion int64) int64 {
 	version := fnv64Mix(1469598103934665603, uint64(registryVersion))
 	version = fnv64Mix(version, uint64(healthVersion))
@@ -338,6 +363,7 @@ func combineInstancesVersion(registryVersion, healthVersion int64) int64 {
 	return int64(version)
 }
 
+// fnv64Mix provides the shared fnv64 mix helper for this package call path.
 func fnv64Mix(hash, value uint64) uint64 {
 	const prime uint64 = 1099511628211
 	for i := 0; i < 8; i++ {
@@ -348,6 +374,7 @@ func fnv64Mix(hash, value uint64) uint64 {
 	return hash
 }
 
+// leaseTTL returns lease ttl data for RegistryService callers without handing out mutable receiver state.
 func (s *RegistryService) leaseTTL(seconds int64) time.Duration {
 	if seconds <= 0 {
 		return s.defaultLease
@@ -355,6 +382,7 @@ func (s *RegistryService) leaseTTL(seconds int64) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
+// instanceFromProto provides the shared instance from proto helper for this package call path.
 func instanceFromProto(inst *aegisv1.ServiceInstance) registry.Instance {
 	statusValue := aegisstatus.Parse(inst.Status)
 	if statusValue == aegisstatus.Unspecified {
@@ -369,6 +397,7 @@ func instanceFromProto(inst *aegisv1.ServiceInstance) registry.Instance {
 	}
 }
 
+// instanceToProto provides the shared instance to proto helper for this package call path.
 func instanceToProto(inst registry.Instance) *aegisv1.ServiceInstance {
 	return &aegisv1.ServiceInstance{
 		Id:                 inst.ID,
@@ -381,6 +410,7 @@ func instanceToProto(inst registry.Instance) *aegisv1.ServiceInstance {
 	}
 }
 
+// cloneProtoLabels returns an isolated copy of clone proto labels input so callers cannot mutate shared state.
 func cloneProtoLabels(labels map[string]string) map[string]string {
 	if labels == nil {
 		return nil
@@ -392,6 +422,7 @@ func cloneProtoLabels(labels map[string]string) map[string]string {
 	return out
 }
 
+// statusFromRegistryError provides the shared status from registry error helper for this package call path.
 func statusFromRegistryError(err error) error {
 	switch err {
 	case nil:

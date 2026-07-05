@@ -6,6 +6,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// TestCollectorMetricsDroppedEvents locks the collector metrics dropped events contract so future changes do not regress it.
 func TestCollectorMetricsDroppedEvents(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	metrics, err := NewCollectorMetrics(reg)

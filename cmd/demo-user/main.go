@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 )
 
+// main wires the command-line entry point and reports fatal setup or runtime errors.
 func main() {
 	addr := flag.String("addr", "127.0.0.1:7001", "user-service listen and advertise address")
 	controllerAddr := flag.String("controller", "127.0.0.1:9000", "aegis controller address")

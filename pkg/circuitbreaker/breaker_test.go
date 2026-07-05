@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestBreakerLimitsInflightPerEndpoint locks the breaker limits inflight per endpoint contract so future changes do not regress it.
 func TestBreakerLimitsInflightPerEndpoint(t *testing.T) {
 	breaker := NewBreaker(Config{MaxInflightPerEndpoint: 2})
 
@@ -30,6 +31,7 @@ func TestBreakerLimitsInflightPerEndpoint(t *testing.T) {
 	release3()
 }
 
+// TestBreakerTracksEndpointsIndependently locks the breaker tracks endpoints independently contract so future changes do not regress it.
 func TestBreakerTracksEndpointsIndependently(t *testing.T) {
 	breaker := NewBreaker(Config{MaxInflightPerEndpoint: 1})
 
@@ -46,6 +48,7 @@ func TestBreakerTracksEndpointsIndependently(t *testing.T) {
 	releaseB()
 }
 
+// TestBreakerTryAcquireAndRelease locks the breaker try acquire and release contract so future changes do not regress it.
 func TestBreakerTryAcquireAndRelease(t *testing.T) {
 	breaker := NewBreaker(Config{MaxInflightPerEndpoint: 1})
 
@@ -64,6 +67,8 @@ func TestBreakerTryAcquireAndRelease(t *testing.T) {
 		t.Fatalf("try-acquire after release: %v", err)
 	}
 }
+
+// TestEndpointLimiterLimitsInflight locks the endpoint limiter limits inflight contract so future changes do not regress it.
 func TestEndpointLimiterLimitsInflight(t *testing.T) {
 	limiter := NewEndpointLimiter(2)
 
@@ -95,6 +100,7 @@ func TestEndpointLimiterLimitsInflight(t *testing.T) {
 	}
 }
 
+// TestEndpointLimiterReadsSharedDynamicMax locks the endpoint limiter reads shared dynamic max contract so future changes do not regress it.
 func TestEndpointLimiterReadsSharedDynamicMax(t *testing.T) {
 	max := NewMaxInflight(1)
 	limiter := NewEndpointLimiterWithMax(max)
@@ -125,6 +131,7 @@ func TestEndpointLimiterReadsSharedDynamicMax(t *testing.T) {
 	}
 }
 
+// TestBreakerHotAppliesMaxInflightPerEndpoint locks the breaker hot applies max inflight per endpoint contract so future changes do not regress it.
 func TestBreakerHotAppliesMaxInflightPerEndpoint(t *testing.T) {
 	breaker := NewBreaker(Config{MaxInflightPerEndpoint: 1})
 
@@ -154,6 +161,7 @@ func TestBreakerHotAppliesMaxInflightPerEndpoint(t *testing.T) {
 	}
 }
 
+// TestZeroValueMaxInflightUsesDefaultLimit locks the zero value max inflight uses default limit contract so future changes do not regress it.
 func TestZeroValueMaxInflightUsesDefaultLimit(t *testing.T) {
 	max := &MaxInflight{}
 	limiter := NewEndpointLimiterWithMax(max)

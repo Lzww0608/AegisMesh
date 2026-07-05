@@ -9,10 +9,12 @@ import (
 
 const defaultReportInterval = 5 * time.Second
 
+// DefaultObjectPath keeps default object path rules consistent for the eBPF telemetry path.
 func DefaultObjectPath() string {
 	return filepath.Join("agent", "ebpf", "bpf", "tcp_metrics.bpf.o")
 }
 
+// ParseEndpointMap decodes endpoint map input into the package's typed representation.
 func ParseEndpointMap(raw string) (map[string]EndpointRef, error) {
 	out := make(map[string]EndpointRef)
 	raw = strings.TrimSpace(raw)

@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestFileStoreLoadsServicePolicySnapshot locks the file store loads service policy snapshot contract so future changes do not regress it.
 func TestFileStoreLoadsServicePolicySnapshot(t *testing.T) {
 	path := t.TempDir() + "/policy.yaml"
 	if err := os.WriteFile(path, []byte(`
@@ -61,6 +62,7 @@ services:
 	}
 }
 
+// TestFileStoreListReturnsSortedClones locks the file store list returns sorted clones contract so future changes do not regress it.
 func TestFileStoreListReturnsSortedClones(t *testing.T) {
 	path := t.TempDir() + "/policy.yaml"
 	if err := os.WriteFile(path, []byte(`

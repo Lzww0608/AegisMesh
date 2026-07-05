@@ -22,6 +22,7 @@ const (
 	defaultEtcdHealthWatchBackoff = 500 * time.Millisecond
 )
 
+// HealthSnapshotStore persists controller health snapshots and exposes revisioned watch updates.
 type HealthSnapshotStore interface {
 	Load(ctx context.Context) ([]EndpointHealth, int64, error)
 	Save(ctx context.Context, health []EndpointHealth) (int64, error)
@@ -29,11 +30,13 @@ type HealthSnapshotStore interface {
 	Close() error
 }
 
+// HealthStoreEvent records one persisted health-store change for watchers.
 type HealthStoreEvent struct {
 	Revision int64
 	Err      error
 }
 
+// EtcdHealthStoreConfig selects etcd endpoints, key prefix, timeouts, credentials, and TLS for health snapshots.
 type EtcdHealthStoreConfig struct {
 	Endpoints      []string
 	Prefix         string
@@ -45,6 +48,7 @@ type EtcdHealthStoreConfig struct {
 	TLS            security.TLSConfig
 }
 
+// EtcdHealthStore stores versioned endpoint health snapshots in etcd for controller restart and watcher recovery.
 type EtcdHealthStore struct {
 	kv              healthKVStore
 	prefix          string
@@ -53,12 +57,14 @@ type EtcdHealthStore struct {
 	watchBackoff    time.Duration
 }
 
+// healthKV carries health kv state for fault-state scoring and recovery.
 type healthKV struct {
 	Key         string
 	Value       []byte
 	ModRevision int64
 }
 
+// healthKVStore defines persistence operations for health kv store state.
 type healthKVStore interface {
 	List(ctx context.Context, prefix string) ([]healthKV, int64, error)
 	Get(ctx context.Context, key string) (healthKV, bool, error)
@@ -67,6 +73,7 @@ type healthKVStore interface {
 	Close() error
 }
 
+// healthRecord carries health record state for fault-state scoring and recovery.
 type healthRecord struct {
 	Service                 string    `json:"service"`
 	InstanceID              string    `json:"instance_id"`
@@ -81,6 +88,7 @@ type healthRecord struct {
 	UpdatedAt               time.Time `json:"updated_at"`
 }
 
+// NewEtcdHealthStore initializes etcd health store with package defaults for this package's call path.
 func NewEtcdHealthStore(ctx context.Context, cfg EtcdHealthStoreConfig) (*EtcdHealthStore, error) {
 	if len(cfg.Endpoints) == 0 {
 		return nil, fmt.Errorf("etcd health store requires at least one endpoint")
@@ -113,6 +121,7 @@ func NewEtcdHealthStore(ctx context.Context, cfg EtcdHealthStoreConfig) (*EtcdHe
 	return store, nil
 }
 
+// newEtcdHealthStoreWithKV initializes etcd health store with kv with package defaults for this package's call path.
 func newEtcdHealthStoreWithKV(kv healthKVStore, cfg EtcdHealthStoreConfig) (*EtcdHealthStore, error) {
 	if kv == nil {
 		return nil, fmt.Errorf("etcd health store requires a kv store")
@@ -131,6 +140,7 @@ func newEtcdHealthStoreWithKV(kv healthKVStore, cfg EtcdHealthStoreConfig) (*Etc
 	}, nil
 }
 
+// Load reads the current state from the configured backing source.
 func (s *EtcdHealthStore) Load(ctx context.Context) ([]EndpointHealth, int64, error) {
 	kvs, revision, err := s.kv.List(ctx, s.instancesPrefix)
 	if err != nil {
@@ -155,6 +165,7 @@ func (s *EtcdHealthStore) Load(ctx context.Context) ([]EndpointHealth, int64, er
 	return health, revision, nil
 }
 
+// Save persists save state to the backing store.
 func (s *EtcdHealthStore) Save(ctx context.Context, health []EndpointHealth) (int64, error) {
 	var maxRevision int64
 	for _, endpoint := range health {
@@ -206,10 +217,12 @@ func (s *EtcdHealthStore) Save(ctx context.Context, health []EndpointHealth) (in
 	return maxRevision, nil
 }
 
+// Watch streams backing-source changes to callers until the source or context closes.
 func (s *EtcdHealthStore) Watch(ctx context.Context, afterRevision int64) (<-chan HealthStoreEvent, error) {
 	return s.kv.Watch(ctx, s.instancesPrefix, afterRevision)
 }
 
+// Close closes owned resources and makes repeated calls safe.
 func (s *EtcdHealthStore) Close() error {
 	if s == nil || s.kv == nil {
 		return nil
@@ -217,6 +230,7 @@ func (s *EtcdHealthStore) Close() error {
 	return s.kv.Close()
 }
 
+// encodeHealth keeps encode health rules consistent for fault-state scoring and recovery.
 func encodeHealth(endpoint EndpointHealth) ([]byte, error) {
 	return json.Marshal(healthRecord{
 		Service:                 endpoint.Service,
@@ -233,6 +247,7 @@ func encodeHealth(endpoint EndpointHealth) ([]byte, error) {
 	})
 }
 
+// decodeHealth keeps decode health rules consistent for fault-state scoring and recovery.
 func decodeHealth(value []byte) (EndpointHealth, error) {
 	var record healthRecord
 	if err := json.Unmarshal(value, &record); err != nil {
@@ -260,6 +275,7 @@ func decodeHealth(value []byte) (EndpointHealth, error) {
 	}, nil
 }
 
+// healthFromKV provides the shared health from kv helper for fault-state scoring and recovery.
 func healthFromKV(instancesPrefix string, kv healthKV) (EndpointHealth, bool, error) {
 	service, instanceID, ok := healthIdentityFromKey(instancesPrefix, kv.Key)
 	if !ok {
@@ -274,6 +290,7 @@ func healthFromKV(instancesPrefix string, kv healthKV) (EndpointHealth, bool, er
 	return health, true, nil
 }
 
+// normalizeEtcdHealthPrefix normalizes normalize etcd health prefix so downstream logic sees one canonical form.
 func normalizeEtcdHealthPrefix(prefix string) string {
 	prefix = strings.TrimSpace(prefix)
 	if prefix == "" {
@@ -285,16 +302,19 @@ func normalizeEtcdHealthPrefix(prefix string) string {
 	return strings.TrimRight(path.Clean(prefix), "/")
 }
 
+// healthInstancesPrefix provides the shared health instances prefix helper for fault-state scoring and recovery.
 func healthInstancesPrefix(prefix string) string {
 	return normalizeEtcdHealthPrefix(prefix) + "/services/"
 }
 
+// HealthInstanceKey provides the shared health instance key helper for fault-state scoring and recovery.
 func HealthInstanceKey(prefix, service, instanceID string) string {
 	service = strings.TrimSpace(service)
 	instanceID = strings.TrimSpace(instanceID)
 	return healthInstancesPrefix(prefix) + url.PathEscape(service) + "/instances/" + url.PathEscape(instanceID)
 }
 
+// healthIdentityFromKey provides the shared health identity from key helper for fault-state scoring and recovery.
 func healthIdentityFromKey(instancesPrefix, key string) (string, string, bool) {
 	if !strings.HasPrefix(key, instancesPrefix) {
 		return "", "", false
@@ -315,11 +335,13 @@ func healthIdentityFromKey(instancesPrefix, key string) (string, string, bool) {
 	return service, instanceID, true
 }
 
+// etcdHealthKVStore defines persistence operations for etcd health kv store state.
 type etcdHealthKVStore struct {
 	client         *clientv3.Client
 	requestTimeout time.Duration
 }
 
+// List returns a point-in-time list of list visible to the caller.
 func (s *etcdHealthKVStore) List(ctx context.Context, prefix string) ([]healthKV, int64, error) {
 	ctx, cancel := s.withRequestTimeout(ctx)
 	defer cancel()
@@ -334,6 +356,7 @@ func (s *etcdHealthKVStore) List(ctx context.Context, prefix string) ([]healthKV
 	return kvs, resp.Header.Revision, nil
 }
 
+// Get returns get state for the requested key.
 func (s *etcdHealthKVStore) Get(ctx context.Context, key string) (healthKV, bool, error) {
 	ctx, cancel := s.withRequestTimeout(ctx)
 	defer cancel()
@@ -348,6 +371,7 @@ func (s *etcdHealthKVStore) Get(ctx context.Context, key string) (healthKV, bool
 	return healthKV{Key: string(kv.Key), Value: append([]byte(nil), kv.Value...), ModRevision: kv.ModRevision}, true, nil
 }
 
+// PutIfModRevision writes a health value only when etcd still reports the expected modification revision.
 func (s *etcdHealthKVStore) PutIfModRevision(ctx context.Context, key string, value []byte, expectedModRevision int64) (int64, bool, error) {
 	ctx, cancel := s.withRequestTimeout(ctx)
 	defer cancel()
@@ -361,6 +385,7 @@ func (s *etcdHealthKVStore) PutIfModRevision(ctx context.Context, key string, va
 	return resp.Header.Revision, resp.Succeeded, nil
 }
 
+// Watch streams backing-source changes to callers until the source or context closes.
 func (s *etcdHealthKVStore) Watch(ctx context.Context, prefix string, afterRevision int64) (<-chan HealthStoreEvent, error) {
 	options := []clientv3.OpOption{clientv3.WithPrefix()}
 	if afterRevision > 0 {
@@ -403,10 +428,12 @@ func (s *etcdHealthKVStore) Watch(ctx context.Context, prefix string, afterRevis
 	return updates, nil
 }
 
+// Close closes owned resources and makes repeated calls safe.
 func (s *etcdHealthKVStore) Close() error {
 	return s.client.Close()
 }
 
+// withRequestTimeout returns with request timeout data for etcdHealthKVStore callers without handing out mutable receiver state.
 func (s *etcdHealthKVStore) withRequestTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if s.requestTimeout <= 0 {
 		return context.WithCancel(ctx)

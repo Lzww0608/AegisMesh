@@ -9,6 +9,7 @@ import (
 	"testing"
 )
 
+// TestReproducibleExperimentAssetsExist locks the reproducible experiment assets exist contract so future changes do not regress it.
 func TestReproducibleExperimentAssetsExist(t *testing.T) {
 	root := repoRoot(t)
 	requiredFiles := []string{
@@ -65,6 +66,7 @@ func TestReproducibleExperimentAssetsExist(t *testing.T) {
 	}
 }
 
+// TestCIWorkflowRunsCoreChecks locks the ci workflow runs core checks contract so future changes do not regress it.
 func TestCIWorkflowRunsCoreChecks(t *testing.T) {
 	workflow := readText(t, ".github/workflows/ci.yml")
 	required := []string{
@@ -81,6 +83,7 @@ func TestCIWorkflowRunsCoreChecks(t *testing.T) {
 	}
 }
 
+// TestMakefileExposesDemoAndExperimentTargets locks the makefile exposes demo and experiment targets contract so future changes do not regress it.
 func TestMakefileExposesDemoAndExperimentTargets(t *testing.T) {
 	makefile := readText(t, "Makefile")
 	for _, target := range []string{
@@ -112,6 +115,7 @@ func TestMakefileExposesDemoAndExperimentTargets(t *testing.T) {
 	}
 }
 
+// TestExperimentComposeDefinesRetryFaultTopology locks the experiment compose defines retry fault topology contract so future changes do not regress it.
 func TestExperimentComposeDefinesRetryFaultTopology(t *testing.T) {
 	compose := readText(t, "docker-compose.experiments.yml")
 	required := []string{
@@ -129,6 +133,7 @@ func TestExperimentComposeDefinesRetryFaultTopology(t *testing.T) {
 	}
 }
 
+// TestExperimentComposeEnablesRealTraceOutput locks the experiment compose enables real trace output contract so future changes do not regress it.
 func TestExperimentComposeEnablesRealTraceOutput(t *testing.T) {
 	compose := readText(t, "docker-compose.experiments.yml")
 	required := []string{
@@ -148,6 +153,7 @@ func TestExperimentComposeEnablesRealTraceOutput(t *testing.T) {
 	}
 }
 
+// TestExperimentComposeEnablesPolicyServiceAndPersistentRegistry locks the experiment compose enables policy service and persistent registry contract so future changes do not regress it.
 func TestExperimentComposeEnablesPolicyServiceAndPersistentRegistry(t *testing.T) {
 	compose := readText(t, "docker-compose.experiments.yml")
 	required := []string{
@@ -175,6 +181,7 @@ func TestExperimentComposeEnablesPolicyServiceAndPersistentRegistry(t *testing.T
 	}
 }
 
+// TestSingleMachineGuideExplainsMergeWorkflow locks the single machine guide explains merge workflow contract so future changes do not regress it.
 func TestSingleMachineGuideExplainsMergeWorkflow(t *testing.T) {
 	doc := readText(t, "docs/experiments.md")
 	required := []string{
@@ -190,6 +197,7 @@ func TestSingleMachineGuideExplainsMergeWorkflow(t *testing.T) {
 	}
 }
 
+// TestRecoveryExperimentDocumentsAggressiveThresholds locks the recovery experiment documents aggressive thresholds contract so future changes do not regress it.
 func TestRecoveryExperimentDocumentsAggressiveThresholds(t *testing.T) {
 	compose := readText(t, "docker-compose.experiments.yml")
 	requiredCompose := []string{
@@ -223,6 +231,7 @@ func TestRecoveryExperimentDocumentsAggressiveThresholds(t *testing.T) {
 	}
 }
 
+// TestRecoveryMakeTargetKeepsTimingConfigurable locks the recovery make target keeps timing configurable contract so future changes do not regress it.
 func TestRecoveryMakeTargetKeepsTimingConfigurable(t *testing.T) {
 	makefile := readText(t, "Makefile")
 	required := []string{
@@ -247,6 +256,7 @@ func TestRecoveryMakeTargetKeepsTimingConfigurable(t *testing.T) {
 	}
 }
 
+// TestProbeRatioAndAbsoluteSLOExperimentEntrypointsExist locks the probe ratio and absolute slo experiment entrypoints exist contract so future changes do not regress it.
 func TestProbeRatioAndAbsoluteSLOExperimentEntrypointsExist(t *testing.T) {
 	makefile := readText(t, "Makefile")
 	for _, want := range []string{"bench-probe-ratio", "run_probe_ratio_experiment.sh", "bench-absolute-slo", "run_absolute_slo_experiment.sh", "summarize_probe_slo.py"} {
@@ -270,6 +280,7 @@ func TestProbeRatioAndAbsoluteSLOExperimentEntrypointsExist(t *testing.T) {
 	}
 }
 
+// TestRecoveryScriptFailsFastWhenNoRecoveryRows locks the recovery script fails fast when no recovery rows contract so future changes do not regress it.
 func TestRecoveryScriptFailsFastWhenNoRecoveryRows(t *testing.T) {
 	script := readText(t, "experiments/scripts/run_recovery_state_experiment.sh")
 	required := []string{
@@ -287,6 +298,7 @@ func TestRecoveryScriptFailsFastWhenNoRecoveryRows(t *testing.T) {
 	}
 }
 
+// TestExperimentMatrixCoversRequiredComparisons locks the experiment matrix covers required comparisons contract so future changes do not regress it.
 func TestExperimentMatrixCoversRequiredComparisons(t *testing.T) {
 	var matrix struct {
 		Scenarios []struct {
@@ -322,12 +334,14 @@ func TestExperimentMatrixCoversRequiredComparisons(t *testing.T) {
 	}
 }
 
+// TestExperimentSchemasDeclareComparableMetrics locks the experiment schemas declare comparable metrics contract so future changes do not regress it.
 func TestExperimentSchemasDeclareComparableMetrics(t *testing.T) {
 	assertCSVHeader(t, "experiments/results/latency_schema.csv", "experiment,variant,window_start_unix_ms,window_end_unix_ms,requests,throughput_rps,latency_p50_ms,latency_p95_ms,latency_p99_ms,error_rate")
 	assertCSVHeader(t, "experiments/results/recovery_schema.csv", "experiment,variant,timestamp_unix_ms,endpoint,slow_score,p99_latency_ms,route_weight,state")
 	assertCSVHeader(t, "experiments/results/retry_schema.csv", "experiment,variant,window_start_unix_ms,original_requests,retry_attempts,total_attempts,retry_amplification,error_rate")
 }
 
+// TestEvaluationDocumentNamesRequiredBenchmarkFigures locks the evaluation document names required benchmark figures contract so future changes do not regress it.
 func TestEvaluationDocumentNamesRequiredBenchmarkFigures(t *testing.T) {
 	doc := readText(t, "docs/evaluation.md")
 	requiredSections := []string{
@@ -345,6 +359,7 @@ func TestEvaluationDocumentNamesRequiredBenchmarkFigures(t *testing.T) {
 	}
 }
 
+// assertCSVHeader provides the shared assert csv header helper for the experiment analysis workflow.
 func assertCSVHeader(t *testing.T, rel, want string) {
 	t.Helper()
 	text := readText(t, rel)
@@ -354,6 +369,7 @@ func assertCSVHeader(t *testing.T, rel, want string) {
 	}
 }
 
+// readText reads read text data from the supplied input.
 func readText(t *testing.T, rel string) string {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(repoRoot(t), rel))
@@ -363,6 +379,7 @@ func readText(t *testing.T, rel string) string {
 	return string(data)
 }
 
+// repoRoot provides the shared repo root helper for the experiment analysis workflow.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)

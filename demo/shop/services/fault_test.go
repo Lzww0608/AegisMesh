@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// TestFaultProfileInjectsApplicationError locks the fault profile injects application error contract so future changes do not regress it.
 func TestFaultProfileInjectsApplicationError(t *testing.T) {
 	profile := FaultProfile{
 		ErrorProbability: 1,
@@ -19,6 +20,7 @@ func TestFaultProfileInjectsApplicationError(t *testing.T) {
 	}
 }
 
+// TestFaultProfileInjectsDelayWithInjectedSleeper locks the fault profile injects delay with injected sleeper contract so future changes do not regress it.
 func TestFaultProfileInjectsDelayWithInjectedSleeper(t *testing.T) {
 	var slept time.Duration
 	profile := FaultProfile{

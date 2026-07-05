@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TestHeartbeatOnceReregistersWhenLeaseIsMissing locks the heartbeat once reregisters when lease is missing contract so future changes do not regress it.
 func TestHeartbeatOnceReregistersWhenLeaseIsMissing(t *testing.T) {
 	client := &fakeRegistryClient{heartbeatErr: status.Error(codes.NotFound, "missing")}
 	cfg := Registration{
@@ -33,6 +34,7 @@ func TestHeartbeatOnceReregistersWhenLeaseIsMissing(t *testing.T) {
 	}
 }
 
+// TestHeartbeatOnceDoesNotReregisterOnOwnerMismatch locks the heartbeat once does not reregister on owner mismatch contract so future changes do not regress it.
 func TestHeartbeatOnceDoesNotReregisterOnOwnerMismatch(t *testing.T) {
 	client := &fakeRegistryClient{heartbeatErr: status.Error(codes.FailedPrecondition, "stale owner")}
 	cfg := Registration{Service: "user-service", InstanceID: "user-a"}
@@ -49,6 +51,7 @@ func TestHeartbeatOnceDoesNotReregisterOnOwnerMismatch(t *testing.T) {
 	}
 }
 
+// TestHeartbeatOnceSendsOwnerCredentials locks the heartbeat once sends owner credentials contract so future changes do not regress it.
 func TestHeartbeatOnceSendsOwnerCredentials(t *testing.T) {
 	client := &fakeRegistryClient{}
 	cfg := Registration{Service: "user-service", InstanceID: "user-a"}
@@ -65,6 +68,7 @@ func TestHeartbeatOnceSendsOwnerCredentials(t *testing.T) {
 	}
 }
 
+// fakeRegistryClient defines the client calls required for fake registry client.
 type fakeRegistryClient struct {
 	aegisv1.RegistryServiceClient
 	heartbeatErr  error
@@ -73,6 +77,7 @@ type fakeRegistryClient struct {
 	lastHeartbeat *aegisv1.HeartbeatRequest
 }
 
+// RegisterInstance registers register instance with the controller or local registry.
 func (c *fakeRegistryClient) RegisterInstance(_ context.Context, req *aegisv1.RegisterInstanceRequest, _ ...grpc.CallOption) (*aegisv1.RegisterInstanceResponse, error) {
 	c.registers++
 	c.lastRegister = req
@@ -82,6 +87,7 @@ func (c *fakeRegistryClient) RegisterInstance(_ context.Context, req *aegisv1.Re
 	}, nil
 }
 
+// Heartbeat refreshes the instance lease using the current registration fence.
 func (c *fakeRegistryClient) Heartbeat(_ context.Context, req *aegisv1.HeartbeatRequest, _ ...grpc.CallOption) (*aegisv1.HeartbeatResponse, error) {
 	c.lastHeartbeat = req
 	if c.heartbeatErr != nil {

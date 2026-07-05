@@ -18,11 +18,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// checkoutResponse carries checkout response state for this package call path.
 type checkoutResponse struct {
 	User  *shopv1.GetUserResponse     `json:"user"`
 	Order *shopv1.CreateOrderResponse `json:"order"`
 }
 
+// main wires the command-line entry point and reports fatal setup or runtime errors.
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8080", "frontend HTTP listen address")
 	controllerAddr := flag.String("controller", "127.0.0.1:9000", "aegis controller address")
@@ -92,6 +94,7 @@ func main() {
 	}
 }
 
+// frontendDialConfig captures the mesh or direct backend target selected from frontend flags.
 type frontendDialConfig struct {
 	MeshMode      string
 	Controller    string
@@ -102,6 +105,7 @@ type frontendDialConfig struct {
 	TraceLogPath  string
 }
 
+// dialService opens a gRPC connection using AegisMesh controller and security options.
 func dialService(ctx context.Context, cfg frontendDialConfig) (*grpc.ClientConn, error) {
 	if strings.EqualFold(cfg.MeshMode, "direct") {
 		return grpc.DialContext(ctx, cfg.DirectTarget, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -113,6 +117,7 @@ func dialService(ctx context.Context, cfg frontendDialConfig) (*grpc.ClientConn,
 	return aegisgrpc.DialServiceFromWithOptions(ctx, "frontend", cfg.Controller, cfg.Service, options)
 }
 
+// checkoutHandler provides the shared checkout handler helper for this package call path.
 func checkoutHandler(userClient shopv1.UserServiceClient, orderClient shopv1.OrderServiceClient, timeout time.Duration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := r.URL.Query().Get("user_id")
@@ -148,6 +153,7 @@ func checkoutHandler(userClient shopv1.UserServiceClient, orderClient shopv1.Ord
 	}
 }
 
+// parseItems decodes items input into the package's typed representation.
 func parseItems(raw string) []string {
 	if raw == "" {
 		return []string{"sku-1", "sku-2"}
@@ -166,6 +172,7 @@ func parseItems(raw string) []string {
 	return out
 }
 
+// writeJSON writes write json data to the configured output.
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -174,6 +181,7 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	}
 }
 
+// writeError writes write error data to the configured output.
 func writeError(w http.ResponseWriter, status int, err error) {
 	writeJSON(w, status, map[string]string{"error": err.Error()})
 }

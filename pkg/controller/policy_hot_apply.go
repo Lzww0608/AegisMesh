@@ -10,14 +10,17 @@ import (
 
 const defaultPolicyHotApplyInterval = 3 * time.Second
 
+// PolicySnapshotLister exposes all service policy snapshots for hot-apply.
 type PolicySnapshotLister interface {
 	List() []*aegisv1.PolicySnapshot
 }
 
+// StateMachineConfigApplier replaces health state-machine overrides atomically.
 type StateMachineConfigApplier interface {
 	ReplaceServiceStateMachineConfigs(map[string]fault.StateMachineConfig) int
 }
 
+// OutlierDetectionToStateMachineConfig converts policy thresholds into fault-state transitions.
 func OutlierDetectionToStateMachineConfig(policy *aegisv1.OutlierDetectionPolicy) fault.StateMachineConfig {
 	if policy == nil {
 		return fault.StateMachineConfig{}
@@ -35,6 +38,7 @@ func OutlierDetectionToStateMachineConfig(policy *aegisv1.OutlierDetectionPolicy
 	return cfg
 }
 
+// ApplyOutlierDetectionPolicies replaces all service outlier configs from the latest snapshots.
 func ApplyOutlierDetectionPolicies(store PolicySnapshotLister, applier StateMachineConfigApplier) int {
 	if store == nil || applier == nil {
 		return 0
@@ -50,6 +54,7 @@ func ApplyOutlierDetectionPolicies(store PolicySnapshotLister, applier StateMach
 	return applier.ReplaceServiceStateMachineConfigs(configs)
 }
 
+// RunPolicyHotApplyLoop periodically reloads policy and hot-applies outlier thresholds.
 func RunPolicyHotApplyLoop(ctx context.Context, store PolicySnapshotLister, applier StateMachineConfigApplier, interval time.Duration, logf func(string, ...any)) {
 	if interval <= 0 {
 		interval = defaultPolicyHotApplyInterval
@@ -62,6 +67,7 @@ func RunPolicyHotApplyLoop(ctx context.Context, store PolicySnapshotLister, appl
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// File-backed stores can refresh before each apply; etcd-backed stores already watch internally.
 			if reloader, ok := store.(policyReloader); ok {
 				if err := reloader.ReloadIfChanged(); err != nil {
 					if logf != nil {

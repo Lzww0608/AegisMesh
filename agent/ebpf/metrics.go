@@ -6,15 +6,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// CollectorMetrics owns metric collectors for collector metrics observations.
 type CollectorMetrics struct {
 	droppedEvents *prometheus.CounterVec
 }
 
 var (
+	// defaultCollectorMetricsOnce identifies the default collector metrics once constant used by this package.
 	defaultCollectorMetricsOnce sync.Once
-	defaultCollectorMetrics   *CollectorMetrics
+	defaultCollectorMetrics     *CollectorMetrics
 )
 
+// NewCollectorMetrics initializes collector metrics with package defaults for this package's call path.
 func NewCollectorMetrics(reg prometheus.Registerer) (*CollectorMetrics, error) {
 	m := &CollectorMetrics{
 		droppedEvents: prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -35,6 +38,7 @@ func NewCollectorMetrics(reg prometheus.Registerer) (*CollectorMetrics, error) {
 	return m, nil
 }
 
+// DefaultCollectorMetrics keeps default collector metrics rules consistent for the eBPF telemetry path.
 func DefaultCollectorMetrics() *CollectorMetrics {
 	defaultCollectorMetricsOnce.Do(func() {
 		metrics, err := NewCollectorMetrics(prometheus.DefaultRegisterer)
@@ -46,6 +50,7 @@ func DefaultCollectorMetrics() *CollectorMetrics {
 	return defaultCollectorMetrics
 }
 
+// IncDropped records collector drops by reason without requiring callers to touch Prometheus collectors directly.
 func (m *CollectorMetrics) IncDropped(reason string) {
 	if m == nil {
 		return

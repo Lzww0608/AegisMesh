@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// TestFileRegistryPersistsInstancesAcrossRestart locks the file registry persists instances across restart contract so future changes do not regress it.
 func TestFileRegistryPersistsInstancesAcrossRestart(t *testing.T) {
 	now := time.Date(2026, 6, 8, 10, 0, 0, 0, time.UTC)
 	path := t.TempDir() + "/registry.json"
@@ -41,6 +42,7 @@ func TestFileRegistryPersistsInstancesAcrossRestart(t *testing.T) {
 	}
 }
 
+// TestFileRegistryDoesNotRestoreExpiredInstances locks the file registry does not restore expired instances contract so future changes do not regress it.
 func TestFileRegistryDoesNotRestoreExpiredInstances(t *testing.T) {
 	now := time.Date(2026, 6, 8, 10, 0, 0, 0, time.UTC)
 	path := t.TempDir() + "/registry.json"
@@ -70,6 +72,7 @@ func TestFileRegistryDoesNotRestoreExpiredInstances(t *testing.T) {
 	}
 }
 
+// TestFileRegistryV2ReplaysWALRegisterAndHeartbeat locks the file registry v2 replays wal register and heartbeat contract so future changes do not regress it.
 func TestFileRegistryV2ReplaysWALRegisterAndHeartbeat(t *testing.T) {
 	current := time.Date(2026, 6, 24, 10, 0, 0, 0, time.UTC)
 	path := filepath.Join(t.TempDir(), "registry.json")
@@ -113,6 +116,7 @@ func TestFileRegistryV2ReplaysWALRegisterAndHeartbeat(t *testing.T) {
 	}
 }
 
+// TestFileRegistryV2DoesNotRestoreExpiredInstances locks the file registry v2 does not restore expired instances contract so future changes do not regress it.
 func TestFileRegistryV2DoesNotRestoreExpiredInstances(t *testing.T) {
 	current := time.Date(2026, 6, 24, 10, 30, 0, 0, time.UTC)
 	path := filepath.Join(t.TempDir(), "registry.json")
@@ -145,6 +149,8 @@ func TestFileRegistryV2DoesNotRestoreExpiredInstances(t *testing.T) {
 		t.Fatalf("expected expired restored record to be purged, got %v", err)
 	}
 }
+
+// TestFileRegistryV2ReplayStopsAtInvalidCRC locks the file registry v2 replay stops at invalid crc contract so future changes do not regress it.
 func TestFileRegistryV2ReplayStopsAtInvalidCRC(t *testing.T) {
 	current := time.Date(2026, 6, 24, 11, 0, 0, 0, time.UTC)
 	path := filepath.Join(t.TempDir(), "registry.json")
@@ -207,6 +213,7 @@ func TestFileRegistryV2ReplayStopsAtInvalidCRC(t *testing.T) {
 	}
 }
 
+// TestFileRegistryV2ReplayStopsAtTornWrite locks the file registry v2 replay stops at torn write contract so future changes do not regress it.
 func TestFileRegistryV2ReplayStopsAtTornWrite(t *testing.T) {
 	current := time.Date(2026, 6, 24, 11, 30, 0, 0, time.UTC)
 	path := filepath.Join(t.TempDir(), "registry.json")
@@ -266,6 +273,8 @@ func TestFileRegistryV2ReplayStopsAtTornWrite(t *testing.T) {
 		t.Fatalf("expected torn wal tail to be truncated to %d bytes, got %d", validInfo.Size(), truncatedInfo.Size())
 	}
 }
+
+// TestFileRegistryV2CompactWritesSnapshotAndResetsWAL locks the file registry v2 compact writes snapshot and resets wal contract so future changes do not regress it.
 func TestFileRegistryV2CompactWritesSnapshotAndResetsWAL(t *testing.T) {
 	current := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
 	path := filepath.Join(t.TempDir(), "registry.json")
@@ -314,6 +323,7 @@ func TestFileRegistryV2CompactWritesSnapshotAndResetsWAL(t *testing.T) {
 	}
 }
 
+// TestFileRegistryV2AutoCompactsAtWALThreshold locks the file registry v2 auto compacts at wal threshold contract so future changes do not regress it.
 func TestFileRegistryV2AutoCompactsAtWALThreshold(t *testing.T) {
 	current := time.Date(2026, 6, 24, 12, 30, 0, 0, time.UTC)
 	path := filepath.Join(t.TempDir(), "registry.json")
@@ -346,6 +356,8 @@ func TestFileRegistryV2AutoCompactsAtWALThreshold(t *testing.T) {
 		t.Fatalf("expected compacted wal to contain one SNAPSHOT_MARK, got records=%d snapshot=%v", result.records, seenSnapshotMark)
 	}
 }
+
+// TestFileRegistryV2CompactsOversizedWALOnStartup locks the file registry v2 compacts oversized wal on startup contract so future changes do not regress it.
 func TestFileRegistryV2CompactsOversizedWALOnStartup(t *testing.T) {
 	current := time.Date(2026, 6, 24, 12, 45, 0, 0, time.UTC)
 	path := filepath.Join(t.TempDir(), "registry.json")
@@ -385,6 +397,8 @@ func TestFileRegistryV2CompactsOversizedWALOnStartup(t *testing.T) {
 		t.Fatalf("expected startup-compacted snapshot to restore instance, got %+v", instances)
 	}
 }
+
+// TestFileRegistryV2SweepExpiredWritesDeleteRecord locks the file registry v2 sweep expired writes delete record contract so future changes do not regress it.
 func TestFileRegistryV2SweepExpiredWritesDeleteRecord(t *testing.T) {
 	current := time.Date(2026, 6, 24, 13, 0, 0, 0, time.UTC)
 	path := filepath.Join(t.TempDir(), "registry.json")
@@ -432,6 +446,7 @@ func TestFileRegistryV2SweepExpiredWritesDeleteRecord(t *testing.T) {
 	}
 }
 
+// TestFileRegistryV2BatchCloseFlushesBufferedWAL locks the file registry v2 batch close flushes buffered wal contract so future changes do not regress it.
 func TestFileRegistryV2BatchCloseFlushesBufferedWAL(t *testing.T) {
 	current := time.Date(2026, 6, 24, 14, 0, 0, 0, time.UTC)
 	path := filepath.Join(t.TempDir(), "registry.json")
@@ -461,6 +476,7 @@ func TestFileRegistryV2BatchCloseFlushesBufferedWAL(t *testing.T) {
 	}
 }
 
+// TestFileRegistryV2ReplaysOwnerCredentials locks the file registry v2 replays owner credentials contract so future changes do not regress it.
 func TestFileRegistryV2ReplaysOwnerCredentials(t *testing.T) {
 	current := time.Date(2026, 6, 29, 13, 0, 0, 0, time.UTC)
 	path := filepath.Join(t.TempDir(), "registry.json")

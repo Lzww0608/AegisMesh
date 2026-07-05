@@ -11,10 +11,12 @@ import (
 )
 
 var (
+	// benchmarkRetryPolicy identifies the benchmark retry policy constant used by this package.
 	benchmarkRetryPolicy compiledRetry
 	benchmarkRetryBudget *retrypkg.Budget
 )
 
+// BenchmarkDynamicRetrySourcePolicyForMethodParallel reports latency and allocation cost for dynamic retry source policy for method parallel.
 func BenchmarkDynamicRetrySourcePolicyForMethodParallel(b *testing.B) {
 	methodCounts := []int{1, 16, 128}
 
@@ -53,6 +55,7 @@ func BenchmarkDynamicRetrySourcePolicyForMethodParallel(b *testing.B) {
 	}
 }
 
+// benchmarkMethodNames reports latency and allocation cost for method names.
 func benchmarkMethodNames(methods int) []string {
 	names := make([]string, methods)
 	for i := range names {
@@ -61,6 +64,7 @@ func benchmarkMethodNames(methods int) []string {
 	return names
 }
 
+// benchmarkPolicySnapshotForMethods reports latency and allocation cost for policy snapshot for methods.
 func benchmarkPolicySnapshotForMethods(methods []string) *aegisv1.PolicySnapshot {
 	policies := make(map[string]*aegisv1.MethodPolicy, len(methods))
 	for _, method := range methods {

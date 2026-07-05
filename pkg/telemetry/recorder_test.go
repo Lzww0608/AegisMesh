@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// TestRecorderAggregatesEndpointWindowStats locks the recorder aggregates endpoint window stats contract so future changes do not regress it.
 func TestRecorderAggregatesEndpointWindowStats(t *testing.T) {
 	recorder := NewRecorder("frontend", nil)
 
@@ -50,6 +51,7 @@ func TestRecorderAggregatesEndpointWindowStats(t *testing.T) {
 	}
 }
 
+// TestRecorderTracksInflightAroundCalls locks the recorder tracks inflight around calls contract so future changes do not regress it.
 func TestRecorderTracksInflightAroundCalls(t *testing.T) {
 	recorder := NewRecorder("frontend", nil)
 	finish := recorder.Start("user-service", "/demo.shop.v1.UserService/GetUser", "127.0.0.1:7001")
@@ -72,6 +74,7 @@ func TestRecorderTracksInflightAroundCalls(t *testing.T) {
 	}
 }
 
+// TestRecorderObserveDoesNotAllocateOnWarmRow locks the recorder observe does not allocate on warm row contract so future changes do not regress it.
 func TestRecorderObserveDoesNotAllocateOnWarmRow(t *testing.T) {
 	recorder := NewRecorderWithClock("frontend", nil, fixedTestTime)
 	obs := Observation{
@@ -91,6 +94,7 @@ func TestRecorderObserveDoesNotAllocateOnWarmRow(t *testing.T) {
 	}
 }
 
+// TestRecorderCreatesRowMetricsOncePerStatsRow locks the recorder creates row metrics once per stats row contract so future changes do not regress it.
 func TestRecorderCreatesRowMetricsOncePerStatsRow(t *testing.T) {
 	sink := &countingMetricsSink{}
 	recorder := NewRecorderWithClock("frontend", sink, fixedTestTime)
@@ -117,6 +121,7 @@ func TestRecorderCreatesRowMetricsOncePerStatsRow(t *testing.T) {
 	}
 }
 
+// TestRecorderKeepsLegacyRecordMetricsCompatibility locks the recorder keeps legacy record metrics compatibility contract so future changes do not regress it.
 func TestRecorderKeepsLegacyRecordMetricsCompatibility(t *testing.T) {
 	sink := &legacyCountingMetricsSink{}
 	recorder := NewRecorderWithClock("frontend", sink, fixedTestTime)
@@ -138,6 +143,7 @@ func TestRecorderKeepsLegacyRecordMetricsCompatibility(t *testing.T) {
 	}
 }
 
+// TestRecorderAggregatesConcurrentObservations locks the recorder aggregates concurrent observations contract so future changes do not regress it.
 func TestRecorderAggregatesConcurrentObservations(t *testing.T) {
 	recorder := NewRecorderWithClock("frontend", nil, fixedTestTime)
 	obs := Observation{
@@ -176,6 +182,7 @@ func TestRecorderAggregatesConcurrentObservations(t *testing.T) {
 	assertDurationBetween(t, stats[0].LatencyP95, 25*time.Millisecond, 30*time.Millisecond)
 }
 
+// TestLatencyHistogramApproximatesP95 locks the latency histogram approximates p95 contract so future changes do not regress it.
 func TestLatencyHistogramApproximatesP95(t *testing.T) {
 	var hist latencyHistogram
 	for i := 1; i <= 100; i++ {
@@ -186,6 +193,7 @@ func TestLatencyHistogramApproximatesP95(t *testing.T) {
 	assertDurationBetween(t, p95, 95*time.Millisecond, 110*time.Millisecond)
 }
 
+// TestRecorderApproximateP95PreservesSlowEndpointOrdering locks the recorder approximate p95 preserves slow endpoint ordering contract so future changes do not regress it.
 func TestRecorderApproximateP95PreservesSlowEndpointOrdering(t *testing.T) {
 	recorder := NewRecorderWithClock("frontend", nil, fixedTestTime)
 	for i := 0; i < 100; i++ {
@@ -209,6 +217,7 @@ func TestRecorderApproximateP95PreservesSlowEndpointOrdering(t *testing.T) {
 	}
 }
 
+// assertDurationBetween provides the shared assert duration between helper for recorder aggregation.
 func assertDurationBetween(t *testing.T, got, min, max time.Duration) {
 	t.Helper()
 	if got < min || got > max {
@@ -216,35 +225,42 @@ func assertDurationBetween(t *testing.T, got, min, max time.Duration) {
 	}
 }
 
+// fixedTestTime provides the shared fixed test time helper for recorder aggregation.
 func fixedTestTime() time.Time {
 	return time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
 }
 
+// countingMetricsSink carries counting metrics sink state for recorder aggregation.
 type countingMetricsSink struct {
 	created int
 	labels  MetricLabels
 	row     countingRowMetrics
 }
 
+// CreateRowMetrics counts sink row creation so recorder tests can assert label cardinality.
 func (s *countingMetricsSink) CreateRowMetrics(labels MetricLabels) RowMetrics {
 	s.created++
 	s.labels = labels
 	return &s.row
 }
 
+// countingRowMetrics owns metric collectors for counting row metrics observations.
 type countingRowMetrics struct {
 	records int
 }
 
+// Record records record in the current accounting window.
 func (m *countingRowMetrics) Record(status string, latency time.Duration, latencyEWMA time.Duration, inflight int64) {
 	m.records++
 }
 
+// legacyCountingMetricsSink carries legacy counting metrics sink state for recorder aggregation.
 type legacyCountingMetricsSink struct {
 	records int
 	last    Observation
 }
 
+// Record records record in the current accounting window.
 func (s *legacyCountingMetricsSink) Record(obs Observation, latencyEWMA time.Duration, inflight int64) {
 	s.records++
 	s.last = obs

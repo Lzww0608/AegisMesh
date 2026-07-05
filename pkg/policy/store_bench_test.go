@@ -11,6 +11,7 @@ import (
 
 var benchmarkPolicySnapshot *aegisv1.PolicySnapshot
 
+// BenchmarkFileStoreGetPolicySnapshot reports latency and allocation cost for file store get policy snapshot.
 func BenchmarkFileStoreGetPolicySnapshot(b *testing.B) {
 	methodCounts := []int{1, 16, 128}
 
@@ -35,6 +36,7 @@ func BenchmarkFileStoreGetPolicySnapshot(b *testing.B) {
 	}
 }
 
+// writeBenchmarkPolicyFile writes write benchmark policy file data to the configured output.
 func writeBenchmarkPolicyFile(b *testing.B, methods int) string {
 	b.Helper()
 

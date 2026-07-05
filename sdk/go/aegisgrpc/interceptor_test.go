@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TestTelemetryUnaryInterceptorRecordsFailedRPC locks the telemetry unary interceptor records failed rpc contract so future changes do not regress it.
 func TestTelemetryUnaryInterceptorRecordsFailedRPC(t *testing.T) {
 	recorder := telemetry.NewRecorder("frontend", nil)
 	interceptor := newTelemetryUnaryInterceptor("frontend", "user-service", recorder, nil)
@@ -44,6 +45,7 @@ func TestTelemetryUnaryInterceptorRecordsFailedRPC(t *testing.T) {
 	}
 }
 
+// TestTelemetryUnaryInterceptorWritesVerifierTrace locks the telemetry unary interceptor writes verifier trace contract so future changes do not regress it.
 func TestTelemetryUnaryInterceptorWritesVerifierTrace(t *testing.T) {
 	path := t.TempDir() + "/aegis-traces.jsonl"
 	tracer, err := tracepkg.NewDefaultAsyncJSONLWriter(path)

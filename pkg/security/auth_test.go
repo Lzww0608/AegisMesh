@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TestParseStaticTokens locks the parse static tokens contract so future changes do not regress it.
 func TestParseStaticTokens(t *testing.T) {
 	tokens, err := ParseStaticTokens("admin=root, registry=reg ; reader=read")
 	if err != nil {
@@ -28,6 +29,7 @@ func TestParseStaticTokens(t *testing.T) {
 	}
 }
 
+// TestParseStaticTokensRejectsInvalidInput locks the parse static tokens rejects invalid input contract so future changes do not regress it.
 func TestParseStaticTokensRejectsInvalidInput(t *testing.T) {
 	tests := []string{
 		"admin",
@@ -44,6 +46,7 @@ func TestParseStaticTokensRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+// TestParseStaticMTLSPrincipals locks the parse static mtls principals contract so future changes do not regress it.
 func TestParseStaticMTLSPrincipals(t *testing.T) {
 	principals, err := ParseStaticMTLSPrincipals("sdk:user-service=spiffe://aegis/ns/default/sa/user, reader=dns:OPS.EXAMPLE, policy=cn:policy-client")
 	if err != nil {
@@ -60,6 +63,7 @@ func TestParseStaticMTLSPrincipals(t *testing.T) {
 	}
 }
 
+// TestParseStaticMTLSPrincipalsRejectsInvalidInput locks the parse static mtls principals rejects invalid input contract so future changes do not regress it.
 func TestParseStaticMTLSPrincipalsRejectsInvalidInput(t *testing.T) {
 	tests := []string{
 		"sdk:user-service=",
@@ -76,6 +80,8 @@ func TestParseStaticMTLSPrincipalsRejectsInvalidInput(t *testing.T) {
 		})
 	}
 }
+
+// TestTokenAuthenticatorAllowsConfiguredRole locks the token authenticator allows configured role contract so future changes do not regress it.
 func TestTokenAuthenticatorAllowsConfiguredRole(t *testing.T) {
 	auth := NewControllerTokenAuthenticator(map[string]Role{"reg-token": RoleRegistry})
 	resp, err := auth.UnaryServerInterceptor()(
@@ -92,6 +98,7 @@ func TestTokenAuthenticatorAllowsConfiguredRole(t *testing.T) {
 	}
 }
 
+// TestTokenAuthenticatorSDKRoleHasLeastPrivilegeForSDKControlPlane locks the token authenticator sdk role has least privilege for sdk control plane contract so future changes do not regress it.
 func TestTokenAuthenticatorSDKRoleHasLeastPrivilegeForSDKControlPlane(t *testing.T) {
 	auth := NewControllerTokenAuthenticator(map[string]Role{"sdk-token": RoleSDK})
 	interceptor := auth.UnaryServerInterceptor()
@@ -111,6 +118,8 @@ func TestTokenAuthenticatorSDKRoleHasLeastPrivilegeForSDKControlPlane(t *testing
 	_, err := interceptor(incomingTokenContext("sdk-token"), nil, &grpc.UnaryServerInfo{FullMethod: aegisv1.RegistryService_RegisterInstance_FullMethodName}, handler)
 	assertCode(t, err, codes.PermissionDenied)
 }
+
+// TestTokenAuthenticatorRejectsMissingInvalidAndWrongRole locks the token authenticator rejects missing invalid and wrong role contract so future changes do not regress it.
 func TestTokenAuthenticatorRejectsMissingInvalidAndWrongRole(t *testing.T) {
 	auth := NewControllerTokenAuthenticator(map[string]Role{
 		"reg-token":   RoleRegistry,
@@ -136,6 +145,7 @@ func TestTokenAuthenticatorRejectsMissingInvalidAndWrongRole(t *testing.T) {
 	}
 }
 
+// TestParseStaticTokenPrincipalsScoped locks the parse static token principals scoped contract so future changes do not regress it.
 func TestParseStaticTokenPrincipalsScoped(t *testing.T) {
 	tokens, err := ParseStaticTokenPrincipals("sdk:user-service+order-service=sdk, reader=read")
 	if err != nil {
@@ -155,6 +165,7 @@ func TestParseStaticTokenPrincipalsScoped(t *testing.T) {
 	}
 }
 
+// TestParseStaticTokenPrincipalsRejectsInvalidScopes locks the parse static token principals rejects invalid scopes contract so future changes do not regress it.
 func TestParseStaticTokenPrincipalsRejectsInvalidScopes(t *testing.T) {
 	tests := []string{
 		"admin:user-service=root",
@@ -172,6 +183,7 @@ func TestParseStaticTokenPrincipalsRejectsInvalidScopes(t *testing.T) {
 	}
 }
 
+// TestTokenAuthenticatorEnforcesServiceScopes locks the token authenticator enforces service scopes contract so future changes do not regress it.
 func TestTokenAuthenticatorEnforcesServiceScopes(t *testing.T) {
 	auth := NewControllerPrincipalTokenAuthenticator(map[string]Principal{
 		"sdk-user":    {Role: RoleSDK, Services: []string{"user-service"}},
@@ -245,6 +257,7 @@ func TestTokenAuthenticatorEnforcesServiceScopes(t *testing.T) {
 	}
 }
 
+// TestTokenAuthenticatorPropagatesUnaryPrincipal locks the token authenticator propagates unary principal contract so future changes do not regress it.
 func TestTokenAuthenticatorPropagatesUnaryPrincipal(t *testing.T) {
 	auth := NewControllerPrincipalTokenAuthenticator(map[string]Principal{
 		"sdk-user": {Role: RoleSDK, Services: []string{"user-service"}},
@@ -270,6 +283,7 @@ func TestTokenAuthenticatorPropagatesUnaryPrincipal(t *testing.T) {
 	}
 }
 
+// TestTokenAuthenticatorPropagatesStreamPrincipalAfterReceive locks the token authenticator propagates stream principal after receive contract so future changes do not regress it.
 func TestTokenAuthenticatorPropagatesStreamPrincipalAfterReceive(t *testing.T) {
 	auth := NewControllerPrincipalTokenAuthenticator(map[string]Principal{
 		"sdk-user": {Role: RoleSDK, Services: []string{"user-service"}},
@@ -296,6 +310,8 @@ func TestTokenAuthenticatorPropagatesStreamPrincipalAfterReceive(t *testing.T) {
 		t.Fatalf("expected propagated stream principal, ok=%v principal=%+v", ok, got)
 	}
 }
+
+// TestTokenAuthenticatorAuthorizesStreamRequestScope locks the token authenticator authorizes stream request scope contract so future changes do not regress it.
 func TestTokenAuthenticatorAuthorizesStreamRequestScope(t *testing.T) {
 	auth := NewControllerPrincipalTokenAuthenticator(map[string]Principal{
 		"sdk-user": {Role: RoleSDK, Services: []string{"user-service"}},
@@ -324,6 +340,8 @@ func TestTokenAuthenticatorAuthorizesStreamRequestScope(t *testing.T) {
 	err := interceptor(nil, denied, &grpc.StreamServerInfo{FullMethod: aegisv1.PolicyService_WatchPolicy_FullMethodName}, handler)
 	assertCode(t, err, codes.PermissionDenied)
 }
+
+// TestTokenAuthenticatorAuthorizesMTLSPrincipalScope locks the token authenticator authorizes mtls principal scope contract so future changes do not regress it.
 func TestTokenAuthenticatorAuthorizesMTLSPrincipalScope(t *testing.T) {
 	u, err := url.Parse("spiffe://aegis/ns/default/sa/user")
 	if err != nil {
@@ -355,6 +373,7 @@ func TestTokenAuthenticatorAuthorizesMTLSPrincipalScope(t *testing.T) {
 	assertCode(t, err, codes.PermissionDenied)
 }
 
+// TestTokenAuthenticatorAuthorizesMTLSDNSAndCNIdentities locks the token authenticator authorizes mtlsdns and cn identities contract so future changes do not regress it.
 func TestTokenAuthenticatorAuthorizesMTLSDNSAndCNIdentities(t *testing.T) {
 	auth := NewControllerPrincipalTokenAuthenticatorWithMTLS(nil, map[string]Principal{
 		"dns:sdk.example": {Role: RoleSDK, Services: []string{"user-service"}},
@@ -383,6 +402,8 @@ func TestTokenAuthenticatorAuthorizesMTLSDNSAndCNIdentities(t *testing.T) {
 		t.Fatalf("expected cn reader principal to authorize global health read: %v", err)
 	}
 }
+
+// TestTokenAuthenticatorUsesCNOnlyWhenCertificateHasNoSAN locks the token authenticator uses cn only when certificate has no san contract so future changes do not regress it.
 func TestTokenAuthenticatorUsesCNOnlyWhenCertificateHasNoSAN(t *testing.T) {
 	u, err := url.Parse("spiffe://aegis/ns/default/sa/user")
 	if err != nil {
@@ -417,6 +438,7 @@ func TestTokenAuthenticatorUsesCNOnlyWhenCertificateHasNoSAN(t *testing.T) {
 	assertCode(t, err, codes.Unauthenticated)
 }
 
+// TestTokenAuthenticatorTokenTakesPrecedenceOverMTLSPrincipal locks the token authenticator token takes precedence over mtls principal contract so future changes do not regress it.
 func TestTokenAuthenticatorTokenTakesPrecedenceOverMTLSPrincipal(t *testing.T) {
 	auth := NewControllerPrincipalTokenAuthenticatorWithMTLS(
 		map[string]Principal{"bad-role-token": {Role: RoleRegistry}},
@@ -433,6 +455,8 @@ func TestTokenAuthenticatorTokenTakesPrecedenceOverMTLSPrincipal(t *testing.T) {
 	)
 	assertCode(t, err, codes.PermissionDenied)
 }
+
+// TestTokenAuthenticatorInvalidTokenDoesNotFallBackToMTLSPrincipal locks the token authenticator invalid token does not fall back to mtls principal contract so future changes do not regress it.
 func TestTokenAuthenticatorInvalidTokenDoesNotFallBackToMTLSPrincipal(t *testing.T) {
 	auth := NewControllerPrincipalTokenAuthenticatorWithMTLS(
 		map[string]Principal{"good-token": {Role: RoleSDK, Services: []string{"user-service"}}},
@@ -449,6 +473,8 @@ func TestTokenAuthenticatorInvalidTokenDoesNotFallBackToMTLSPrincipal(t *testing
 	)
 	assertCode(t, err, codes.Unauthenticated)
 }
+
+// TestTokenAuthenticatorMalformedTokenMetadataDoesNotFallBackToMTLSPrincipal locks the token authenticator malformed token metadata does not fall back to mtls principal contract so future changes do not regress it.
 func TestTokenAuthenticatorMalformedTokenMetadataDoesNotFallBackToMTLSPrincipal(t *testing.T) {
 	auth := NewControllerPrincipalTokenAuthenticatorWithMTLS(
 		map[string]Principal{"good-token": {Role: RoleSDK, Services: []string{"user-service"}}},
@@ -480,6 +506,7 @@ func TestTokenAuthenticatorMalformedTokenMetadataDoesNotFallBackToMTLSPrincipal(
 	}
 }
 
+// TestTokenAuthenticatorRejectsUnmappedMTLSPrincipal locks the token authenticator rejects unmapped mtls principal contract so future changes do not regress it.
 func TestTokenAuthenticatorRejectsUnmappedMTLSPrincipal(t *testing.T) {
 	auth := NewControllerPrincipalTokenAuthenticatorWithMTLS(nil, map[string]Principal{
 		"cn:known-client": {Role: RoleReader},
@@ -492,6 +519,8 @@ func TestTokenAuthenticatorRejectsUnmappedMTLSPrincipal(t *testing.T) {
 	)
 	assertCode(t, err, codes.Unauthenticated)
 }
+
+// TestTokenAuthenticatorRejectsUnverifiedMTLSPrincipal locks the token authenticator rejects unverified mtls principal contract so future changes do not regress it.
 func TestTokenAuthenticatorRejectsUnverifiedMTLSPrincipal(t *testing.T) {
 	auth := NewControllerPrincipalTokenAuthenticatorWithMTLS(nil, map[string]Principal{
 		"cn:sdk-client": {Role: RoleSDK, Services: []string{"user-service"}},
@@ -505,6 +534,7 @@ func TestTokenAuthenticatorRejectsUnverifiedMTLSPrincipal(t *testing.T) {
 	assertCode(t, err, codes.Unauthenticated)
 }
 
+// TestTokenAuthenticatorAuthorizesStreamMTLSPrincipal locks the token authenticator authorizes stream mtls principal contract so future changes do not regress it.
 func TestTokenAuthenticatorAuthorizesStreamMTLSPrincipal(t *testing.T) {
 	auth := NewControllerPrincipalTokenAuthenticatorWithMTLS(nil, map[string]Principal{
 		"cn:sdk-client": {Role: RoleSDK, Services: []string{"user-service"}},
@@ -525,6 +555,8 @@ func TestTokenAuthenticatorAuthorizesStreamMTLSPrincipal(t *testing.T) {
 		t.Fatalf("expected mtls scoped stream to pass: %v", err)
 	}
 }
+
+// TestBearerTokenCredentials locks the bearer token credentials contract so future changes do not regress it.
 func TestBearerTokenCredentials(t *testing.T) {
 	creds := BearerTokenCredentials{Token: "secret"}
 	md, err := creds.GetRequestMetadata(context.Background())
@@ -539,6 +571,7 @@ func TestBearerTokenCredentials(t *testing.T) {
 	}
 }
 
+// TestClientConfigFromEnvAndMerge locks the client config from env and merge contract so future changes do not regress it.
 func TestClientConfigFromEnvAndMerge(t *testing.T) {
 	t.Setenv("AEGIS_CONTROLLER_TLS_CA_FILE", "ca.pem")
 	t.Setenv("AEGIS_CONTROLLER_AUTH_TOKEN", "from-env")
@@ -559,18 +592,29 @@ func TestClientConfigFromEnvAndMerge(t *testing.T) {
 	}
 }
 
+// authTestServerStream carries auth test server stream state for authorization checks.
 type authTestServerStream struct {
 	ctx      context.Context
 	msg      any
 	received bool
 }
 
-func (s *authTestServerStream) SetHeader(metadata.MD) error  { return nil }
-func (s *authTestServerStream) SendHeader(metadata.MD) error { return nil }
-func (s *authTestServerStream) SetTrailer(metadata.MD)       {}
-func (s *authTestServerStream) Context() context.Context     { return s.ctx }
-func (s *authTestServerStream) SendMsg(any) error            { return nil }
+// SetHeader updates set header state while preserving package invariants.
+func (s *authTestServerStream) SetHeader(metadata.MD) error { return nil }
 
+// SendHeader satisfies grpc.ServerStream for auth tests without emitting metadata.
+func (s *authTestServerStream) SendHeader(metadata.MD) error { return nil }
+
+// SetTrailer updates set trailer state while preserving package invariants.
+func (s *authTestServerStream) SetTrailer(metadata.MD) {}
+
+// Context exposes the stream context carrying fake peer credentials or metadata.
+func (s *authTestServerStream) Context() context.Context { return s.ctx }
+
+// SendMsg is a no-op because auth interceptor tests do not exercise stream payloads.
+func (s *authTestServerStream) SendMsg(any) error { return nil }
+
+// RecvMsg is a no-op because auth interceptor tests only validate authorization decisions.
 func (s *authTestServerStream) RecvMsg(m any) error {
 	if s.received {
 		return io.EOF
@@ -588,6 +632,8 @@ func (s *authTestServerStream) RecvMsg(m any) error {
 	}
 	return nil
 }
+
+// incomingCertificateContext provides the shared incoming certificate context helper for authorization checks.
 func incomingCertificateContext(cert *x509.Certificate) context.Context {
 	return peer.NewContext(context.Background(), &peer.Peer{
 		AuthInfo: credentials.TLSInfo{State: tls.ConnectionState{
@@ -597,15 +643,19 @@ func incomingCertificateContext(cert *x509.Certificate) context.Context {
 	})
 }
 
+// incomingUnverifiedCertificateContext provides the shared incoming unverified certificate context helper for authorization checks.
 func incomingUnverifiedCertificateContext(cert *x509.Certificate) context.Context {
 	return peer.NewContext(context.Background(), &peer.Peer{
 		AuthInfo: credentials.TLSInfo{State: tls.ConnectionState{PeerCertificates: []*x509.Certificate{cert}}},
 	})
 }
+
+// incomingTokenContext provides the shared incoming token context helper for authorization checks.
 func incomingTokenContext(token string) context.Context {
 	return metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+token))
 }
 
+// assertCode provides the shared assert code helper for authorization checks.
 func assertCode(t *testing.T, err error, code codes.Code) {
 	t.Helper()
 	if status.Code(err) != code {
@@ -613,6 +663,7 @@ func assertCode(t *testing.T, err error, code codes.Code) {
 	}
 }
 
+// TestAuthorizeControllerPrincipalNoopsWithoutPrincipalAndChecksScope locks the authorize controller principal noops without principal and checks scope contract so future changes do not regress it.
 func TestAuthorizeControllerPrincipalNoopsWithoutPrincipalAndChecksScope(t *testing.T) {
 	if err := AuthorizeControllerPrincipal(context.Background(), aegisv1.RegistryService_ListInstances_FullMethodName, &aegisv1.ListInstancesRequest{Service: "order-service"}); err != nil {
 		t.Fatalf("expected no principal direct call to remain compatible: %v", err)

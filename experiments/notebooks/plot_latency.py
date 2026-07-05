@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 
+# main parses command-line options and runs the script workflow.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--results", default="experiments/results")
@@ -33,6 +34,7 @@ def main():
         latency_plot.unlink()
 
 
+# read_rows loads CSV rows from disk for the analysis stage.
 def read_rows(path):
     if not path.exists():
         return []
@@ -40,6 +42,7 @@ def read_rows(path):
         return list(csv.DictReader(f))
 
 
+# write_summary writes write summary output for downstream analysis.
 def write_summary(path, latency_rows, retry_rows):
     with path.open("w", encoding="utf-8") as f:
         f.write("# AegisMesh Experiment Summary\n\n")
@@ -50,6 +53,7 @@ def write_summary(path, latency_rows, retry_rows):
         f.write(f"- rows: {len(retry_rows)}\n")
 
 
+# plot_latency keeps the plot latency helper near the workflow that consumes its formatted output.
 def plot_latency(plt, rows, path):
     points = [
         (f"{row['experiment']}:{row['variant']}", float(row["latency_p99_ms"]))

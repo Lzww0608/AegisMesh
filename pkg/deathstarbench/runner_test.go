@@ -22,11 +22,13 @@ const wrkFixture = `Running 1s test @ http://localhost:8080
 Requests/sec:   1234.50
 `
 
+// fakeExecutor carries fake executor state for the DeathStarBench runner contract.
 type fakeExecutor struct {
 	commands []Command
 	failName string
 }
 
+// Run runs the run workflow until it completes or the context is canceled.
 func (f *fakeExecutor) Run(_ context.Context, command Command) (CommandResult, error) {
 	f.commands = append(f.commands, command)
 	if command.Name == f.failName {
@@ -44,6 +46,7 @@ func (f *fakeExecutor) Run(_ context.Context, command Command) (CommandResult, e
 	}
 }
 
+// TestRunnerRunCreatesArtifactsAndValidation locks the runner run creates artifacts and validation contract so future changes do not regress it.
 func TestRunnerRunCreatesArtifactsAndValidation(t *testing.T) {
 	repoDir := makeRepo(t)
 	outDir := t.TempDir()
@@ -82,6 +85,7 @@ func TestRunnerRunCreatesArtifactsAndValidation(t *testing.T) {
 	}
 }
 
+// TestRunnerCleansUpAfterWorkloadFailure locks the runner cleans up after workload failure contract so future changes do not regress it.
 func TestRunnerCleansUpAfterWorkloadFailure(t *testing.T) {
 	repoDir := makeRepo(t)
 	exec := &fakeExecutor{failName: "workload"}
@@ -101,6 +105,8 @@ func TestRunnerCleansUpAfterWorkloadFailure(t *testing.T) {
 	}
 	assertCommandOrder(t, exec.commands, []string{"compose_up", "workload", "collect_compose_ps", "collect_compose_logs", "compose_down"})
 }
+
+// TestRunnerUsesReadyURLForReadiness locks the runner uses ready url for readiness contract so future changes do not regress it.
 func TestRunnerUsesReadyURLForReadiness(t *testing.T) {
 	cfg := testConfig()
 	cfg.Frontend.URL = "http://localhost:8080/social"
@@ -124,6 +130,8 @@ func TestRunnerUsesReadyURLForReadiness(t *testing.T) {
 		t.Fatalf("runner waited on %q, want ready_url %q", gotReadyURL, cfg.Frontend.ReadyURL)
 	}
 }
+
+// TestRunnerNormalizesRelativePathsForExternalRepo locks the runner normalizes relative paths for external repo contract so future changes do not regress it.
 func TestRunnerNormalizesRelativePathsForExternalRepo(t *testing.T) {
 	workspace := t.TempDir()
 	chdir(t, workspace)
@@ -162,6 +170,7 @@ func TestRunnerNormalizesRelativePathsForExternalRepo(t *testing.T) {
 	}
 }
 
+// TestWaitHTTPReadyRejects404 locks the wait http ready rejects404 contract so future changes do not regress it.
 func TestWaitHTTPReadyRejects404(t *testing.T) {
 	server := httptest.NewServer(http.NotFoundHandler())
 	defer server.Close()
@@ -175,6 +184,7 @@ func TestWaitHTTPReadyRejects404(t *testing.T) {
 	}
 }
 
+// TestValidateRunDirRejectsPlanOnlyAndRequiresGovernedTraffic locks the validate run dir rejects plan only and requires governed traffic contract so future changes do not regress it.
 func TestValidateRunDirRejectsPlanOnlyAndRequiresGovernedTraffic(t *testing.T) {
 	outDir := t.TempDir()
 	if err := writeJSON(filepath.Join(outDir, ArtifactPlan), testConfig().Plan()); err != nil {
@@ -233,6 +243,7 @@ func TestValidateRunDirRejectsPlanOnlyAndRequiresGovernedTraffic(t *testing.T) {
 	}
 }
 
+// TestParseWrkOutput locks the parse wrk output contract so future changes do not regress it.
 func TestParseWrkOutput(t *testing.T) {
 	row, err := ParseWrkOutput(wrkFixture)
 	if err != nil {
@@ -246,6 +257,7 @@ func TestParseWrkOutput(t *testing.T) {
 	}
 }
 
+// TestPlanSupportsExplicitWorkloadCommandAndReadyURL locks the plan supports explicit workload command and ready url contract so future changes do not regress it.
 func TestPlanSupportsExplicitWorkloadCommandAndReadyURL(t *testing.T) {
 	cfg := testConfig()
 	cfg.Frontend.Command = "wrk -t1 -c1 -d1s http://example.test"
@@ -259,6 +271,7 @@ func TestPlanSupportsExplicitWorkloadCommandAndReadyURL(t *testing.T) {
 	}
 }
 
+// chdir provides the shared chdir helper for the DeathStarBench runner contract.
 func chdir(t *testing.T, dir string) {
 	t.Helper()
 	old, err := os.Getwd()
@@ -274,6 +287,8 @@ func chdir(t *testing.T, dir string) {
 		}
 	})
 }
+
+// makeRepo provides the shared make repo helper for the DeathStarBench runner contract.
 func makeRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -281,6 +296,7 @@ func makeRepo(t *testing.T) string {
 	return dir
 }
 
+// writeRepo writes write repo data to the configured output.
 func writeRepo(t *testing.T, dir string) {
 	t.Helper()
 	composeDir := filepath.Join(dir, "socialNetwork")
@@ -292,6 +308,7 @@ func writeRepo(t *testing.T, dir string) {
 	}
 }
 
+// testConfig locks the config contract so future changes do not regress it.
 func testConfig() Config {
 	return Config{
 		Benchmark:   "social-network",
@@ -309,10 +326,12 @@ func testConfig() Config {
 	}
 }
 
+// fixedNow provides the shared fixed now helper for the DeathStarBench runner contract.
 func fixedNow() time.Time {
 	return time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC)
 }
 
+// assertCommandOrder provides the shared assert command order helper for the DeathStarBench runner contract.
 func assertCommandOrder(t *testing.T, commands []Command, want []string) {
 	t.Helper()
 	got := make([]string, 0, len(commands))

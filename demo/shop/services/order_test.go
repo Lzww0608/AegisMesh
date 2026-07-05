@@ -7,6 +7,7 @@ import (
 	shopv1 "github.com/aegismesh/aegismesh/api/proto/demo/shop/v1"
 )
 
+// TestOrderServerCreatesOrderWithRequestItems locks the order server creates order with request items contract so future changes do not regress it.
 func TestOrderServerCreatesOrderWithRequestItems(t *testing.T) {
 	server := NewOrderServer("secondary")
 

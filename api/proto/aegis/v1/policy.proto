@@ -4,8 +4,11 @@ package aegis.v1;
 
 option go_package = "github.com/aegismesh/aegismesh/api/proto/aegis/v1;aegisv1";
 
+// PolicyService distributes dynamic routing, retry, outlier, and breaker policy.
 service PolicyService {
+  // GetPolicy returns the latest snapshot for one service.
   rpc GetPolicy(GetPolicyRequest) returns (PolicySnapshot);
+  // WatchPolicy streams replacement snapshots when policy revisions change.
   rpc WatchPolicy(WatchPolicyRequest) returns (stream PolicySnapshot);
 }
 
@@ -17,8 +20,10 @@ message WatchPolicyRequest {
   string service = 1;
 }
 
+// PolicySnapshot is immutable at a given revision and compiled by SDK hot paths.
 message PolicySnapshot {
   string service = 1;
+  // revision forces SDK caches and retry budgets to refresh when policy changes.
   int64 revision = 2;
   string routing_policy = 3;
   RetryPolicy retry = 4;
@@ -27,6 +32,7 @@ message PolicySnapshot {
   map<string, MethodPolicy> methods = 7;
 }
 
+// RetryPolicy controls retry admission, attempt count, and per-try timeout.
 message RetryPolicy {
   bool enabled = 1;
   int32 max_attempts = 2;
@@ -36,6 +42,7 @@ message RetryPolicy {
   int64 per_try_timeout_millis = 6;
 }
 
+// OutlierDetectionPolicy maps controller policy to endpoint state-machine thresholds.
 message OutlierDetectionPolicy {
   double degraded_threshold = 1;
   double eject_threshold = 2;
@@ -45,10 +52,12 @@ message OutlierDetectionPolicy {
   double probe_success_threshold = 6;
 }
 
+// CircuitBreakerPolicy bounds concurrent in-flight calls per endpoint.
 message CircuitBreakerPolicy {
   int64 max_inflight_per_endpoint = 1;
 }
 
+// MethodPolicy overrides timeout and retry behavior for one RPC method.
 message MethodPolicy {
   string method = 1;
   bool idempotent = 2;

@@ -14,11 +14,19 @@ import (
 	"google.golang.org/grpc/resolver"
 )
 
-func BenchmarkAdaptivePick_N2(b *testing.B)   { benchmarkAdaptivePick(b, 2) }
-func BenchmarkAdaptivePick_N8(b *testing.B)   { benchmarkAdaptivePick(b, 8) }
-func BenchmarkAdaptivePick_N32(b *testing.B)  { benchmarkAdaptivePick(b, 32) }
+// BenchmarkAdaptivePick_N2 reports latency and allocation cost for adaptive pick n2.
+func BenchmarkAdaptivePick_N2(b *testing.B) { benchmarkAdaptivePick(b, 2) }
+
+// BenchmarkAdaptivePick_N8 reports latency and allocation cost for adaptive pick n8.
+func BenchmarkAdaptivePick_N8(b *testing.B) { benchmarkAdaptivePick(b, 8) }
+
+// BenchmarkAdaptivePick_N32 reports latency and allocation cost for adaptive pick n32.
+func BenchmarkAdaptivePick_N32(b *testing.B) { benchmarkAdaptivePick(b, 32) }
+
+// BenchmarkAdaptivePick_N128 reports latency and allocation cost for adaptive pick n128.
 func BenchmarkAdaptivePick_N128(b *testing.B) { benchmarkAdaptivePick(b, 128) }
 
+// benchmarkAdaptivePick reports latency and allocation cost for adaptive pick.
 func benchmarkAdaptivePick(b *testing.B, endpointCount int) {
 	mixes := []struct {
 		name          string
@@ -60,6 +68,7 @@ func benchmarkAdaptivePick(b *testing.B, endpointCount int) {
 	}
 }
 
+// newBenchmarkAdaptivePicker initializes benchmark adaptive picker with package defaults for this package's call path.
 func newBenchmarkAdaptivePicker(endpointCount int, degradedRatio, probingRatio float64) *adaptivePicker {
 	adaptiveStats = sync.Map{}
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestParseConfigReadsSocialNetworkIntegration locks the parse config reads social network integration contract so future changes do not regress it.
 func TestParseConfigReadsSocialNetworkIntegration(t *testing.T) {
 	cfg, err := ParseConfig([]byte(`
 benchmark: social-network
@@ -30,6 +31,7 @@ services:
 	}
 }
 
+// TestIntegrationPlanIncludesControllerAndWorkloadCommands locks the integration plan includes controller and workload commands contract so future changes do not regress it.
 func TestIntegrationPlanIncludesControllerAndWorkloadCommands(t *testing.T) {
 	cfg := Config{
 		Benchmark:   "social-network",

@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// TestAggregatorMapsTCPEventsToEndpointSamples locks the aggregator maps tcp events to endpoint samples contract so future changes do not regress it.
 func TestAggregatorMapsTCPEventsToEndpointSamples(t *testing.T) {
 	agg := NewAggregator(map[string]EndpointRef{
 		"10.0.0.2:7001": {Service: "user-service", InstanceID: "user-a", Address: "10.0.0.2:7001"},
@@ -35,6 +36,7 @@ func TestAggregatorMapsTCPEventsToEndpointSamples(t *testing.T) {
 	}
 }
 
+// TestNewCollectorReportsUnsupportedPlatformOutsideLinux locks the new collector reports unsupported platform outside linux contract so future changes do not regress it.
 func TestNewCollectorReportsUnsupportedPlatformOutsideLinux(t *testing.T) {
 	collector, err := NewCollector(Config{})
 	if runtime.GOOS == "linux" {

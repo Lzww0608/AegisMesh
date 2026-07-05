@@ -19,15 +19,18 @@ const (
 	defaultPolicyWatchBackoff = 2 * time.Second
 )
 
+// circuitBreakerPolicyApplier defines the circuit breaker policy applier contract used by resolver, picker, and reporter state.
 type circuitBreakerPolicyApplier interface {
 	SetMaxInflightPerEndpoint(max int64)
 }
 
+// policyManager publishes immutable compiled policies to hot-path readers.
 type policyManager struct {
-	v              atomic.Value // stores *compiledPolicy
+	v              atomic.Value // stores *compiledPolicy; values are immutable after Store.
 	circuitBreaker circuitBreakerPolicyApplier
 }
 
+// Update compiles and atomically publishes a controller policy snapshot.
 func (m *policyManager) Update(snapshot *aegisv1.PolicySnapshot) {
 	if m == nil || snapshot == nil {
 		return
@@ -39,6 +42,7 @@ func (m *policyManager) Update(snapshot *aegisv1.PolicySnapshot) {
 	}
 }
 
+// Load returns the latest compiled policy without locking the RPC hot path.
 func (m *policyManager) Load() *compiledPolicy {
 	if m == nil {
 		return nil
@@ -47,6 +51,7 @@ func (m *policyManager) Load() *compiledPolicy {
 	return policy
 }
 
+// compiledPolicy describes compiled policy rules distributed through the control plane.
 type compiledPolicy struct {
 	version        int64
 	routing        RoutingPolicy
@@ -55,16 +60,19 @@ type compiledPolicy struct {
 	methods        map[string]compiledMethod
 }
 
+// compiledCircuitBreakerPolicy describes compiled circuit breaker policy rules distributed through the control plane.
 type compiledCircuitBreakerPolicy struct {
 	maxInflightPerEndpoint int64
 }
 
+// compiledMethod carries compiled method state for resolver, picker, and reporter state.
 type compiledMethod struct {
 	idempotent bool
 	timeout    time.Duration
 	retry      compiledRetryPatch
 }
 
+// compiledRetryPatch carries compiled retry patch state for resolver, picker, and reporter state.
 type compiledRetryPatch struct {
 	has           bool
 	enabled       bool
@@ -75,6 +83,7 @@ type compiledRetryPatch struct {
 	window        time.Duration
 }
 
+// compilePolicySnapshot converts protobuf policy into immutable SDK lookup state.
 func compilePolicySnapshot(snapshot *aegisv1.PolicySnapshot) *compiledPolicy {
 	policy := &compiledPolicy{
 		version:        snapshot.Revision,
@@ -105,6 +114,7 @@ func compilePolicySnapshot(snapshot *aegisv1.PolicySnapshot) *compiledPolicy {
 	return policy
 }
 
+// compileCircuitBreakerPolicy provides the shared compile circuit breaker policy helper for resolver, picker, and reporter state.
 func compileCircuitBreakerPolicy(policy *aegisv1.CircuitBreakerPolicy) compiledCircuitBreakerPolicy {
 	max := adaptiveDefaultMaxInflightPerTarget
 	if policy != nil && policy.MaxInflightPerEndpoint > 0 {
@@ -112,6 +122,8 @@ func compileCircuitBreakerPolicy(policy *aegisv1.CircuitBreakerPolicy) compiledC
 	}
 	return compiledCircuitBreakerPolicy{maxInflightPerEndpoint: max}
 }
+
+// compileRetryPatch records only fields explicitly present in a retry policy.
 func compileRetryPatch(policy *aegisv1.RetryPolicy) compiledRetryPatch {
 	if !policyRetryHasAnyField(policy) {
 		return compiledRetryPatch{}
@@ -127,6 +139,7 @@ func compileRetryPatch(policy *aegisv1.RetryPolicy) compiledRetryPatch {
 	}
 }
 
+// compileRetryFromDialOptions provides the shared compile retry from dial options helper for resolver, picker, and reporter state.
 func compileRetryFromDialOptions(options DialOptions) compiledRetry {
 	options = normalizeDialOptions(options)
 	retry := compileRetryPolicy(options.RetryPolicy)
@@ -138,6 +151,7 @@ func compileRetryFromDialOptions(options DialOptions) compiledRetry {
 	return retry
 }
 
+// applyCompiledRetryPatch overlays dynamic retry settings without mutating defaults.
 func applyCompiledRetryPatch(retry compiledRetry, patch compiledRetryPatch) compiledRetry {
 	if !patch.has {
 		return retry
@@ -167,6 +181,7 @@ func applyCompiledRetryPatch(retry compiledRetry, patch compiledRetryPatch) comp
 	return retry
 }
 
+// applyCompiledMethod applies apply compiled method to the mutable target while preserving transition rules.
 func applyCompiledMethod(retry compiledRetry, method compiledMethod) compiledRetry {
 	if method.timeout > 0 {
 		retry.perTryTimeout = method.timeout
@@ -181,6 +196,7 @@ func applyCompiledMethod(retry compiledRetry, method compiledMethod) compiledRet
 	return retry
 }
 
+// durationMillis keeps duration millis rules consistent for resolver, picker, and reporter state.
 func durationMillis(ms int64) time.Duration {
 	if ms <= 0 {
 		return 0
@@ -188,6 +204,7 @@ func durationMillis(ms int64) time.Duration {
 	return time.Duration(ms) * time.Millisecond
 }
 
+// durationSeconds keeps duration seconds rules consistent for resolver, picker, and reporter state.
 func durationSeconds(seconds int64) time.Duration {
 	if seconds <= 0 {
 		return 0
@@ -195,14 +212,16 @@ func durationSeconds(seconds int64) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
+// dynamicRetrySource combines dial defaults with policy revisions and per-method budgets.
 type dynamicRetrySource struct {
 	mu              sync.Mutex
 	defaults        compiledRetry
 	manager         *policyManager
-	budgets         map[string]*retrypkg.Budget
-	budgetRevisions map[string]int64
+	budgets         map[string]*retrypkg.Budget // keyed by method so retry budgets do not bleed across RPCs.
+	budgetRevisions map[string]int64            // forces budget recreation when policy revisions change.
 }
 
+// newDynamicRetrySource initializes dynamic retry source with package defaults for this package's call path.
 func newDynamicRetrySource(defaults DialOptions, manager *policyManager) *dynamicRetrySource {
 	if manager == nil {
 		manager = &policyManager{}
@@ -215,10 +234,12 @@ func newDynamicRetrySource(defaults DialOptions, manager *policyManager) *dynami
 	}
 }
 
+// Update compiles and atomically publishes a controller policy snapshot.
 func (s *dynamicRetrySource) Update(snapshot *aegisv1.PolicySnapshot) {
 	s.manager.Update(snapshot)
 }
 
+// PolicyForMethod returns policy for method data for dynamicRetrySource callers without handing out mutable receiver state.
 func (s *dynamicRetrySource) PolicyForMethod(method string) (compiledRetry, *retrypkg.Budget) {
 	retry := s.defaults
 	revision := int64(0)
@@ -236,6 +257,7 @@ func (s *dynamicRetrySource) PolicyForMethod(method string) (compiledRetry, *ret
 	return retry, s.budgetForMethod(method, revision, retry.budget)
 }
 
+// budgetForMethod returns budget for method data for dynamicRetrySource callers without handing out mutable receiver state.
 func (s *dynamicRetrySource) budgetForMethod(method string, revision int64, cfg retrypkg.BudgetConfig) *retrypkg.Budget {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -249,11 +271,13 @@ func (s *dynamicRetrySource) budgetForMethod(method string, revision int64, cfg 
 	return budget
 }
 
+// retryPolicyAndBudgetConfig provides the shared retry policy and budget config helper for resolver, picker, and reporter state.
 func retryPolicyAndBudgetConfig(options DialOptions) (RetryPolicy, retrypkg.BudgetConfig) {
 	retry := compileRetryFromDialOptions(options)
 	return retry.toPolicy(), retry.budget
 }
 
+// loadInitialPolicy reads initial policy state from the configured backing source and returns a caller-owned view.
 func loadInitialPolicy(ctx context.Context, controllerAddr, service string, manager *policyManager, dialOptions []grpc.DialOption) *aegisv1.PolicySnapshot {
 	policyCtx, cancel := context.WithTimeout(ctx, defaultPolicyFetchTimeout)
 	defer cancel()
@@ -272,6 +296,7 @@ func loadInitialPolicy(ctx context.Context, controllerAddr, service string, mana
 	return snapshot
 }
 
+// startPolicyWatcher keeps the SDK policy snapshot aligned with controller streams across reconnect attempts.
 func startPolicyWatcher(ctx context.Context, controllerAddr, service string, manager *policyManager, dialOptions []grpc.DialOption) {
 	go func() {
 		for ctx.Err() == nil {
@@ -290,6 +315,7 @@ func startPolicyWatcher(ctx context.Context, controllerAddr, service string, man
 	}()
 }
 
+// watchPolicyOnce streams policy once changes to callers until the source or context closes.
 func watchPolicyOnce(ctx context.Context, controllerAddr, service string, manager *policyManager, dialOptions []grpc.DialOption) error {
 	conn, err := grpc.DialContext(ctx, controllerAddr, dialOptions...)
 	if err != nil {

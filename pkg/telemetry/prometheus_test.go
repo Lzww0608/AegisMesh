@@ -8,6 +8,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
+// TestPrometheusMetricsExportsRPCAndEndpointSeries locks the prometheus metrics exports rpc and endpoint series contract so future changes do not regress it.
 func TestPrometheusMetricsExportsRPCAndEndpointSeries(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	metrics, err := NewPrometheusMetrics(reg)
@@ -41,6 +42,7 @@ func TestPrometheusMetricsExportsRPCAndEndpointSeries(t *testing.T) {
 	}
 }
 
+// TestPrometheusMetricsDefaultsToEndpointIDLabels locks the prometheus metrics defaults to endpoint id labels contract so future changes do not regress it.
 func TestPrometheusMetricsDefaultsToEndpointIDLabels(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	metrics, err := NewPrometheusMetrics(reg)
@@ -75,6 +77,7 @@ func TestPrometheusMetricsDefaultsToEndpointIDLabels(t *testing.T) {
 	assertNoLabel(t, family.Metric[0], "endpoint_address")
 }
 
+// TestPrometheusMetricsCanExportEndpointAddressForDebugging locks the prometheus metrics can export endpoint address for debugging contract so future changes do not regress it.
 func TestPrometheusMetricsCanExportEndpointAddressForDebugging(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	metrics, err := NewPrometheusMetrics(reg, WithPrometheusEndpointAddressLabels())
@@ -119,6 +122,7 @@ func TestPrometheusMetricsCanExportEndpointAddressForDebugging(t *testing.T) {
 	}
 }
 
+// TestPrometheusMetricsRecordCompatibilityUsesCachedRow locks the prometheus metrics record compatibility uses cached row contract so future changes do not regress it.
 func TestPrometheusMetricsRecordCompatibilityUsesCachedRow(t *testing.T) {
 	metrics, err := NewPrometheusMetrics(prometheus.NewRegistry())
 	if err != nil {
@@ -142,6 +146,8 @@ func TestPrometheusMetricsRecordCompatibilityUsesCachedRow(t *testing.T) {
 		t.Fatalf("expected warmed compatibility Record to allocate zero objects, got %.2f", allocs)
 	}
 }
+
+// hasMetricFamily provides the shared has metric family helper for recorder aggregation.
 func hasMetricFamily(families []*dto.MetricFamily, name string) bool {
 	for _, family := range families {
 		if family.GetName() == name {
@@ -151,6 +157,7 @@ func hasMetricFamily(families []*dto.MetricFamily, name string) bool {
 	return false
 }
 
+// mustMetricFamily returns the requested value and fails the test immediately when setup is invalid.
 func mustMetricFamily(t *testing.T, reg *prometheus.Registry, name string) *dto.MetricFamily {
 	t.Helper()
 	families, err := reg.Gather()
@@ -166,6 +173,7 @@ func mustMetricFamily(t *testing.T, reg *prometheus.Registry, name string) *dto.
 	return nil
 }
 
+// assertLabelValue provides the shared assert label value helper for recorder aggregation.
 func assertLabelValue(t *testing.T, metric *dto.Metric, name, want string) {
 	t.Helper()
 	for _, label := range metric.Label {
@@ -179,6 +187,7 @@ func assertLabelValue(t *testing.T, metric *dto.Metric, name, want string) {
 	t.Fatalf("expected label %s=%q", name, want)
 }
 
+// assertNoLabel provides the shared assert no label helper for recorder aggregation.
 func assertNoLabel(t *testing.T, metric *dto.Metric, name string) {
 	t.Helper()
 	for _, label := range metric.Label {

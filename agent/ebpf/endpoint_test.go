@@ -2,6 +2,7 @@ package ebpf
 
 import "testing"
 
+// TestPackAndFormatEndpoint locks the pack and format endpoint contract so future changes do not regress it.
 func TestPackAndFormatEndpoint(t *testing.T) {
 	key := packEndpoint(0x0200000a, 7001)
 	if FormatEndpoint(key) != "10.0.0.2:7001" {
@@ -9,6 +10,7 @@ func TestPackAndFormatEndpoint(t *testing.T) {
 	}
 }
 
+// TestParseEndpointKey locks the parse endpoint key contract so future changes do not regress it.
 func TestParseEndpointKey(t *testing.T) {
 	key, err := ParseEndpointKey("10.0.0.3:7002")
 	if err != nil {

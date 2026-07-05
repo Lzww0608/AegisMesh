@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/serviceconfig"
 )
 
+// TestEffectiveControllerAddressesCombinesAndDedupes locks the effective controller addresses combines and dedupes contract so future changes do not regress it.
 func TestEffectiveControllerAddressesCombinesAndDedupes(t *testing.T) {
 	t.Setenv(controllerAddressesEnv, "127.0.0.1:9002,127.0.0.1:9001")
 	got := effectiveControllerAddresses("127.0.0.1:9000,127.0.0.1:9001", DialOptions{
@@ -28,11 +29,14 @@ func TestEffectiveControllerAddressesCombinesAndDedupes(t *testing.T) {
 	}
 }
 
+// TestControllerControlPlaneConfigUsesOrderedFailover locks the controller control plane config uses ordered failover contract so future changes do not regress it.
 func TestControllerControlPlaneConfigUsesOrderedFailover(t *testing.T) {
 	if !strings.Contains(controllerFailoverConfig, "pick_first") || strings.Contains(controllerFailoverConfig, "round_robin") {
 		t.Fatalf("control-plane service config should use ordered failover, got %s", controllerFailoverConfig)
 	}
 }
+
+// TestControllerResolverBuildsStaticAddressSet locks the controller resolver builds static address set contract so future changes do not regress it.
 func TestControllerResolverBuildsStaticAddressSet(t *testing.T) {
 	id := registerControllerAddresses([]string{"127.0.0.1:9000", "127.0.0.1:9001"})
 	defer unregisterControllerAddresses(id)
@@ -56,6 +60,7 @@ func TestControllerResolverBuildsStaticAddressSet(t *testing.T) {
 	}
 }
 
+// TestTargetForServiceCarriesControllerAddressesID locks the target for service carries controller addresses id contract so future changes do not regress it.
 func TestTargetForServiceCarriesControllerAddressesID(t *testing.T) {
 	addressesID := registerControllerAddresses([]string{"127.0.0.1:9000", "127.0.0.1:9001"})
 	defer unregisterControllerAddresses(addressesID)
@@ -70,6 +75,7 @@ func TestTargetForServiceCarriesControllerAddressesID(t *testing.T) {
 	}
 }
 
+// TestRegistryResolverFailsClosedWhenSecurityIDIsMissing locks the registry resolver fails closed when security id is missing contract so future changes do not regress it.
 func TestRegistryResolverFailsClosedWhenSecurityIDIsMissing(t *testing.T) {
 	addressesID := registerControllerAddresses([]string{"127.0.0.1:9000"})
 	defer unregisterControllerAddresses(addressesID)
@@ -87,6 +93,7 @@ func TestRegistryResolverFailsClosedWhenSecurityIDIsMissing(t *testing.T) {
 	}
 }
 
+// TestDialServiceCleansControllerAddressesAfterEarlyError locks the dial service cleans controller addresses after early error contract so future changes do not regress it.
 func TestDialServiceCleansControllerAddressesAfterEarlyError(t *testing.T) {
 	before := countControllerAddressRegistrations()
 	_, err := DialServiceFromWithOptions(context.Background(), "test", "127.0.0.1:9000,127.0.0.1:9001", "user-service", DialOptions{
@@ -102,6 +109,7 @@ func TestDialServiceCleansControllerAddressesAfterEarlyError(t *testing.T) {
 	}
 }
 
+// TestDialServiceCleansRegistrationsAfterDialError locks the dial service cleans registrations after dial error contract so future changes do not regress it.
 func TestDialServiceCleansRegistrationsAfterDialError(t *testing.T) {
 	beforeAddresses := countControllerAddressRegistrations()
 	beforeSecurity := countControllerSecurityRegistrations()
@@ -127,6 +135,7 @@ func TestDialServiceCleansRegistrationsAfterDialError(t *testing.T) {
 	}
 }
 
+// countControllerAddressRegistrations provides the shared count controller address registrations helper for resolver, picker, and reporter state.
 func countControllerAddressRegistrations() int {
 	count := 0
 	controllerAddressesByID.Range(func(_, _ any) bool {
@@ -136,6 +145,7 @@ func countControllerAddressRegistrations() int {
 	return count
 }
 
+// countControllerSecurityRegistrations provides the shared count controller security registrations helper for resolver, picker, and reporter state.
 func countControllerSecurityRegistrations() int {
 	count := 0
 	controllerSecurityByID.Range(func(_, _ any) bool {
@@ -145,6 +155,7 @@ func countControllerSecurityRegistrations() int {
 	return count
 }
 
+// countAdaptiveLimiterPoolRegistrations provides the shared count adaptive limiter pool registrations helper for resolver, picker, and reporter state.
 func countAdaptiveLimiterPoolRegistrations() int {
 	count := 0
 	adaptiveLimiterPools.Range(func(_, _ any) bool {
@@ -154,19 +165,24 @@ func countAdaptiveLimiterPoolRegistrations() int {
 	return count
 }
 
+// recordingControllerClientConn carries recording controller client conn state for resolver, picker, and reporter state.
 type recordingControllerClientConn struct {
 	state resolver.State
 }
 
+// UpdateState records fake controller health updates without running the production state machine.
 func (c *recordingControllerClientConn) UpdateState(state resolver.State) error {
 	c.state = state
 	return nil
 }
 
+// ReportError records controller resolver errors for duplicate-registration tests.
 func (c *recordingControllerClientConn) ReportError(error) {}
 
+// NewAddress initializes address with package defaults for this package's call path.
 func (c *recordingControllerClientConn) NewAddress([]resolver.Address) {}
 
+// ParseServiceConfig decodes service config input into the package's typed representation.
 func (c *recordingControllerClientConn) ParseServiceConfig(string) *serviceconfig.ParseResult {
 	return nil
 }

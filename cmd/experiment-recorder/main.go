@@ -18,6 +18,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/security"
 )
 
+// main wires the command-line entry point and reports fatal setup or runtime errors.
 func main() {
 	controllerAddr := flag.String("controller", "127.0.0.1:9000", "Aegis Controller gRPC address")
 	service := flag.String("service", "user-service", "service to record")
@@ -74,6 +75,7 @@ func main() {
 	}
 }
 
+// openRecoveryWriter keeps open recovery writer rules consistent for this package call path.
 func openRecoveryWriter(path string) (*csv.Writer, func(), error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, nil, err
@@ -97,6 +99,7 @@ func openRecoveryWriter(path string) (*csv.Writer, func(), error) {
 	}, nil
 }
 
+// recordOnce records record once in the current accounting window.
 func recordOnce(ctx context.Context, client aegisv1.TelemetryServiceClient, writer *csv.Writer, service, experiment, variant string, p99Latency float64) error {
 	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()

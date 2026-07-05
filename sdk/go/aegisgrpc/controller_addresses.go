@@ -20,10 +20,12 @@ const (
 )
 
 var (
+	// controllerAddressIDs identifies the controller address i ds constant used by this package.
 	controllerAddressIDs    atomic.Uint64
 	controllerAddressesByID sync.Map
 )
 
+// effectiveControllerAddresses provides the shared effective controller addresses helper for resolver, picker, and reporter state.
 func effectiveControllerAddresses(controllerAddr string, options DialOptions) []string {
 	addrs := splitControllerAddresses(controllerAddr)
 	if len(options.ControllerAddrs) > 0 {
@@ -35,6 +37,7 @@ func effectiveControllerAddresses(controllerAddr string, options DialOptions) []
 	return dedupeControllerAddresses(addrs)
 }
 
+// splitControllerAddresses keeps split controller addresses rules consistent for resolver, picker, and reporter state.
 func splitControllerAddresses(raw string) []string {
 	items := strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ';' })
 	out := make([]string, 0, len(items))
@@ -47,6 +50,7 @@ func splitControllerAddresses(raw string) []string {
 	return out
 }
 
+// dedupeControllerAddresses provides the shared dedupe controller addresses helper for resolver, picker, and reporter state.
 func dedupeControllerAddresses(addrs []string) []string {
 	out := make([]string, 0, len(addrs))
 	seen := make(map[string]struct{}, len(addrs))
@@ -64,12 +68,14 @@ func dedupeControllerAddresses(addrs []string) []string {
 	return out
 }
 
+// registerControllerAddresses registers register controller addresses with the controller or local registry.
 func registerControllerAddresses(addrs []string) string {
 	id := strconv.FormatUint(controllerAddressIDs.Add(1), 10)
 	controllerAddressesByID.Store(id, dedupeControllerAddresses(addrs))
 	return id
 }
 
+// loadControllerAddresses reads controller addresses state from the configured backing source and returns a caller-owned view.
 func loadControllerAddresses(id string, fallback string) []string {
 	if id != "" {
 		if value, ok := controllerAddressesByID.Load(id); ok {
@@ -81,27 +87,33 @@ func loadControllerAddresses(id string, fallback string) []string {
 	return splitControllerAddresses(fallback)
 }
 
+// unregisterControllerAddresses unregisters unregister controller addresses and releases its process-local handle.
 func unregisterControllerAddresses(id string) {
 	if id != "" {
 		controllerAddressesByID.Delete(id)
 	}
 }
 
+// controllerTargetForAddressesID provides the shared controller target for addresses id helper for resolver, picker, and reporter state.
 func controllerTargetForAddressesID(id string) string {
 	target := &url.URL{Scheme: controllerResolverScheme, Path: "/" + id}
 	return target.String()
 }
 
+// controllerResolverBuilder carries controller resolver builder state for resolver, picker, and reporter state.
 type controllerResolverBuilder struct{}
 
+// newControllerResolverBuilder initializes controller resolver builder with package defaults for this package's call path.
 func newControllerResolverBuilder() *controllerResolverBuilder {
 	return &controllerResolverBuilder{}
 }
 
+// Scheme returns scheme data for controllerResolverBuilder callers without handing out mutable receiver state.
 func (b *controllerResolverBuilder) Scheme() string {
 	return controllerResolverScheme
 }
 
+// Build builds build dependencies from validated configuration.
 func (b *controllerResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, _ resolver.BuildOptions) (resolver.Resolver, error) {
 	id := strings.Trim(strings.TrimPrefix(target.URL.Path, "/"), "/")
 	if id == "" {
@@ -121,8 +133,11 @@ func (b *controllerResolverBuilder) Build(target resolver.Target, cc resolver.Cl
 	return controllerResolver{}, nil
 }
 
+// controllerResolver carries controller resolver state for resolver, picker, and reporter state.
 type controllerResolver struct{}
 
+// ResolveNow refreshes resolver state from the controller.
 func (controllerResolver) ResolveNow(resolver.ResolveNowOptions) {}
 
+// Close closes owned resources and makes repeated calls safe.
 func (controllerResolver) Close() {}

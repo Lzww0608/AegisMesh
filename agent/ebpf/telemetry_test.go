@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// TestNetworkSamplesToTelemetrySamplesPreservesNetworkSignals locks the network samples to telemetry samples preserves network signals contract so future changes do not regress it.
 func TestNetworkSamplesToTelemetrySamplesPreservesNetworkSignals(t *testing.T) {
 	windowStart := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	windowEnd := windowStart.Add(time.Second)

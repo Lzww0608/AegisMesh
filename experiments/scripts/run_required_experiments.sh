@@ -28,6 +28,7 @@ METRICS_RETRY_BUDGETED="${METRICS_RETRY_BUDGETED:-http://127.0.0.1:8086/metrics}
 
 mkdir -p "$RESULTS_DIR"
 
+# run_latency runs the run latency experiment step and records its outputs.
 run_latency() {
   local experiment="$1"
   local variant="$2"
@@ -41,6 +42,7 @@ run_latency() {
     --latency-out "$RESULTS_DIR/latency.csv"
 }
 
+# record_recovery keeps the record recovery helper near the workflow that consumes its formatted output.
 record_recovery() {
   local experiment="$1"
   local variant="$2"
@@ -52,6 +54,7 @@ record_recovery() {
     --out "$RESULTS_DIR/recovery.csv"
 }
 
+# reset_faults resets external fault-injection state before the next experiment step.
 reset_faults() {
   if [[ "$EXECUTE_FAULTS" != "true" ]]; then
     return

@@ -9,10 +9,12 @@ import (
 	"google.golang.org/grpc"
 )
 
+// TelemetryClient is the controller RPC subset used by the eBPF reporter.
 type TelemetryClient interface {
 	ReportEndpointStats(ctx context.Context, in *aegisv1.ReportEndpointStatsRequest, opts ...grpc.CallOption) (*aegisv1.ReportEndpointStatsResponse, error)
 }
 
+// ReporterConfig wires the collector, aggregator, controller client, and flush interval.
 type ReporterConfig struct {
 	Collector  Collector
 	Client     TelemetryClient
@@ -20,6 +22,7 @@ type ReporterConfig struct {
 	Interval   time.Duration
 }
 
+// Reporter owns collection, aggregation, and periodic telemetry upload.
 type Reporter struct {
 	collector  Collector
 	client     TelemetryClient
@@ -29,6 +32,7 @@ type Reporter struct {
 	wg         sync.WaitGroup
 }
 
+// NewReporter initializes reporter with package defaults for this package's call path.
 func NewReporter(cfg ReporterConfig) *Reporter {
 	if cfg.Interval <= 0 {
 		cfg.Interval = defaultReportInterval
@@ -41,6 +45,7 @@ func NewReporter(cfg ReporterConfig) *Reporter {
 	}
 }
 
+// Start starts the collector and the reporting goroutine under the provided context.
 func (r *Reporter) Start(ctx context.Context) error {
 	if r.collector == nil || r.client == nil || r.aggregator == nil {
 		return nil
@@ -55,6 +60,7 @@ func (r *Reporter) Start(ctx context.Context) error {
 	return nil
 }
 
+// Stop cancels the reporting goroutine before stopping the collector.
 func (r *Reporter) Stop() error {
 	if r.cancel != nil {
 		r.cancel()
@@ -66,6 +72,7 @@ func (r *Reporter) Stop() error {
 	return r.collector.Stop()
 }
 
+// ReportOnce drains queued events, snapshots the window, and uploads non-empty samples.
 func (r *Reporter) ReportOnce(ctx context.Context) error {
 	if r.client == nil || r.aggregator == nil {
 		return nil
@@ -79,6 +86,7 @@ func (r *Reporter) ReportOnce(ctx context.Context) error {
 	return err
 }
 
+// run multiplexes collector events with periodic telemetry flushes.
 func (r *Reporter) run(ctx context.Context) {
 	defer r.wg.Done()
 	ticker := time.NewTicker(r.interval)
@@ -99,6 +107,7 @@ func (r *Reporter) run(ctx context.Context) {
 	}
 }
 
+// drainEvents consumes all immediately available events before a snapshot closes the window.
 func (r *Reporter) drainEvents() {
 	if r.collector == nil {
 		return

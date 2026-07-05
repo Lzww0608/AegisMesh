@@ -50,32 +50,38 @@ struct {
     __type(value, struct connect_start);
 } connect_starts SEC(".maps");
 
+// read_family reads the socket address family through CO-RE so layout offsets stay kernel-version safe.
 static __always_inline __u16 read_family(struct sock *sk)
 {
     return BPF_CORE_READ(sk, __sk_common.skc_family);
 }
 
+// read_sport reads the local TCP port from struct sock without dereferencing user memory.
 static __always_inline __u16 read_sport(struct sock *sk)
 {
     return BPF_CORE_READ(sk, __sk_common.skc_num);
 }
 
+// read_dport reads and byte-swaps the remote TCP port into host order for emitted events.
 static __always_inline __u16 read_dport(struct sock *sk)
 {
     __u16 dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
     return bpf_ntohs(dport);
 }
 
+// read_saddr_v4 reads the IPv4 source address captured in the socket common fields.
 static __always_inline __u32 read_saddr_v4(struct sock *sk)
 {
     return BPF_CORE_READ(sk, __sk_common.skc_rcv_saddr);
 }
 
+// read_daddr_v4 reads the IPv4 destination address captured in the socket common fields.
 static __always_inline __u32 read_daddr_v4(struct sock *sk)
 {
     return BPF_CORE_READ(sk, __sk_common.skc_daddr);
 }
 
+// fill_tuple copies the stable five-tuple fields shared by retransmit and connect events.
 static __always_inline void fill_tuple(struct tcp_event *event, struct sock *sk)
 {
     event->family = read_family(sk);
@@ -85,6 +91,7 @@ static __always_inline void fill_tuple(struct tcp_event *event, struct sock *sk)
     event->daddr_v4 = read_daddr_v4(sk);
 }
 
+// fill_start_tuple snapshots connect-attempt identity before the kretprobe observes the result.
 static __always_inline void fill_start_tuple(struct connect_start *start, struct sock *sk,
                                              struct sockaddr_in *addr)
 {
@@ -96,6 +103,7 @@ static __always_inline void fill_start_tuple(struct connect_start *start, struct
 }
 
 SEC("kprobe/tcp_retransmit_skb")
+// aegis_tcp_retransmit emits a ring-buffer event for retransmits and drops silently under backpressure.
 int BPF_KPROBE(aegis_tcp_retransmit, struct sock *sk)
 {
     struct tcp_event *event;
@@ -122,6 +130,7 @@ int BPF_KPROBE(aegis_tcp_retransmit, struct sock *sk)
 }
 
 SEC("kprobe/tcp_v4_connect")
+// aegis_tcp_v4_connect stores connect-start metadata keyed by pid/tgid until the return probe runs.
 int BPF_KPROBE(aegis_tcp_v4_connect, struct sock *sk, struct sockaddr *uaddr)
 {
     struct connect_start start = {};
@@ -142,6 +151,7 @@ int BPF_KPROBE(aegis_tcp_v4_connect, struct sock *sk, struct sockaddr *uaddr)
 }
 
 SEC("kretprobe/tcp_v4_connect")
+// aegis_tcp_v4_connect_ret emits latency/error events and always clears the matching start record.
 int BPF_KRETPROBE(aegis_tcp_v4_connect_ret, int ret)
 {
     __u64 pid_tgid = bpf_get_current_pid_tgid();

@@ -9,19 +9,23 @@ const latencyHistShardCount = 8
 
 var latencyHistShardSeq atomic.Uint32
 
+// latencyHistShardIndex provides the shared latency hist shard index helper for recorder aggregation.
 func latencyHistShardIndex() int {
 	return int(latencyHistShardSeq.Add(1) & (latencyHistShardCount - 1))
 }
 
+// latencyHistShard carries latency hist shard state for recorder aggregation.
 type latencyHistShard struct {
 	count   atomic.Uint64
 	buckets [latencyHistogramBuckets]atomic.Uint64
 }
 
+// shardedLatencyHistogram carries sharded latency histogram state for recorder aggregation.
 type shardedLatencyHistogram struct {
 	shards [latencyHistShardCount]latencyHistShard
 }
 
+// Record records record in the current accounting window.
 func (h *shardedLatencyHistogram) Record(sample time.Duration) {
 	if sample < 0 {
 		sample = 0
@@ -32,6 +36,7 @@ func (h *shardedLatencyHistogram) Record(sample time.Duration) {
 	shard.count.Add(1)
 }
 
+// Quantile returns quantile data for shardedLatencyHistogram callers without handing out mutable receiver state.
 func (h *shardedLatencyHistogram) Quantile(q float64) time.Duration {
 	if q <= 0 {
 		q = 0
@@ -66,6 +71,7 @@ func (h *shardedLatencyHistogram) Quantile(q float64) time.Duration {
 	return time.Duration(latencyBucketUpperBounds[len(latencyBucketUpperBounds)-1])
 }
 
+// Reset clears all shard counters so the next aggregation window starts empty.
 func (h *shardedLatencyHistogram) Reset() {
 	for i := range h.shards {
 		h.shards[i].count.Store(0)
@@ -81,6 +87,7 @@ type latencyHistogram struct {
 	buckets [latencyHistogramBuckets]uint64
 }
 
+// Record records record in the current accounting window.
 func (h *latencyHistogram) Record(sample time.Duration) {
 	if sample < 0 {
 		sample = 0
@@ -90,6 +97,7 @@ func (h *latencyHistogram) Record(sample time.Duration) {
 	h.count++
 }
 
+// Quantile returns quantile data for latencyHistogram callers without handing out mutable receiver state.
 func (h *latencyHistogram) Quantile(q float64) time.Duration {
 	if h.count == 0 {
 		return 0
@@ -114,6 +122,7 @@ func (h *latencyHistogram) Quantile(q float64) time.Duration {
 	return time.Duration(latencyBucketUpperBounds[len(latencyBucketUpperBounds)-1])
 }
 
+// Reset clears the single-shard histogram used by tests and merge paths.
 func (h *latencyHistogram) Reset() {
 	for i := range h.buckets {
 		h.buckets[i] = 0

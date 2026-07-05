@@ -6,8 +6,10 @@ import (
 	"strconv"
 )
 
+// EndpointKey names the endpoint key values accepted by the eBPF telemetry path.
 type EndpointKey uint64
 
+// packEndpoint keeps pack endpoint rules consistent for the eBPF telemetry path.
 func packEndpoint(ipv4 uint32, port uint16) EndpointKey {
 	if ipv4 == 0 || port == 0 {
 		return 0
@@ -15,6 +17,7 @@ func packEndpoint(ipv4 uint32, port uint16) EndpointKey {
 	return EndpointKey(uint64(ipv4)<<16 | uint64(port))
 }
 
+// FormatEndpoint keeps format endpoint rules consistent for the eBPF telemetry path.
 func FormatEndpoint(key EndpointKey) string {
 	if key == 0 {
 		return ""
@@ -26,6 +29,7 @@ func FormatEndpoint(key EndpointKey) string {
 	return net.JoinHostPort(ip.String(), strconv.Itoa(int(port)))
 }
 
+// ParseEndpointKey decodes endpoint key input into the package's typed representation.
 func ParseEndpointKey(addr string) (EndpointKey, error) {
 	if addr == "" {
 		return 0, nil

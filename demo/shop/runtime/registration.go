@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// Registration carries registration state for this package call path.
 type Registration struct {
 	ControllerAddr     string
 	Service            string
@@ -22,6 +23,7 @@ type Registration struct {
 	ControllerSecurity security.ClientConfig
 }
 
+// StartRegistration registers the service and keeps its lease alive until the context ends.
 func StartRegistration(ctx context.Context, cfg Registration) error {
 	if cfg.TTL <= 0 {
 		cfg.TTL = 15 * time.Second
@@ -44,6 +46,7 @@ func StartRegistration(ctx context.Context, cfg Registration) error {
 	return nil
 }
 
+// registerInstance registers register instance with the controller or local registry.
 func registerInstance(ctx context.Context, client aegisv1.RegistryServiceClient, cfg Registration) (string, string, error) {
 	instance := &aegisv1.ServiceInstance{
 		Id:      cfg.InstanceID,
@@ -64,6 +67,7 @@ func registerInstance(ctx context.Context, client aegisv1.RegistryServiceClient,
 	return resp.GetInstance().GetRegistrationEpoch(), resp.GetOwnerToken(), nil
 }
 
+// heartbeatOnce refreshes the instance lease using the current registration fence.
 func heartbeatOnce(ctx context.Context, client aegisv1.RegistryServiceClient, cfg Registration, registrationEpoch, ownerToken string) (string, string, error) {
 	resp, err := client.Heartbeat(ctx, &aegisv1.HeartbeatRequest{
 		Service:           cfg.Service,
@@ -84,6 +88,7 @@ func heartbeatOnce(ctx context.Context, client aegisv1.RegistryServiceClient, cf
 	return registrationEpoch, ownerToken, nil
 }
 
+// heartbeatLoop refreshes the instance lease using the current registration fence.
 func heartbeatLoop(ctx context.Context, conn interface{ Close() error }, client aegisv1.RegistryServiceClient, cfg Registration, registrationEpoch, ownerToken string) {
 	defer conn.Close()
 

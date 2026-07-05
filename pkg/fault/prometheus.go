@@ -2,11 +2,13 @@ package fault
 
 import "github.com/prometheus/client_golang/prometheus"
 
+// PrometheusHealthMetrics owns metric collectors for prometheus health metrics observations.
 type PrometheusHealthMetrics struct {
 	slowScore *prometheus.GaugeVec
 	state     *prometheus.GaugeVec
 }
 
+// NewPrometheusHealthMetrics initializes prometheus health metrics with package defaults for this package's call path.
 func NewPrometheusHealthMetrics(reg prometheus.Registerer) (*PrometheusHealthMetrics, error) {
 	if reg == nil {
 		reg = prometheus.DefaultRegisterer
@@ -31,6 +33,7 @@ func NewPrometheusHealthMetrics(reg prometheus.Registerer) (*PrometheusHealthMet
 	return m, nil
 }
 
+// RecordHealth records record health in the current accounting window.
 func (m *PrometheusHealthMetrics) RecordHealth(health EndpointHealth) {
 	if m == nil {
 		return

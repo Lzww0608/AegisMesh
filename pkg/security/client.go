@@ -8,12 +8,14 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// ClientConfig bundles TLS and bearer-token settings, including the explicit opt-in for insecure token transport.
 type ClientConfig struct {
 	TLS               TLSConfig
 	AuthToken         string
 	AllowInsecureAuth bool
 }
 
+// ClientConfigFromEnv provides the shared client config from env helper for authorization checks.
 func ClientConfigFromEnv(prefix string) ClientConfig {
 	return ClientConfig{
 		TLS: TLSConfig{
@@ -27,6 +29,7 @@ func ClientConfigFromEnv(prefix string) ClientConfig {
 	}
 }
 
+// Merge merges merge into the existing state and reports changed entries.
 func (c ClientConfig) Merge(override ClientConfig) ClientConfig {
 	if override.TLS.CertFile != "" {
 		c.TLS.CertFile = override.TLS.CertFile
@@ -49,6 +52,7 @@ func (c ClientConfig) Merge(override ClientConfig) ClientConfig {
 	return c
 }
 
+// ClientDialOptions provides the shared client dial options helper for authorization checks.
 func ClientDialOptions(cfg ClientConfig) ([]grpc.DialOption, error) {
 	creds, err := ClientTransportCredentials(cfg.TLS)
 	if err != nil {
@@ -67,6 +71,7 @@ func ClientDialOptions(cfg ClientConfig) ([]grpc.DialOption, error) {
 	return opts, nil
 }
 
+// parseEnvBool decodes env bool input into the package's typed representation.
 func parseEnvBool(key string) bool {
 	raw := os.Getenv(key)
 	if raw == "" {

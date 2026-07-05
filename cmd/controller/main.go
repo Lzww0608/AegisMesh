@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc"
 )
 
+// main wires the command-line entry point and reports fatal setup or runtime errors.
 func main() {
 	addr := flag.String("addr", "127.0.0.1:9000", "controller gRPC listen address")
 	httpAddr := flag.String("http-addr", "127.0.0.1:9100", "controller HTTP metrics listen address")
@@ -123,6 +124,7 @@ func main() {
 	}
 }
 
+// registryFlags carries registry flags state for controller startup and restore flows.
 type registryFlags struct {
 	backend             *string
 	file                *string
@@ -145,6 +147,7 @@ type registryFlags struct {
 	etcdTLSServerName   *string
 }
 
+// registerRegistryFlags registers register registry flags with the controller or local registry.
 func registerRegistryFlags(fs *flag.FlagSet) registryFlags {
 	return registryFlags{
 		backend:             fs.String("registry-backend", "memory", "registry backend: memory, file, file-v2, or etcd"),
@@ -169,6 +172,7 @@ func registerRegistryFlags(fs *flag.FlagSet) registryFlags {
 	}
 }
 
+// closeRegistryStore closes owned resources and makes repeated calls safe.
 func closeRegistryStore(store registry.Registry) {
 	closer, ok := store.(interface{ Close() error })
 	if !ok || closer == nil {
@@ -178,6 +182,8 @@ func closeRegistryStore(store registry.Registry) {
 		log.Printf("close registry backend: %v", err)
 	}
 }
+
+// buildRegistry builds build registry dependencies from validated configuration.
 func buildRegistry(cfg registryFlags, now func() time.Time) (registry.Registry, error) {
 	switch *cfg.backend {
 	case "", "memory":
@@ -215,6 +221,8 @@ func buildRegistry(cfg registryFlags, now func() time.Time) (registry.Registry, 
 		return nil, fmt.Errorf("unsupported registry backend %q", *cfg.backend)
 	}
 }
+
+// splitCommaList normalizes comma-separated flag values while dropping empty entries.
 func splitCommaList(raw string) []string {
 	items := strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ';' })
 	out := make([]string, 0, len(items))
@@ -226,6 +234,8 @@ func splitCommaList(raw string) []string {
 	}
 	return out
 }
+
+// resolveEtcdPassword refreshes resolver state from the controller.
 func resolveEtcdPassword(cfg registryFlags) (string, error) {
 	if cfg.etcdPasswordEnv != nil && *cfg.etcdPasswordEnv != "" {
 		if value := os.Getenv(*cfg.etcdPasswordEnv); value != "" {
@@ -245,6 +255,7 @@ func resolveEtcdPassword(cfg registryFlags) (string, error) {
 	return "", nil
 }
 
+// policyFlags carries policy flags state for controller startup and restore flows.
 type policyFlags struct {
 	backend            *string
 	file               *string
@@ -263,6 +274,7 @@ type policyFlags struct {
 	etcdTLSServerName  *string
 }
 
+// registerPolicyFlags registers register policy flags with the controller or local registry.
 func registerPolicyFlags(fs *flag.FlagSet) policyFlags {
 	return policyFlags{
 		backend:            fs.String("policy-backend", "file", "policy backend: file or etcd"),
@@ -283,6 +295,7 @@ func registerPolicyFlags(fs *flag.FlagSet) policyFlags {
 	}
 }
 
+// buildPolicyStore builds build policy store dependencies from validated configuration.
 func buildPolicyStore(ctx context.Context, cfg policyFlags) (controller.PolicyStore, error) {
 	backend := "file"
 	if cfg.backend != nil && *cfg.backend != "" {
@@ -318,6 +331,7 @@ func buildPolicyStore(ctx context.Context, cfg policyFlags) (controller.PolicySt
 	}
 }
 
+// closePolicyStore closes owned resources and makes repeated calls safe.
 func closePolicyStore(store controller.PolicyStore) {
 	closer, ok := store.(interface{ Close() error })
 	if !ok || closer == nil {
@@ -328,6 +342,7 @@ func closePolicyStore(store controller.PolicyStore) {
 	}
 }
 
+// resolvePolicyEtcdPassword refreshes resolver state from the controller.
 func resolvePolicyEtcdPassword(cfg policyFlags) (string, error) {
 	if cfg.etcdPasswordEnv != nil && *cfg.etcdPasswordEnv != "" {
 		if value := os.Getenv(*cfg.etcdPasswordEnv); value != "" {
@@ -347,6 +362,7 @@ func resolvePolicyEtcdPassword(cfg policyFlags) (string, error) {
 	return "", nil
 }
 
+// describePolicySource reports the active policy backend without exposing credentials.
 func describePolicySource(cfg policyFlags) string {
 	backend := "file"
 	if cfg.backend != nil && *cfg.backend != "" {
@@ -361,6 +377,7 @@ func describePolicySource(cfg policyFlags) string {
 	return *cfg.file
 }
 
+// healthStateFlags carries health state flags state for controller startup and restore flows.
 type healthStateFlags struct {
 	backend            *string
 	maxAge             *time.Duration
@@ -378,6 +395,7 @@ type healthStateFlags struct {
 	etcdTLSServerName  *string
 }
 
+// registerHealthStateFlags registers register health state flags with the controller or local registry.
 func registerHealthStateFlags(fs *flag.FlagSet) healthStateFlags {
 	return healthStateFlags{
 		backend:            fs.String("health-state-backend", "none", "health state backend: none or etcd"),
@@ -397,6 +415,7 @@ func registerHealthStateFlags(fs *flag.FlagSet) healthStateFlags {
 	}
 }
 
+// buildHealthSnapshotStore builds build health snapshot store dependencies from validated configuration.
 func buildHealthSnapshotStore(ctx context.Context, cfg healthStateFlags) (fault.HealthSnapshotStore, error) {
 	backend := "none"
 	if cfg.backend != nil && *cfg.backend != "" {
@@ -429,6 +448,7 @@ func buildHealthSnapshotStore(ctx context.Context, cfg healthStateFlags) (fault.
 	}
 }
 
+// closeHealthSnapshotStore closes owned resources and makes repeated calls safe.
 func closeHealthSnapshotStore(store fault.HealthSnapshotStore) {
 	if store == nil {
 		return
@@ -438,6 +458,7 @@ func closeHealthSnapshotStore(store fault.HealthSnapshotStore) {
 	}
 }
 
+// resolveHealthEtcdPassword refreshes resolver state from the controller.
 func resolveHealthEtcdPassword(cfg healthStateFlags) (string, error) {
 	if cfg.etcdPasswordEnv != nil && *cfg.etcdPasswordEnv != "" {
 		if value := os.Getenv(*cfg.etcdPasswordEnv); value != "" {
@@ -457,6 +478,7 @@ func resolveHealthEtcdPassword(cfg healthStateFlags) (string, error) {
 	return "", nil
 }
 
+// restoreHealthSnapshot reloads persisted health only for fresh endpoints still present in registry.
 func restoreHealthSnapshot(ctx context.Context, store fault.HealthSnapshotStore, manager *fault.HealthManager, registryStore registry.Registry, maxAge time.Duration) (int64, int, error) {
 	if store == nil || manager == nil {
 		return 0, 0, nil
@@ -474,6 +496,7 @@ func restoreHealthSnapshot(ctx context.Context, store fault.HealthSnapshotStore,
 	return revision, merged, nil
 }
 
+// watchHealthSnapshots streams health snapshots changes to callers until the source or context closes.
 func watchHealthSnapshots(ctx context.Context, store fault.HealthSnapshotStore, manager *fault.HealthManager, registryStore registry.Registry, afterRevision int64, maxAge time.Duration) {
 	backoff := 500 * time.Millisecond
 	for ctx.Err() == nil {
@@ -514,6 +537,7 @@ func watchHealthSnapshots(ctx context.Context, store fault.HealthSnapshotStore, 
 	}
 }
 
+// filterFreshHealth drops stale samples before restored state can influence routing.
 func filterFreshHealth(snapshot []fault.EndpointHealth, now time.Time, maxAge time.Duration) []fault.EndpointHealth {
 	if maxAge <= 0 {
 		return snapshot
@@ -531,6 +555,7 @@ func filterFreshHealth(snapshot []fault.EndpointHealth, now time.Time, maxAge ti
 	return out
 }
 
+// filterActiveRegistryHealth fences restored health against the current registry snapshot.
 func filterActiveRegistryHealth(ctx context.Context, store registry.Registry, snapshot []fault.EndpointHealth) ([]fault.EndpointHealth, error) {
 	if store == nil || len(snapshot) == 0 {
 		return snapshot, nil
@@ -549,6 +574,7 @@ func filterActiveRegistryHealth(ctx context.Context, store registry.Registry, sn
 	return out, nil
 }
 
+// activeRegistryEndpoints builds the active address map used to discard orphaned health entries.
 func activeRegistryEndpoints(ctx context.Context, store registry.Registry, health []fault.EndpointHealth) (map[fault.EndpointIdentity]string, error) {
 	services := make(map[string]struct{})
 	for _, endpoint := range health {
@@ -572,6 +598,7 @@ func activeRegistryEndpoints(ctx context.Context, store registry.Registry, healt
 	return active, nil
 }
 
+// activeRegistryHealthAddress resolves a health identity to its currently registered address.
 func activeRegistryHealthAddress(active map[fault.EndpointIdentity]string, health fault.EndpointHealth) (string, bool) {
 	identity := fault.EndpointIdentity{Service: health.Service, InstanceID: health.InstanceID, RegistrationEpoch: health.RegistrationEpoch}
 	if address, ok := active[identity]; ok {
@@ -590,10 +617,13 @@ func activeRegistryHealthAddress(active map[fault.EndpointIdentity]string, healt
 	}
 	return "", false
 }
+
+// healthMatchesRegistryAddress accepts missing legacy addresses while fencing mismatched modern ones.
 func healthMatchesRegistryAddress(healthAddress, registryAddress string) bool {
 	return healthAddress == "" || registryAddress == "" || healthAddress == registryAddress
 }
 
+// pruneHealthMissingFromRegistry removes health state for endpoints no longer present in registry.
 func pruneHealthMissingFromRegistry(ctx context.Context, store registry.Registry, manager *fault.HealthManager) (int, error) {
 	if store == nil || manager == nil {
 		return 0, nil
@@ -609,6 +639,7 @@ func pruneHealthMissingFromRegistry(ctx context.Context, store registry.Registry
 	return manager.PruneMissing(retain), nil
 }
 
+// sleepOrDone lets loops wait for a tick interval while still honoring context cancellation.
 func sleepOrDone(ctx context.Context, duration time.Duration) bool {
 	if duration <= 0 {
 		select {
@@ -628,6 +659,7 @@ func sleepOrDone(ctx context.Context, duration time.Duration) bool {
 	}
 }
 
+// describeHealthStateSource reports the configured health snapshot backend without secrets.
 func describeHealthStateSource(cfg healthStateFlags) string {
 	backend := "none"
 	if cfg.backend != nil && *cfg.backend != "" {
@@ -639,6 +671,7 @@ func describeHealthStateSource(cfg healthStateFlags) string {
 	return backend
 }
 
+// securityFlags carries security flags state for controller startup and restore flows.
 type securityFlags struct {
 	tlsCertFile            *string
 	tlsKeyFile             *string
@@ -654,6 +687,7 @@ type securityFlags struct {
 	authAllowInsecure      *bool
 }
 
+// registerSecurityFlags registers register security flags with the controller or local registry.
 func registerSecurityFlags(fs *flag.FlagSet) securityFlags {
 	return securityFlags{
 		tlsCertFile:            fs.String("tls-cert-file", "", "controller server TLS certificate file; empty disables server TLS"),
@@ -671,6 +705,7 @@ func registerSecurityFlags(fs *flag.FlagSet) securityFlags {
 	}
 }
 
+// resolveControllerAuthTokens refreshes resolver state from the controller.
 func resolveControllerAuthTokens(cfg securityFlags) (string, error) {
 	if cfg.authTokensEnv != nil && *cfg.authTokensEnv != "" {
 		if value := os.Getenv(*cfg.authTokensEnv); value != "" {
@@ -689,6 +724,8 @@ func resolveControllerAuthTokens(cfg securityFlags) (string, error) {
 	}
 	return "", nil
 }
+
+// resolveControllerAuthCertPrincipals refreshes resolver state from the controller.
 func resolveControllerAuthCertPrincipals(cfg securityFlags) (string, error) {
 	if cfg.authCertPrincipalsEnv != nil && *cfg.authCertPrincipalsEnv != "" {
 		if value := os.Getenv(*cfg.authCertPrincipalsEnv); value != "" {
@@ -707,6 +744,8 @@ func resolveControllerAuthCertPrincipals(cfg securityFlags) (string, error) {
 	}
 	return "", nil
 }
+
+// buildControllerServerOptions builds build controller server options dependencies from validated configuration.
 func buildControllerServerOptions(cfg securityFlags) ([]grpc.ServerOption, error) {
 	tlsCfg := security.TLSConfig{
 		CertFile:          *cfg.tlsCertFile,
@@ -769,6 +808,7 @@ func buildControllerServerOptions(cfg securityFlags) ([]grpc.ServerOption, error
 	return options, nil
 }
 
+// startPolicyHotApplyLoop launches the reload loop and stops it through context cancellation.
 func startPolicyHotApplyLoop(ctx context.Context, store controller.PolicyStore, manager *fault.HealthManager, interval time.Duration) bool {
 	lister, ok := store.(controller.PolicySnapshotLister)
 	if !ok || manager == nil {
@@ -781,6 +821,7 @@ func startPolicyHotApplyLoop(ctx context.Context, store controller.PolicyStore, 
 	return true
 }
 
+// buildStateMachineConfig builds build state machine config dependencies from validated configuration.
 func buildStateMachineConfig(degradedThreshold float64, ejectThreshold float64, consecutiveWindows int, ejectionDuration time.Duration, recoveryThreshold float64, probeSuccessThreshold float64) fault.StateMachineConfig {
 	return fault.StateMachineConfig{
 		DegradedThreshold:     degradedThreshold,
@@ -792,6 +833,7 @@ func buildStateMachineConfig(degradedThreshold float64, ejectThreshold float64, 
 	}
 }
 
+// buildHealthManagerConfig builds build health manager config dependencies from validated configuration.
 func buildHealthManagerConfig(degradedThreshold float64, ejectThreshold float64, consecutiveWindows int, ejectionDuration time.Duration, recoveryThreshold float64, probeSuccessThreshold float64, latencySLO time.Duration) fault.HealthManagerConfig {
 	return fault.HealthManagerConfig{
 		StateMachine: buildStateMachineConfig(
@@ -806,6 +848,7 @@ func buildHealthManagerConfig(degradedThreshold float64, ejectThreshold float64,
 	}
 }
 
+// sweepExpired removes expired sweep expired records from the backing store.
 func sweepExpired(ctx context.Context, store registry.Registry, manager *fault.HealthManager, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -829,6 +872,7 @@ func sweepExpired(ctx context.Context, store registry.Registry, manager *fault.H
 	}
 }
 
+// tickHealth drives periodic fault-state updates and snapshot persistence until shutdown.
 func tickHealth(ctx context.Context, manager *fault.HealthManager, metrics *fault.PrometheusHealthMetrics, healthStore fault.HealthSnapshotStore, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -851,6 +895,7 @@ func tickHealth(ctx context.Context, manager *fault.HealthManager, metrics *faul
 	}
 }
 
+// serveMetrics exposes Prometheus metrics on the configured address for controller observability.
 func serveMetrics(ctx context.Context, addr string) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())

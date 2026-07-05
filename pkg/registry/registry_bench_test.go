@@ -12,6 +12,7 @@ import (
 var benchmarkRegistryInstances []Instance
 var benchmarkRegistrySnapshot InstanceSnapshot
 
+// BenchmarkMemoryRegistryRegister reports latency and allocation cost for memory registry register.
 func BenchmarkMemoryRegistryRegister(b *testing.B) {
 	for _, c := range registryBenchmarkCases() {
 		b.Run(c.name(), func(b *testing.B) {
@@ -32,6 +33,7 @@ func BenchmarkMemoryRegistryRegister(b *testing.B) {
 	}
 }
 
+// BenchmarkMemoryRegistryHeartbeat reports latency and allocation cost for memory registry heartbeat.
 func BenchmarkMemoryRegistryHeartbeat(b *testing.B) {
 	for _, c := range registryBenchmarkCases() {
 		b.Run(c.name(), func(b *testing.B) {
@@ -53,6 +55,7 @@ func BenchmarkMemoryRegistryHeartbeat(b *testing.B) {
 	}
 }
 
+// BenchmarkMemoryRegistryList reports latency and allocation cost for memory registry list.
 func BenchmarkMemoryRegistryList(b *testing.B) {
 	for _, c := range registryBenchmarkCases() {
 		b.Run(c.name(), func(b *testing.B) {
@@ -75,6 +78,8 @@ func BenchmarkMemoryRegistryList(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkMemoryRegistrySnapshot reports latency and allocation cost for memory registry snapshot.
 func BenchmarkMemoryRegistrySnapshot(b *testing.B) {
 	for _, c := range registryBenchmarkCases() {
 		b.Run(c.name(), func(b *testing.B) {
@@ -98,6 +103,7 @@ func BenchmarkMemoryRegistrySnapshot(b *testing.B) {
 	}
 }
 
+// BenchmarkFileRegistryHeartbeat reports latency and allocation cost for file registry heartbeat.
 func BenchmarkFileRegistryHeartbeat(b *testing.B) {
 	instances := makeBenchmarkInstances(100, 10)
 	ctx := context.Background()
@@ -180,6 +186,8 @@ func BenchmarkFileRegistryHeartbeat(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkMemoryRegistrySweepExpired reports latency and allocation cost for memory registry sweep expired.
 func BenchmarkMemoryRegistrySweepExpired(b *testing.B) {
 	for _, c := range registryBenchmarkCases() {
 		b.Run(c.name(), func(b *testing.B) {
@@ -206,11 +214,13 @@ func BenchmarkMemoryRegistrySweepExpired(b *testing.B) {
 	}
 }
 
+// registryBenchmarkCase carries registry benchmark case state for registry persistence and watch paths.
 type registryBenchmarkCase struct {
 	services            int
 	instancesPerService int
 }
 
+// registryBenchmarkCases provides the shared registry benchmark cases helper for registry persistence and watch paths.
 func registryBenchmarkCases() []registryBenchmarkCase {
 	return []registryBenchmarkCase{
 		{services: 1, instancesPerService: 1},
@@ -220,10 +230,12 @@ func registryBenchmarkCases() []registryBenchmarkCase {
 	}
 }
 
+// name returns name data for registryBenchmarkCase callers without handing out mutable receiver state.
 func (c registryBenchmarkCase) name() string {
 	return fmt.Sprintf("services=%d/instances_per_service=%d", c.services, c.instancesPerService)
 }
 
+// makeBenchmarkServices provides the shared make benchmark services helper for registry persistence and watch paths.
 func makeBenchmarkServices(count int) []string {
 	services := make([]string, count)
 	for i := range services {
@@ -232,6 +244,7 @@ func makeBenchmarkServices(count int) []string {
 	return services
 }
 
+// makeBenchmarkInstances provides the shared make benchmark instances helper for registry persistence and watch paths.
 func makeBenchmarkInstances(services, instancesPerService int) []Instance {
 	names := makeBenchmarkServices(services)
 	instances := make([]Instance, 0, services*instancesPerService)
@@ -253,6 +266,7 @@ func makeBenchmarkInstances(services, instancesPerService int) []Instance {
 	return instances
 }
 
+// registerBenchmarkInstances registers register benchmark instances with the controller or local registry.
 func registerBenchmarkInstances(b *testing.B, registry *MemoryRegistry, instances []Instance, ttl time.Duration) {
 	b.Helper()
 	ctx := context.Background()
@@ -263,10 +277,12 @@ func registerBenchmarkInstances(b *testing.B, registry *MemoryRegistry, instance
 	}
 }
 
+// fixedRegistryBenchmarkTime provides the shared fixed registry benchmark time helper for registry persistence and watch paths.
 func fixedRegistryBenchmarkTime() time.Time {
 	return time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 }
 
+// registerBenchmarkFileInstances registers register benchmark file instances with the controller or local registry.
 func registerBenchmarkFileInstances(b *testing.B, registry Registry, instances []Instance, ttl time.Duration) {
 	b.Helper()
 	ctx := context.Background()
@@ -277,6 +293,7 @@ func registerBenchmarkFileInstances(b *testing.B, registry Registry, instances [
 	}
 }
 
+// reportRegistryP99Latency provides the shared report registry p99 latency helper for registry persistence and watch paths.
 func reportRegistryP99Latency(b *testing.B, latencies []int64) {
 	b.Helper()
 	if len(latencies) == 0 {

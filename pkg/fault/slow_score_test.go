@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// TestScoreCalculatorFlagsRelativeSlowEndpoint locks the score calculator flags relative slow endpoint contract so future changes do not regress it.
 func TestScoreCalculatorFlagsRelativeSlowEndpoint(t *testing.T) {
 	calculator := NewScoreCalculator(DefaultScoreWeights())
 
@@ -54,6 +55,7 @@ func TestScoreCalculatorFlagsRelativeSlowEndpoint(t *testing.T) {
 	}
 }
 
+// TestScoreCalculatorKeepsAllHealthyWhenServiceHasNoRelativeOutlier locks the score calculator keeps all healthy when service has no relative outlier contract so future changes do not regress it.
 func TestScoreCalculatorKeepsAllHealthyWhenServiceHasNoRelativeOutlier(t *testing.T) {
 	calculator := NewScoreCalculator(DefaultScoreWeights())
 
@@ -70,6 +72,7 @@ func TestScoreCalculatorKeepsAllHealthyWhenServiceHasNoRelativeOutlier(t *testin
 	}
 }
 
+// TestScoreCalculatorUsesNetworkSignalWithoutRequestCount locks the score calculator uses network signal without request count contract so future changes do not regress it.
 func TestScoreCalculatorUsesNetworkSignalWithoutRequestCount(t *testing.T) {
 	calculator := NewScoreCalculator(DefaultScoreWeights())
 
@@ -86,6 +89,7 @@ func TestScoreCalculatorUsesNetworkSignalWithoutRequestCount(t *testing.T) {
 	}
 }
 
+// TestScoreCalculatorUsesAbsoluteSLOWhenAllEndpointsAreSlow locks the score calculator uses absolute slo when all endpoints are slow contract so future changes do not regress it.
 func TestScoreCalculatorUsesAbsoluteSLOWhenAllEndpointsAreSlow(t *testing.T) {
 	calculator := NewScoreCalculatorWithConfig(ScoreCalculatorConfig{
 		Weights:    ScoreWeights{LatencyWeight: 1},
@@ -107,6 +111,7 @@ func TestScoreCalculatorUsesAbsoluteSLOWhenAllEndpointsAreSlow(t *testing.T) {
 	}
 }
 
+// TestScoreCalculatorLeavesAbsoluteSLODisabledByDefault locks the score calculator leaves absolute slo disabled by default contract so future changes do not regress it.
 func TestScoreCalculatorLeavesAbsoluteSLODisabledByDefault(t *testing.T) {
 	calculator := NewScoreCalculator(ScoreWeights{LatencyWeight: 1})
 
@@ -122,6 +127,7 @@ func TestScoreCalculatorLeavesAbsoluteSLODisabledByDefault(t *testing.T) {
 	}
 }
 
+// TestScoreCalculatorAggregatesMultipleMethodsPerEndpoint locks the score calculator aggregates multiple methods per endpoint contract so future changes do not regress it.
 func TestScoreCalculatorAggregatesMultipleMethodsPerEndpoint(t *testing.T) {
 	calculator := NewScoreCalculatorWithConfig(ScoreCalculatorConfig{
 		Weights:    ScoreWeights{LatencyWeight: 1},

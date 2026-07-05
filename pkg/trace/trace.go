@@ -8,11 +8,13 @@ import (
 	"time"
 )
 
+// Writer defines the writer contract used by this package call path.
 type Writer interface {
 	Write(record Record) error
 	Close() error
 }
 
+// Record carries record state for this package call path.
 type Record struct {
 	TraceID            string   `json:"trace_id"`
 	SpanID             string   `json:"span_id,omitempty"`
@@ -29,12 +31,14 @@ type Record struct {
 	Status             string   `json:"status"`
 }
 
+// JSONLWriter carries jsonl writer state for this package call path.
 type JSONLWriter struct {
 	mu   sync.Mutex
 	file *os.File
 	enc  *json.Encoder
 }
 
+// NewJSONLWriter initializes jsonl writer with package defaults for this package's call path.
 func NewJSONLWriter(path string) (*JSONLWriter, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
@@ -49,6 +53,7 @@ func NewJSONLWriter(path string) (*JSONLWriter, error) {
 	}, nil
 }
 
+// Write writes write data to the configured output.
 func (w *JSONLWriter) Write(record Record) error {
 	if w == nil {
 		return nil
@@ -62,6 +67,7 @@ func (w *JSONLWriter) Write(record Record) error {
 	return w.enc.Encode(record)
 }
 
+// Close closes owned resources and makes repeated calls safe.
 func (w *JSONLWriter) Close() error {
 	if w == nil || w.file == nil {
 		return nil

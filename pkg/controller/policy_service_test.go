@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TestPolicyServiceReturnsSnapshot locks the policy service returns snapshot contract so future changes do not regress it.
 func TestPolicyServiceReturnsSnapshot(t *testing.T) {
 	service := NewPolicyService(staticPolicyStore{
 		snapshot: &aegisv1.PolicySnapshot{
@@ -39,6 +40,7 @@ func TestPolicyServiceReturnsSnapshot(t *testing.T) {
 	}
 }
 
+// TestPolicyServiceRejectsMissingService locks the policy service rejects missing service contract so future changes do not regress it.
 func TestPolicyServiceRejectsMissingService(t *testing.T) {
 	service := NewPolicyService(staticPolicyStore{}, time.Second)
 	_, err := service.GetPolicy(context.Background(), &aegisv1.GetPolicyRequest{})
@@ -47,10 +49,12 @@ func TestPolicyServiceRejectsMissingService(t *testing.T) {
 	}
 }
 
+// staticPolicyStore defines persistence operations for static policy store state.
 type staticPolicyStore struct {
 	snapshot *aegisv1.PolicySnapshot
 }
 
+// Get returns get state for the requested key.
 func (s staticPolicyStore) Get(service string) (*aegisv1.PolicySnapshot, bool) {
 	if s.snapshot == nil || s.snapshot.Service != service {
 		return nil, false
@@ -58,6 +62,7 @@ func (s staticPolicyStore) Get(service string) (*aegisv1.PolicySnapshot, bool) {
 	return s.snapshot, true
 }
 
+// TestPolicyServiceSendsTombstoneWhenWatchedPolicyIsRemoved locks the policy service sends tombstone when watched policy is removed contract so future changes do not regress it.
 func TestPolicyServiceSendsTombstoneWhenWatchedPolicyIsRemoved(t *testing.T) {
 	store := &mutablePolicyStore{snapshot: &aegisv1.PolicySnapshot{Service: "user-service", Revision: 7}}
 	service := NewPolicyService(store, time.Second)
@@ -91,6 +96,7 @@ func TestPolicyServiceSendsTombstoneWhenWatchedPolicyIsRemoved(t *testing.T) {
 	}
 }
 
+// TestPolicyServiceReturnsNotFoundWhenWatchStartsWithoutPolicy locks the policy service returns not found when watch starts without policy contract so future changes do not regress it.
 func TestPolicyServiceReturnsNotFoundWhenWatchStartsWithoutPolicy(t *testing.T) {
 	service := NewPolicyService(&mutablePolicyStore{}, time.Second)
 	stream := &capturePolicyStream{ctx: context.Background()}
@@ -105,10 +111,12 @@ func TestPolicyServiceReturnsNotFoundWhenWatchStartsWithoutPolicy(t *testing.T) 
 	}
 }
 
+// mutablePolicyStore defines persistence operations for mutable policy store state.
 type mutablePolicyStore struct {
 	snapshot *aegisv1.PolicySnapshot
 }
 
+// Get returns get state for the requested key.
 func (s *mutablePolicyStore) Get(service string) (*aegisv1.PolicySnapshot, bool) {
 	if s.snapshot == nil || s.snapshot.Service != service {
 		return nil, false
@@ -116,22 +124,37 @@ func (s *mutablePolicyStore) Get(service string) (*aegisv1.PolicySnapshot, bool)
 	return s.snapshot, true
 }
 
+// capturePolicyStream carries capture policy stream state for this package call path.
 type capturePolicyStream struct {
 	ctx  context.Context
 	sent []*aegisv1.PolicySnapshot
 }
 
+// Send records streamed policy snapshots so tests can inspect the server output.
 func (s *capturePolicyStream) Send(snapshot *aegisv1.PolicySnapshot) error {
 	s.sent = append(s.sent, snapshot)
 	return nil
 }
 
-func (s *capturePolicyStream) SetHeader(metadata.MD) error  { return nil }
+// SetHeader updates set header state while preserving package invariants.
+func (s *capturePolicyStream) SetHeader(metadata.MD) error { return nil }
+
+// SendHeader satisfies grpc.ServerStream for this fixture without emitting metadata.
 func (s *capturePolicyStream) SendHeader(metadata.MD) error { return nil }
-func (s *capturePolicyStream) SetTrailer(metadata.MD)       {}
-func (s *capturePolicyStream) Context() context.Context     { return s.ctx }
-func (s *capturePolicyStream) SendMsg(any) error            { return nil }
-func (s *capturePolicyStream) RecvMsg(any) error            { return nil }
+
+// SetTrailer updates set trailer state while preserving package invariants.
+func (s *capturePolicyStream) SetTrailer(metadata.MD) {}
+
+// Context exposes the fixture context used to stop policy watch tests.
+func (s *capturePolicyStream) Context() context.Context { return s.ctx }
+
+// SendMsg is a no-op because policy tests exercise the typed Send method.
+func (s *capturePolicyStream) SendMsg(any) error { return nil }
+
+// RecvMsg is a no-op because the server-side policy stream never receives messages in these tests.
+func (s *capturePolicyStream) RecvMsg(any) error { return nil }
+
+// TestOutlierDetectionToStateMachineConfig locks the outlier detection to state machine config contract so future changes do not regress it.
 func TestOutlierDetectionToStateMachineConfig(t *testing.T) {
 	cfg := OutlierDetectionToStateMachineConfig(&aegisv1.OutlierDetectionPolicy{
 		DegradedThreshold:       1.2,
@@ -155,6 +178,7 @@ func TestOutlierDetectionToStateMachineConfig(t *testing.T) {
 	}
 }
 
+// TestApplyOutlierDetectionPoliciesReplacesServiceConfigs locks the apply outlier detection policies replaces service configs contract so future changes do not regress it.
 func TestApplyOutlierDetectionPoliciesReplacesServiceConfigs(t *testing.T) {
 	manager := fault.NewHealthManager(fault.HealthManagerConfig{
 		StateMachine: fault.StateMachineConfig{
@@ -196,14 +220,17 @@ func TestApplyOutlierDetectionPoliciesReplacesServiceConfigs(t *testing.T) {
 	}
 }
 
+// staticPolicyListStore defines persistence operations for static policy list store state.
 type staticPolicyListStore struct {
 	snapshots []*aegisv1.PolicySnapshot
 }
 
+// List returns a point-in-time list of list visible to the caller.
 func (s staticPolicyListStore) List() []*aegisv1.PolicySnapshot {
 	return s.snapshots
 }
 
+// TestRunPolicyHotApplyLoopReloadsChangedFilePolicy locks the run policy hot apply loop reloads changed file policy contract so future changes do not regress it.
 func TestRunPolicyHotApplyLoopReloadsChangedFilePolicy(t *testing.T) {
 	path := t.TempDir() + "/policy.yaml"
 	modTime := time.Now()
@@ -256,6 +283,7 @@ services:
 	})
 }
 
+// writePolicyHotApplyTestFile writes write policy hot apply test file data to the configured output.
 func writePolicyHotApplyTestFile(t *testing.T, path string, modTime time.Time, body string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
@@ -266,6 +294,7 @@ func writePolicyHotApplyTestFile(t *testing.T, path string, modTime time.Time, b
 	}
 }
 
+// waitForStateMachineConfig waits for wait for state machine config to reach the expected state or timeout.
 func waitForStateMachineConfig(t *testing.T, manager *fault.HealthManager, service string, ok func(fault.StateMachineConfig) bool) {
 	t.Helper()
 	deadline := time.After(2 * time.Second)

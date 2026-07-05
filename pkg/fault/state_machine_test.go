@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// TestStateMachineRequiresConsecutiveWindowsBeforeDegrading locks the state machine requires consecutive windows before degrading contract so future changes do not regress it.
 func TestStateMachineRequiresConsecutiveWindowsBeforeDegrading(t *testing.T) {
 	machine := NewStateMachine(StateMachineConfig{
 		DegradedThreshold:  1.5,
@@ -29,6 +30,7 @@ func TestStateMachineRequiresConsecutiveWindowsBeforeDegrading(t *testing.T) {
 	}
 }
 
+// TestStateMachineEjectsThenMovesThroughProbingBeforeHealthy locks the state machine ejects then moves through probing before healthy contract so future changes do not regress it.
 func TestStateMachineEjectsThenMovesThroughProbingBeforeHealthy(t *testing.T) {
 	machine := NewStateMachine(StateMachineConfig{
 		DegradedThreshold:  1.5,
@@ -58,6 +60,7 @@ func TestStateMachineEjectsThenMovesThroughProbingBeforeHealthy(t *testing.T) {
 	}
 }
 
+// TestStateMachineReturnsFailedProbeToEjected locks the state machine returns failed probe to ejected contract so future changes do not regress it.
 func TestStateMachineReturnsFailedProbeToEjected(t *testing.T) {
 	machine := NewStateMachine(StateMachineConfig{
 		DegradedThreshold:  1.5,

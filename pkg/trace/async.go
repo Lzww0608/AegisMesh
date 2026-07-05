@@ -12,14 +12,17 @@ import (
 	"time"
 )
 
+// OverflowPolicy selects how the local async writer behaves when its queue is full.
 type OverflowPolicy string
 
 const (
+	// OverflowDrop identifies the overflow drop constant used by this package.
 	OverflowDrop   OverflowPolicy = "drop"
 	OverflowBlock  OverflowPolicy = "block"
 	OverflowSample OverflowPolicy = "sample"
 )
 
+// AsyncConfig sizes the JSONL writer queue and flush cadence.
 type AsyncConfig struct {
 	QueueSize      int
 	FlushRecords   int
@@ -28,6 +31,7 @@ type AsyncConfig struct {
 	SampleEvery    int
 }
 
+// DefaultAsyncConfig returns bounded queue settings that favor dropping over blocking RPCs.
 func DefaultAsyncConfig() AsyncConfig {
 	return AsyncConfig{
 		QueueSize:      4096,
@@ -47,11 +51,12 @@ var (
 	}
 )
 
+// AsyncJSONLWriter serializes trace records on one writer goroutine.
 type AsyncJSONLWriter struct {
-	queue        chan Record
-	overflow     OverflowPolicy
-	sampleEvery  int
-	metrics      *PrometheusMetrics
+	queue         chan Record
+	overflow      OverflowPolicy
+	sampleEvery   int
+	metrics       *PrometheusMetrics
 	sampleCounter atomic.Uint64
 
 	closeOnce sync.Once
@@ -61,6 +66,7 @@ type AsyncJSONLWriter struct {
 	closeErr  error
 }
 
+// NewAsyncJSONLWriter opens a JSONL file and starts the background flush loop.
 func NewAsyncJSONLWriter(path string, cfg AsyncConfig, metrics *PrometheusMetrics) (*AsyncJSONLWriter, error) {
 	if cfg.QueueSize <= 0 {
 		cfg.QueueSize = DefaultAsyncConfig().QueueSize
@@ -101,10 +107,12 @@ func NewAsyncJSONLWriter(path string, cfg AsyncConfig, metrics *PrometheusMetric
 	return writer, nil
 }
 
+// NewDefaultAsyncJSONLWriter initializes default async jsonl writer with package defaults for this package's call path.
 func NewDefaultAsyncJSONLWriter(path string) (*AsyncJSONLWriter, error) {
 	return NewAsyncJSONLWriter(path, DefaultAsyncConfig(), DefaultPrometheusMetrics())
 }
 
+// Write enqueues one trace record according to the configured overflow policy.
 func (w *AsyncJSONLWriter) Write(record Record) error {
 	if w == nil {
 		return nil
@@ -118,9 +126,11 @@ func (w *AsyncJSONLWriter) Write(record Record) error {
 
 	switch w.overflow {
 	case OverflowBlock:
+		// Blocking is opt-in because it can put trace I/O on the RPC latency path.
 		w.queue <- record
 		return nil
 	case OverflowSample:
+		// Sampling sheds most overflow records but still admits periodic queue-full samples.
 		select {
 		case w.queue <- record:
 			return nil
@@ -148,6 +158,7 @@ func (w *AsyncJSONLWriter) Write(record Record) error {
 	}
 }
 
+// Close drains queued records, flushes the file, and is safe to call repeatedly.
 func (w *AsyncJSONLWriter) Close() error {
 	if w == nil {
 		return nil
@@ -160,6 +171,7 @@ func (w *AsyncJSONLWriter) Close() error {
 	return w.closeErr
 }
 
+// run owns file writes and buffer-pool reuse until Close drains the queue.
 func (w *AsyncJSONLWriter) run(file *os.File, cfg AsyncConfig) {
 	defer close(w.doneCh)
 

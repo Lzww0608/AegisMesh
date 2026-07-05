@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// newTelemetryUnaryInterceptor initializes telemetry unary interceptor with package defaults for this package's call path.
 func newTelemetryUnaryInterceptor(source, destination string, recorder *telemetry.Recorder, tracer tracepkg.Writer) grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req any, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		if recorder == nil && tracer == nil {

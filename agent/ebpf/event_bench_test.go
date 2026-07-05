@@ -9,6 +9,7 @@ import (
 
 var benchmarkTCPEvent TCPEvent
 
+// BenchmarkDecodeRawTCPEvent reports latency and allocation cost for decode raw tcp event.
 func BenchmarkDecodeRawTCPEvent(b *testing.B) {
 	raw := testRawTCPEvent{
 		TimestampNS:      uint64(time.Second),
@@ -34,6 +35,7 @@ func BenchmarkDecodeRawTCPEvent(b *testing.B) {
 	}
 }
 
+// encodeBenchmarkRawEvent keeps encode benchmark raw event rules consistent for the eBPF telemetry path.
 func encodeBenchmarkRawEvent(b *testing.B, event testRawTCPEvent) []byte {
 	b.Helper()
 	var buf bytes.Buffer

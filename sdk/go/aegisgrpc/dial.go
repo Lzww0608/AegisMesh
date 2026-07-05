@@ -24,14 +24,17 @@ const (
 
 var registerOnce sync.Once
 
+// TargetForService provides the shared target for service helper for resolver, picker, and reporter state.
 func TargetForService(controllerAddr, service string) string {
 	return targetForServiceWithControlPlaneConfig(controllerAddr, service, "", "", "")
 }
 
+// targetForServiceWithLimiterPool provides the shared target for service with limiter pool helper for resolver, picker, and reporter state.
 func targetForServiceWithLimiterPool(controllerAddr, service, limiterPoolID string) string {
 	return targetForServiceWithControlPlaneConfig(controllerAddr, service, limiterPoolID, "", "")
 }
 
+// targetForServiceWithControlPlaneConfig provides the shared target for service with control plane config helper for resolver, picker, and reporter state.
 func targetForServiceWithControlPlaneConfig(controllerAddr, service, limiterPoolID, controllerSecurityID, controllerAddressesID string) string {
 	target := &url.URL{
 		Scheme: Scheme,
@@ -52,14 +55,17 @@ func targetForServiceWithControlPlaneConfig(controllerAddr, service, limiterPool
 	return target.String()
 }
 
+// DialService opens a gRPC connection using AegisMesh controller and security options.
 func DialService(ctx context.Context, controllerAddr, service string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	return DialServiceFrom(ctx, "unknown", controllerAddr, service, opts...)
 }
 
+// DialServiceFrom opens a gRPC connection using AegisMesh controller and security options.
 func DialServiceFrom(ctx context.Context, source, controllerAddr, service string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	return DialServiceFromWithOptions(ctx, source, controllerAddr, service, DefaultDialOptions(), opts...)
 }
 
+// DialServiceFromWithOptions opens a gRPC connection using AegisMesh controller and security options.
 func DialServiceFromWithOptions(ctx context.Context, source, controllerAddr, service string, options DialOptions, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	registerDefaultResolver()
 	registerDefaultBalancer()
@@ -140,6 +146,7 @@ func DialServiceFromWithOptions(ctx context.Context, source, controllerAddr, ser
 	return conn, nil
 }
 
+// startReporter launches telemetry reporting on the control-plane connection owned by Dial.
 func startReporter(ctx context.Context, controllerAddr string, recorder *telemetry.Recorder, dialOptions []grpc.DialOption) {
 	conn, err := grpc.DialContext(ctx, controllerAddr, dialOptions...)
 	if err != nil {
@@ -152,6 +159,7 @@ func startReporter(ctx context.Context, controllerAddr string, recorder *telemet
 	}()
 }
 
+// contextForClientConn provides the shared context for client conn helper for resolver, picker, and reporter state.
 func contextForClientConn(conn *grpc.ClientConn) context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -169,6 +177,7 @@ func contextForClientConn(conn *grpc.ClientConn) context.Context {
 	return ctx
 }
 
+// registerDefaultResolver registers register default resolver with the controller or local registry.
 func registerDefaultResolver() {
 	registerOnce.Do(func() {
 		resolver.Register(newRegistryResolverBuilder())

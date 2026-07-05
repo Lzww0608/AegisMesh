@@ -7,6 +7,7 @@ import (
 	shopv1 "github.com/aegismesh/aegismesh/api/proto/demo/shop/v1"
 )
 
+// TestUserServerReturnsUserAndVariant locks the user server returns user and variant contract so future changes do not regress it.
 func TestUserServerReturnsUserAndVariant(t *testing.T) {
 	server := NewUserServer("primary")
 

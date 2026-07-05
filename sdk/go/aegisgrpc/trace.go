@@ -19,9 +19,13 @@ const (
 	attemptMetadataKey = "x-aegis-attempt"
 )
 
+// traceIDContextKey carries trace id context key state for resolver, picker, and reporter state.
 type traceIDContextKey struct{}
+
+// attemptContextKey carries attempt context key state for resolver, picker, and reporter state.
 type attemptContextKey struct{}
 
+// ContextWithTraceID provides the shared context with trace id helper for resolver, picker, and reporter state.
 func ContextWithTraceID(ctx context.Context, traceID string) context.Context {
 	if traceID == "" {
 		return ctx
@@ -29,14 +33,17 @@ func ContextWithTraceID(ctx context.Context, traceID string) context.Context {
 	return context.WithValue(ctx, traceIDContextKey{}, traceID)
 }
 
+// ContextWithNewTraceID provides the shared context with new trace id helper for resolver, picker, and reporter state.
 func ContextWithNewTraceID(ctx context.Context) context.Context {
 	return ContextWithTraceID(ctx, newTraceID())
 }
 
+// TraceIDFromContext provides the shared trace id from context helper for resolver, picker, and reporter state.
 func TraceIDFromContext(ctx context.Context) string {
 	return traceIDFromContext(ctx)
 }
 
+// ensureTraceID provides the shared ensure trace id helper for resolver, picker, and reporter state.
 func ensureTraceID(ctx context.Context) context.Context {
 	if traceIDFromContext(ctx) != "" {
 		return ctx
@@ -44,6 +51,7 @@ func ensureTraceID(ctx context.Context) context.Context {
 	return ContextWithNewTraceID(ctx)
 }
 
+// traceIDFromContext provides the shared trace id from context helper for resolver, picker, and reporter state.
 func traceIDFromContext(ctx context.Context) string {
 	if ctx == nil {
 		return ""
@@ -52,6 +60,7 @@ func traceIDFromContext(ctx context.Context) string {
 	return traceID
 }
 
+// contextWithAttempt provides the shared context with attempt helper for resolver, picker, and reporter state.
 func contextWithAttempt(ctx context.Context, attempt int) context.Context {
 	if attempt <= 0 {
 		attempt = 1
@@ -59,6 +68,7 @@ func contextWithAttempt(ctx context.Context, attempt int) context.Context {
 	return context.WithValue(ctx, attemptContextKey{}, attempt)
 }
 
+// attemptFromContext provides the shared attempt from context helper for resolver, picker, and reporter state.
 func attemptFromContext(ctx context.Context) int {
 	if ctx == nil {
 		return 1
@@ -70,6 +80,7 @@ func attemptFromContext(ctx context.Context) int {
 	return attempt
 }
 
+// contextWithTraceMetadata provides the shared context with trace metadata helper for resolver, picker, and reporter state.
 func contextWithTraceMetadata(ctx context.Context, spanID string) context.Context {
 	traceID := traceIDFromContext(ctx)
 	if traceID == "" {
@@ -84,6 +95,7 @@ func contextWithTraceMetadata(ctx context.Context, spanID string) context.Contex
 	)
 }
 
+// traceWriterFromOptions provides the shared trace writer from options helper for resolver, picker, and reporter state.
 func traceWriterFromOptions(options DialOptions) (tracepkg.Writer, error) {
 	path := options.TraceLogPath
 	if path == "" {
@@ -95,14 +107,17 @@ func traceWriterFromOptions(options DialOptions) (tracepkg.Writer, error) {
 	return tracepkg.NewDefaultAsyncJSONLWriter(path)
 }
 
+// newTraceID initializes trace id with package defaults for this package's call path.
 func newTraceID() string {
 	return "trace-" + randomHex(16)
 }
 
+// newSpanID initializes span id with package defaults for this package's call path.
 func newSpanID() string {
 	return "span-" + randomHex(8)
 }
 
+// randomHex keeps random hex rules consistent for resolver, picker, and reporter state.
 func randomHex(bytesLen int) string {
 	buf := make([]byte, bytesLen)
 	if _, err := rand.Read(buf); err != nil {

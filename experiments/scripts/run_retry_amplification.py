@@ -10,6 +10,7 @@ import urllib.request
 REQUESTS_METRIC = "aegis_rpc_requests_total"
 
 
+# main parses command-line options and runs the script workflow.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--without-url", required=True)
@@ -44,6 +45,7 @@ def main():
     )
 
 
+# run_variant runs the run variant experiment step and records its outputs.
 def run_variant(experiment, variant, url, metrics_url, requests, concurrency, latency_out, retry_out):
     before = scrape_attempts(metrics_url)
     subprocess.run(
@@ -83,6 +85,7 @@ def run_variant(experiment, variant, url, metrics_url, requests, concurrency, la
     )
 
 
+# scrape_attempts keeps the scrape attempts helper near the workflow that consumes its formatted output.
 def scrape_attempts(metrics_url):
     text = urllib.request.urlopen(metrics_url, timeout=5).read().decode("utf-8")
     total = 0.0
@@ -97,6 +100,7 @@ def scrape_attempts(metrics_url):
     return int(total)
 
 
+# latest_latency_row keeps the latest latency row helper near the workflow that consumes its formatted output.
 def latest_latency_row(path, experiment, variant):
     if not os.path.exists(path):
         return {}
@@ -109,6 +113,7 @@ def latest_latency_row(path, experiment, variant):
     return rows[-1] if rows else {}
 
 
+# write_retry_row writes write retry row output for downstream analysis.
 def write_retry_row(path, row):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     exists = os.path.exists(path)

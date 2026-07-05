@@ -15,6 +15,7 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
+// TestAdaptivePickerChoosesLowerCostReadySubConn locks the adaptive picker chooses lower cost ready sub conn contract so future changes do not regress it.
 func TestAdaptivePickerChoosesLowerCostReadySubConn(t *testing.T) {
 	fast := &fakeSubConn{id: "fast"}
 	slow := &fakeSubConn{id: "slow"}
@@ -40,6 +41,7 @@ func TestAdaptivePickerChoosesLowerCostReadySubConn(t *testing.T) {
 	result.Done(balancer.DoneInfo{})
 }
 
+// TestAdaptivePickerSamplesProbingEndpointsOnlyWithinProbeBudget locks the adaptive picker samples probing endpoints only within probe budget contract so future changes do not regress it.
 func TestAdaptivePickerSamplesProbingEndpointsOnlyWithinProbeBudget(t *testing.T) {
 	healthy := &fakeSubConn{id: "healthy"}
 	probe := &fakeSubConn{id: "probe"}
@@ -77,6 +79,7 @@ func TestAdaptivePickerSamplesProbingEndpointsOnlyWithinProbeBudget(t *testing.T
 	result.Done(balancer.DoneInfo{})
 }
 
+// TestAdaptivePickerConcurrentPicks locks the adaptive picker concurrent picks contract so future changes do not regress it.
 func TestAdaptivePickerConcurrentPicks(t *testing.T) {
 	adaptiveStats = sync.Map{}
 
@@ -111,6 +114,7 @@ func TestAdaptivePickerConcurrentPicks(t *testing.T) {
 	wg.Wait()
 }
 
+// TestAdaptivePickerRejectsWhenEndpointLimiterIsFull locks the adaptive picker rejects when endpoint limiter is full contract so future changes do not regress it.
 func TestAdaptivePickerRejectsWhenEndpointLimiterIsFull(t *testing.T) {
 	subConn := &fakeSubConn{id: "limited"}
 	picker := adaptivePickerBuilder{random: &sequenceRandom{values: []int{0}}}.Build(base.PickerBuildInfo{
@@ -137,6 +141,7 @@ func TestAdaptivePickerRejectsWhenEndpointLimiterIsFull(t *testing.T) {
 	second.Done(balancer.DoneInfo{})
 }
 
+// TestAdaptivePickerUsesLimiterPoolAcrossPickerRebuilds locks the adaptive picker uses limiter pool across picker rebuilds contract so future changes do not regress it.
 func TestAdaptivePickerUsesLimiterPoolAcrossPickerRebuilds(t *testing.T) {
 	pool := newAdaptiveLimiterPool(1)
 	subConn := &fakeSubConn{id: "limited"}
@@ -166,6 +171,7 @@ func TestAdaptivePickerUsesLimiterPoolAcrossPickerRebuilds(t *testing.T) {
 	second.Done(balancer.DoneInfo{})
 }
 
+// TestAdaptivePickerHotAppliesLimiterPoolMax locks the adaptive picker hot applies limiter pool max contract so future changes do not regress it.
 func TestAdaptivePickerHotAppliesLimiterPoolMax(t *testing.T) {
 	pool := newAdaptiveLimiterPool(1)
 	subConn := &fakeSubConn{id: "limited"}
@@ -208,6 +214,7 @@ func TestAdaptivePickerHotAppliesLimiterPoolMax(t *testing.T) {
 	third.Done(balancer.DoneInfo{})
 }
 
+// TestPolicyManagerHotAppliesCircuitBreakerMax locks the policy manager hot applies circuit breaker max contract so future changes do not regress it.
 func TestPolicyManagerHotAppliesCircuitBreakerMax(t *testing.T) {
 	pool := newAdaptiveLimiterPool(1)
 	manager := &policyManager{circuitBreaker: pool}
@@ -227,6 +234,7 @@ func TestPolicyManagerHotAppliesCircuitBreakerMax(t *testing.T) {
 	}
 }
 
+// TestAdaptivePickerConcurrentPicksWithLimiterMaxUpdates locks the adaptive picker concurrent picks with limiter max updates contract so future changes do not regress it.
 func TestAdaptivePickerConcurrentPicksWithLimiterMaxUpdates(t *testing.T) {
 	pool := newAdaptiveLimiterPool(64)
 	ready := make(map[balancer.SubConn]base.SubConnInfo, 4)
@@ -271,16 +279,19 @@ func TestAdaptivePickerConcurrentPicksWithLimiterMaxUpdates(t *testing.T) {
 	wg.Wait()
 }
 
+// fakeSubConn carries fake sub conn state for resolver, picker, and reporter state.
 type fakeSubConn struct {
 	balancer.SubConn
 	id string
 }
 
+// sequenceRandom carries sequence random state for resolver, picker, and reporter state.
 type sequenceRandom struct {
 	values []int
 	next   int
 }
 
+// Intn returns intn data for sequenceRandom callers without handing out mutable receiver state.
 func (r *sequenceRandom) Intn(n int) int {
 	if n <= 0 || len(r.values) == 0 {
 		return 0

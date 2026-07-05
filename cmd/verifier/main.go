@@ -10,6 +10,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/verifier"
 )
 
+// main wires the command-line entry point and reports fatal setup or runtime errors.
 func main() {
 	specPath := flag.String("spec", "", "verifier YAML spec path")
 	tracesPath := flag.String("traces", "", "trace JSONL path")

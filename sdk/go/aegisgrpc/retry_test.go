@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TestCompileRetryPolicyBuildsRetryableBitset locks the compile retry policy builds retryable bitset contract so future changes do not regress it.
 func TestCompileRetryPolicyBuildsRetryableBitset(t *testing.T) {
 	retry := compileRetryPolicy(RetryPolicy{
 		MaxAttempts:    3,
@@ -32,6 +33,7 @@ func TestCompileRetryPolicyBuildsRetryableBitset(t *testing.T) {
 	}
 }
 
+// TestCompileRetryPolicyUsesDefaultRetryableBitset locks the compile retry policy uses default retryable bitset contract so future changes do not regress it.
 func TestCompileRetryPolicyUsesDefaultRetryableBitset(t *testing.T) {
 	retry := compileRetryPolicy(RetryPolicy{MaxAttempts: 2})
 	if !retry.IsRetryable(codes.Unavailable) || !retry.IsRetryable(codes.DeadlineExceeded) {
@@ -50,6 +52,8 @@ func TestCompileRetryPolicyUsesDefaultRetryableBitset(t *testing.T) {
 		t.Fatalf("expected retryable bitset lookup to allocate 0 times, got %.2f", allocs)
 	}
 }
+
+// TestRetryUnaryInterceptorRetriesRetryableErrorWithinBudget locks the retry unary interceptor retries retryable error within budget contract so future changes do not regress it.
 func TestRetryUnaryInterceptorRetriesRetryableErrorWithinBudget(t *testing.T) {
 	budget := retrypkg.NewBudget(retrypkg.BudgetConfig{
 		BudgetRatio: 1,
@@ -85,6 +89,7 @@ func TestRetryUnaryInterceptorRetriesRetryableErrorWithinBudget(t *testing.T) {
 	}
 }
 
+// TestRetryUnaryInterceptorBoundsAmplificationAtBudgetRatio locks the retry unary interceptor bounds amplification at budget ratio contract so future changes do not regress it.
 func TestRetryUnaryInterceptorBoundsAmplificationAtBudgetRatio(t *testing.T) {
 	budget := retrypkg.NewBudget(retrypkg.BudgetConfig{
 		BudgetRatio: 0.15,
@@ -123,6 +128,7 @@ func TestRetryUnaryInterceptorBoundsAmplificationAtBudgetRatio(t *testing.T) {
 	}
 }
 
+// TestRetryUnaryInterceptorStopsWhenBudgetExhausted locks the retry unary interceptor stops when budget exhausted contract so future changes do not regress it.
 func TestRetryUnaryInterceptorStopsWhenBudgetExhausted(t *testing.T) {
 	budget := retrypkg.NewBudget(retrypkg.BudgetConfig{
 		BudgetRatio: 0,
@@ -155,6 +161,7 @@ func TestRetryUnaryInterceptorStopsWhenBudgetExhausted(t *testing.T) {
 	}
 }
 
+// TestRetryUnaryInterceptorAnnotatesAttemptContext locks the retry unary interceptor annotates attempt context contract so future changes do not regress it.
 func TestRetryUnaryInterceptorAnnotatesAttemptContext(t *testing.T) {
 	interceptor := newRetryUnaryInterceptor(RetryPolicy{
 		MaxAttempts:    2,

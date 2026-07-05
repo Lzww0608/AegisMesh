@@ -18,15 +18,19 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/status"
 )
 
+// FileRegistrySyncMode names the file registry sync mode values accepted by registry persistence and watch paths.
 type FileRegistrySyncMode string
 
 const (
+	// FileRegistrySyncAlways identifies the file registry sync always constant used by this package.
 	FileRegistrySyncAlways FileRegistrySyncMode = "always"
 	FileRegistrySyncBatch  FileRegistrySyncMode = "batch"
 )
 
+// FileRegistryV2Option tunes write batching, fsync cadence, and compaction pressure for the WAL-backed registry.
 type FileRegistryV2Option func(*fileRegistryV2Config)
 
+// fileRegistryV2Config keeps WAL flush and compaction thresholds together so durability tuning is applied atomically.
 type fileRegistryV2Config struct {
 	syncMode      FileRegistrySyncMode
 	flushInterval time.Duration
@@ -36,6 +40,7 @@ type fileRegistryV2Config struct {
 	requestBuffer int
 }
 
+// defaultFileRegistryV2Config keeps default file registry v2 config rules consistent for registry persistence and watch paths.
 func defaultFileRegistryV2Config() fileRegistryV2Config {
 	return fileRegistryV2Config{
 		syncMode:      FileRegistrySyncBatch,
@@ -47,12 +52,14 @@ func defaultFileRegistryV2Config() fileRegistryV2Config {
 	}
 }
 
+// WithFileRegistryV2SyncMode provides the shared with file registry v2 sync mode helper for registry persistence and watch paths.
 func WithFileRegistryV2SyncMode(mode FileRegistrySyncMode) FileRegistryV2Option {
 	return func(cfg *fileRegistryV2Config) {
 		cfg.syncMode = mode
 	}
 }
 
+// WithFileRegistryV2GroupCommit provides the shared with file registry v2 group commit helper for registry persistence and watch paths.
 func WithFileRegistryV2GroupCommit(records int, bytes int, interval time.Duration) FileRegistryV2Option {
 	return func(cfg *fileRegistryV2Config) {
 		if records > 0 {
@@ -67,12 +74,14 @@ func WithFileRegistryV2GroupCommit(records int, bytes int, interval time.Duratio
 	}
 }
 
+// WithFileRegistryV2CompactBytes provides the shared with file registry v2 compact bytes helper for registry persistence and watch paths.
 func WithFileRegistryV2CompactBytes(bytes int64) FileRegistryV2Option {
 	return func(cfg *fileRegistryV2Config) {
 		cfg.compactBytes = bytes
 	}
 }
 
+// FileRegistryV2 carries file registry v2 state for registry persistence and watch paths.
 type FileRegistryV2 struct {
 	memory       *MemoryRegistry
 	snapshotPath string
@@ -85,6 +94,7 @@ type FileRegistryV2 struct {
 	compactMu sync.Mutex
 }
 
+// NewFileRegistryV2 initializes file registry v2 with package defaults for this package's call path.
 func NewFileRegistryV2(path string, now func() time.Time, opts ...FileRegistryV2Option) (*FileRegistryV2, error) {
 	if path == "" {
 		return nil, ErrInvalidInstance
@@ -144,14 +154,17 @@ func NewFileRegistryV2(path string, now func() time.Time, opts ...FileRegistryV2
 	return reg, nil
 }
 
+// PersistencePath returns persistence path data for FileRegistryV2 callers without handing out mutable receiver state.
 func (r *FileRegistryV2) PersistencePath() string {
 	return r.snapshotPath
 }
 
+// WALPath returns wal path data for FileRegistryV2 callers without handing out mutable receiver state.
 func (r *FileRegistryV2) WALPath() string {
 	return r.walPath
 }
 
+// Register registers register with the controller or local registry.
 func (r *FileRegistryV2) Register(ctx context.Context, inst Instance, ttl time.Duration) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -185,10 +198,12 @@ func (r *FileRegistryV2) Register(ctx context.Context, inst Instance, ttl time.D
 	return r.maybeCompact(ctx)
 }
 
+// Heartbeat refreshes the instance lease using the current registration fence.
 func (r *FileRegistryV2) Heartbeat(ctx context.Context, service, id string, ttl time.Duration) error {
 	return r.heartbeat(ctx, service, id, "", "", ttl, false, false)
 }
 
+// HeartbeatWithEpoch refreshes the instance lease using the current registration fence.
 func (r *FileRegistryV2) HeartbeatWithEpoch(ctx context.Context, service, id, registrationEpoch string, ttl time.Duration) error {
 	if registrationEpoch == "" {
 		return ErrInvalidInstance
@@ -196,6 +211,7 @@ func (r *FileRegistryV2) HeartbeatWithEpoch(ctx context.Context, service, id, re
 	return r.heartbeat(ctx, service, id, registrationEpoch, "", ttl, true, false)
 }
 
+// HeartbeatWithOwner refreshes the instance lease using the current registration fence.
 func (r *FileRegistryV2) HeartbeatWithOwner(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration) error {
 	if registrationEpoch == "" || ownerToken == "" {
 		return ErrInvalidInstance
@@ -203,6 +219,7 @@ func (r *FileRegistryV2) HeartbeatWithOwner(ctx context.Context, service, id, re
 	return r.heartbeat(ctx, service, id, registrationEpoch, ownerToken, ttl, true, true)
 }
 
+// heartbeat refreshes the instance lease using the current registration fence.
 func (r *FileRegistryV2) heartbeat(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration, requireEpoch, requireOwner bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -230,18 +247,23 @@ func (r *FileRegistryV2) heartbeat(ctx context.Context, service, id, registratio
 	}
 	return r.maybeCompact(ctx)
 }
+
+// List returns a point-in-time list of list visible to the caller.
 func (r *FileRegistryV2) List(ctx context.Context, service string) ([]Instance, error) {
 	return r.memory.List(ctx, service)
 }
 
+// Snapshot returns an immutable snapshot of the current snapshot state.
 func (r *FileRegistryV2) Snapshot(ctx context.Context, service string) (InstanceSnapshot, error) {
 	return r.memory.Snapshot(ctx, service)
 }
 
+// Watch streams backing-source changes to callers until the source or context closes.
 func (r *FileRegistryV2) Watch(ctx context.Context, service string, afterVersion int64) (<-chan InstanceSnapshot, error) {
 	return r.memory.Watch(ctx, service, afterVersion)
 }
 
+// SweepExpired removes expired sweep expired records from the backing store.
 func (r *FileRegistryV2) SweepExpired(ctx context.Context) int {
 	r.writes.RLock()
 	expired := r.memory.sweepExpiredRecords(ctx)
@@ -255,6 +277,7 @@ func (r *FileRegistryV2) SweepExpired(ctx context.Context) int {
 	return len(expired)
 }
 
+// Compact rewrites the snapshot file and resets the WAL to a fresh snapshot marker.
 func (r *FileRegistryV2) Compact(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -272,6 +295,7 @@ func (r *FileRegistryV2) Compact(ctx context.Context) error {
 	return r.wal.Reset(ctx, newSnapshotMarkWALRecord(r.now()))
 }
 
+// Close closes owned resources and makes repeated calls safe.
 func (r *FileRegistryV2) Close() error {
 	if r.wal == nil {
 		return nil
@@ -279,6 +303,7 @@ func (r *FileRegistryV2) Close() error {
 	return r.wal.Close()
 }
 
+// maybeCompact returns maybe compact data for FileRegistryV2 callers without handing out mutable receiver state.
 func (r *FileRegistryV2) maybeCompact(ctx context.Context) error {
 	if r.cfg.compactBytes <= 0 || r.wal.Size() < r.cfg.compactBytes {
 		return nil
@@ -286,6 +311,7 @@ func (r *FileRegistryV2) maybeCompact(ctx context.Context) error {
 	return r.Compact(ctx)
 }
 
+// loadSnapshot reads snapshot state from the configured backing source and returns a caller-owned view.
 func (r *FileRegistryV2) loadSnapshot() error {
 	raw, err := os.ReadFile(r.snapshotPath)
 	if err != nil {
@@ -308,6 +334,7 @@ func (r *FileRegistryV2) loadSnapshot() error {
 	return nil
 }
 
+// replayWAL returns replay wal data for FileRegistryV2 callers without handing out mutable receiver state.
 func (r *FileRegistryV2) replayWAL() error {
 	result, err := replayFileRegistryWAL(r.walPath, r.applyWALRecord)
 	if err != nil {
@@ -319,6 +346,7 @@ func (r *FileRegistryV2) replayWAL() error {
 	return nil
 }
 
+// applyWALRecord applies apply wal record to the mutable target while preserving transition rules.
 func (r *FileRegistryV2) applyWALRecord(record fileRegistryWALRecord) error {
 	switch record.op {
 	case fileRegistryWALOpRegister:
@@ -357,6 +385,7 @@ func (r *FileRegistryV2) applyWALRecord(record fileRegistryWALRecord) error {
 	return nil
 }
 
+// snapshotMemoryRegistry returns an immutable snapshot of the current snapshot memory registry state.
 func snapshotMemoryRegistry(memory *MemoryRegistry) fileRegistrySnapshot {
 	now := memory.now()
 	records := make([]fileRegistryRecord, 0)
@@ -383,6 +412,7 @@ func snapshotMemoryRegistry(memory *MemoryRegistry) fileRegistrySnapshot {
 	return fileRegistrySnapshot{Records: records}
 }
 
+// writeFileRegistrySnapshotFile writes write file registry snapshot file data to the configured output.
 func writeFileRegistrySnapshotFile(path string, snapshot fileRegistrySnapshot) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -410,9 +440,11 @@ func writeFileRegistrySnapshotFile(path string, snapshot fileRegistrySnapshot) e
 	return os.Rename(tmp, path)
 }
 
+// fileRegistryWALOp names the file registry wal op values accepted by registry persistence and watch paths.
 type fileRegistryWALOp uint8
 
 const (
+	// fileRegistryWALOpRegister identifies the file registry wal op register constant used by this package.
 	fileRegistryWALOpRegister fileRegistryWALOp = iota + 1
 	fileRegistryWALOpHeartbeat
 	fileRegistryWALOpDeleteExpired
@@ -420,6 +452,7 @@ const (
 )
 
 const (
+	// fileRegistryWALMagic identifies the file registry wal magic constant used by this package.
 	fileRegistryWALMagic      uint32 = 0x41475257 // AGRW
 	fileRegistryWALVersion    uint8  = 1
 	fileRegistryWALHeaderSize        = 32
@@ -432,6 +465,7 @@ var (
 	errInvalidWALRecord     = errors.New("invalid registry wal record")
 )
 
+// fileRegistryRegisterPayload carries file registry register payload state for registry persistence and watch paths.
 type fileRegistryRegisterPayload struct {
 	Status            string            `json:"status,omitempty"`
 	Labels            map[string]string `json:"labels,omitempty"`
@@ -439,6 +473,7 @@ type fileRegistryRegisterPayload struct {
 	OwnerToken        string            `json:"owner_token,omitempty"`
 }
 
+// fileRegistryWALRecord carries file registry wal record state for registry persistence and watch paths.
 type fileRegistryWALRecord struct {
 	op        fileRegistryWALOp
 	timestamp time.Time
@@ -454,6 +489,7 @@ type fileRegistryWALRecord struct {
 	payloadLen int
 }
 
+// newRegisterWALRecord initializes register wal record with package defaults for this package's call path.
 func newRegisterWALRecord(inst Instance, ttl time.Duration, now time.Time) (fileRegistryWALRecord, error) {
 	payload, err := json.Marshal(fileRegistryRegisterPayload{
 		Status:            inst.Status.String(),
@@ -475,18 +511,22 @@ func newRegisterWALRecord(inst Instance, ttl time.Duration, now time.Time) (file
 	}, nil
 }
 
+// newHeartbeatWALRecord initializes heartbeat wal record with package defaults for this package's call path.
 func newHeartbeatWALRecord(service, id string, ttl time.Duration, now time.Time) fileRegistryWALRecord {
 	return fileRegistryWALRecord{op: fileRegistryWALOpHeartbeat, timestamp: now, service: service, id: id, ttl: ttl}
 }
 
+// newDeleteExpiredWALRecord initializes delete expired wal record with package defaults for this package's call path.
 func newDeleteExpiredWALRecord(service, id string, now time.Time) fileRegistryWALRecord {
 	return fileRegistryWALRecord{op: fileRegistryWALOpDeleteExpired, timestamp: now, service: service, id: id}
 }
 
+// newSnapshotMarkWALRecord initializes snapshot mark wal record with package defaults for this package's call path.
 func newSnapshotMarkWALRecord(now time.Time) fileRegistryWALRecord {
 	return fileRegistryWALRecord{op: fileRegistryWALOpSnapshotMark, timestamp: now}
 }
 
+// encodeFileRegistryWALRecord keeps encode file registry wal record rules consistent for registry persistence and watch paths.
 func encodeFileRegistryWALRecord(record fileRegistryWALRecord) ([]byte, error) {
 	serviceLen := len(record.service)
 	idLen := len(record.id)
@@ -521,12 +561,14 @@ func encodeFileRegistryWALRecord(record fileRegistryWALRecord) ([]byte, error) {
 	return out, nil
 }
 
+// fileRegistryWALReplayResult reports the valid WAL prefix and whether replay truncated a corrupt tail.
 type fileRegistryWALReplayResult struct {
 	validBytes int64
 	truncated  bool
 	records    int
 }
 
+// replayFileRegistryWAL replays valid WAL records in order and returns the byte offset safe for truncation.
 func replayFileRegistryWAL(path string, apply func(fileRegistryWALRecord) error) (fileRegistryWALReplayResult, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -587,6 +629,7 @@ func replayFileRegistryWAL(path string, apply func(fileRegistryWALRecord) error)
 	}
 }
 
+// parseFileRegistryWALHeader decodes file registry wal header input into the package's typed representation.
 func parseFileRegistryWALHeader(header []byte) (fileRegistryWALRecord, int, bool) {
 	if len(header) != fileRegistryWALHeaderSize {
 		return fileRegistryWALRecord{}, 0, false
@@ -634,6 +677,7 @@ func parseFileRegistryWALHeader(header []byte) (fileRegistryWALRecord, int, bool
 	}, serviceLen + idLen + addressLen + payloadLen, true
 }
 
+// populateFileRegistryWALBody provides the shared populate file registry wal body helper for registry persistence and watch paths.
 func populateFileRegistryWALBody(record *fileRegistryWALRecord, body []byte) bool {
 	if len(body) != record.serviceLen+record.idLen+record.addressLen+record.payloadLen {
 		return false
@@ -651,9 +695,11 @@ func populateFileRegistryWALBody(record *fileRegistryWALRecord, body []byte) boo
 	return true
 }
 
+// fileRegistryWALRequestKind names the file registry wal request kind values accepted by registry persistence and watch paths.
 type fileRegistryWALRequestKind uint8
 
 const (
+	// fileRegistryWALRequestAppend identifies the file registry wal request append constant used by this package.
 	fileRegistryWALRequestAppend fileRegistryWALRequestKind = iota + 1
 	fileRegistryWALRequestReset
 	fileRegistryWALRequestClose
@@ -661,12 +707,14 @@ const (
 
 var errFileRegistryWALClosed = errors.New("registry wal is closed")
 
+// fileRegistryWALRequest carries file registry wal request state for registry persistence and watch paths.
 type fileRegistryWALRequest struct {
 	kind fileRegistryWALRequestKind
 	data []byte
 	ack  chan error
 }
 
+// fileRegistryWAL carries file registry wal state for registry persistence and watch paths.
 type fileRegistryWAL struct {
 	path     string
 	cfg      fileRegistryV2Config
@@ -678,6 +726,7 @@ type fileRegistryWAL struct {
 	closed   atomic.Bool
 }
 
+// openFileRegistryWAL keeps open file registry wal rules consistent for registry persistence and watch paths.
 func openFileRegistryWAL(path string, cfg fileRegistryV2Config) (*fileRegistryWAL, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
@@ -702,10 +751,12 @@ func openFileRegistryWAL(path string, cfg fileRegistryV2Config) (*fileRegistryWA
 	return wal, nil
 }
 
+// Size returns size data for fileRegistryWAL callers without handing out mutable receiver state.
 func (w *fileRegistryWAL) Size() int64 {
 	return w.size.Load()
 }
 
+// Append encodes a WAL record and waits until the background writer durably accepts it.
 func (w *fileRegistryWAL) Append(ctx context.Context, record fileRegistryWALRecord) error {
 	data, err := encodeFileRegistryWALRecord(record)
 	if err != nil {
@@ -714,6 +765,7 @@ func (w *fileRegistryWAL) Append(ctx context.Context, record fileRegistryWALReco
 	return w.submit(ctx, fileRegistryWALRequest{kind: fileRegistryWALRequestAppend, data: data, ack: make(chan error, 1)})
 }
 
+// Reset replaces WAL contents with a snapshot marker through the serialized writer path.
 func (w *fileRegistryWAL) Reset(ctx context.Context, mark fileRegistryWALRecord) error {
 	data, err := encodeFileRegistryWALRecord(mark)
 	if err != nil {
@@ -722,6 +774,7 @@ func (w *fileRegistryWAL) Reset(ctx context.Context, mark fileRegistryWALRecord)
 	return w.submit(ctx, fileRegistryWALRequest{kind: fileRegistryWALRequestReset, data: data, ack: make(chan error, 1)})
 }
 
+// Close closes owned resources and makes repeated calls safe.
 func (w *fileRegistryWAL) Close() error {
 	if !w.closed.CompareAndSwap(false, true) {
 		<-w.done
@@ -745,6 +798,7 @@ func (w *fileRegistryWAL) Close() error {
 	}
 }
 
+// submit serializes WAL requests and fails fast when the context or writer is closed.
 func (w *fileRegistryWAL) submit(ctx context.Context, req fileRegistryWALRequest) error {
 	w.submitMu.RLock()
 	defer w.submitMu.RUnlock()
@@ -761,6 +815,7 @@ func (w *fileRegistryWAL) submit(ctx context.Context, req fileRegistryWALRequest
 	return <-req.ack
 }
 
+// run runs the run workflow until it completes or the context is canceled.
 func (w *fileRegistryWAL) run(file *os.File) {
 	defer close(w.done)
 

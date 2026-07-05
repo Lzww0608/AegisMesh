@@ -18,6 +18,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/registry"
 )
 
+// TestBuildStateMachineConfigPreservesExperimentThresholds locks the build state machine config preserves experiment thresholds contract so future changes do not regress it.
 func TestBuildStateMachineConfigPreservesExperimentThresholds(t *testing.T) {
 	cfg := buildStateMachineConfig(0.05, 0.09, 2, 5*time.Second, 0.03, 0.90)
 
@@ -41,6 +42,7 @@ func TestBuildStateMachineConfigPreservesExperimentThresholds(t *testing.T) {
 	}
 }
 
+// TestBuildHealthManagerConfigPreservesLatencySLO locks the build health manager config preserves latency slo contract so future changes do not regress it.
 func TestBuildHealthManagerConfigPreservesLatencySLO(t *testing.T) {
 	cfg := buildHealthManagerConfig(0.05, 0.09, 2, 5*time.Second, 0.03, 0.90, 250*time.Millisecond)
 
@@ -52,6 +54,7 @@ func TestBuildHealthManagerConfigPreservesLatencySLO(t *testing.T) {
 	}
 }
 
+// TestCloseRegistryStoreClosesCloseableBackend locks the close registry store closes closeable backend contract so future changes do not regress it.
 func TestCloseRegistryStoreClosesCloseableBackend(t *testing.T) {
 	store := &closeableRegistryForTest{}
 	closeRegistryStore(store)
@@ -60,15 +63,19 @@ func TestCloseRegistryStoreClosesCloseableBackend(t *testing.T) {
 	}
 }
 
+// closeableRegistryForTest carries closeable registry for test state for controller startup and restore flows.
 type closeableRegistryForTest struct {
 	registry.Registry
 	closed bool
 }
 
+// Close closes owned resources and makes repeated calls safe.
 func (s *closeableRegistryForTest) Close() error {
 	s.closed = true
 	return nil
 }
+
+// TestBuildRegistryFromFlagsSelectsFileBackend locks the build registry from flags selects file backend contract so future changes do not regress it.
 func TestBuildRegistryFromFlagsSelectsFileBackend(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerRegistryFlags(fs)
@@ -85,6 +92,7 @@ func TestBuildRegistryFromFlagsSelectsFileBackend(t *testing.T) {
 	}
 }
 
+// TestRegisterPolicyFlags locks the register policy flags contract so future changes do not regress it.
 func TestRegisterPolicyFlags(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerPolicyFlags(fs)
@@ -99,6 +107,7 @@ func TestRegisterPolicyFlags(t *testing.T) {
 	}
 }
 
+// TestStartPolicyHotApplyLoopAppliesInitialFilePolicy locks the start policy hot apply loop applies initial file policy contract so future changes do not regress it.
 func TestStartPolicyHotApplyLoopAppliesInitialFilePolicy(t *testing.T) {
 	path := t.TempDir() + "/policy.yaml"
 	if err := os.WriteFile(path, []byte(`
@@ -136,6 +145,7 @@ services:
 	}
 }
 
+// TestRegisterHealthStateFlagsIncludesEtcdOptions locks the register health state flags includes etcd options contract so future changes do not regress it.
 func TestRegisterHealthStateFlagsIncludesEtcdOptions(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerHealthStateFlags(fs)
@@ -160,6 +170,7 @@ func TestRegisterHealthStateFlagsIncludesEtcdOptions(t *testing.T) {
 	}
 }
 
+// TestBuildHealthSnapshotStoreRejectsEtcdWithoutEndpoints locks the build health snapshot store rejects etcd without endpoints contract so future changes do not regress it.
 func TestBuildHealthSnapshotStoreRejectsEtcdWithoutEndpoints(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerHealthStateFlags(fs)
@@ -171,6 +182,7 @@ func TestBuildHealthSnapshotStoreRejectsEtcdWithoutEndpoints(t *testing.T) {
 	}
 }
 
+// TestRestoreHealthSnapshotFiltersStaleHealth locks the restore health snapshot filters stale health contract so future changes do not regress it.
 func TestRestoreHealthSnapshotFiltersStaleHealth(t *testing.T) {
 	now := time.Now()
 	store := &staticHealthSnapshotStore{snapshot: []fault.EndpointHealth{
@@ -193,6 +205,7 @@ func TestRestoreHealthSnapshotFiltersStaleHealth(t *testing.T) {
 	}
 }
 
+// TestRestoreHealthSnapshotFiltersUnregisteredHealth locks the restore health snapshot filters unregistered health contract so future changes do not regress it.
 func TestRestoreHealthSnapshotFiltersUnregisteredHealth(t *testing.T) {
 	now := time.Now()
 	reg := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -225,6 +238,7 @@ func TestRestoreHealthSnapshotFiltersUnregisteredHealth(t *testing.T) {
 	}
 }
 
+// TestPruneHealthMissingFromRegistryRemovesInactiveEndpoint locks the prune health missing from registry removes inactive endpoint contract so future changes do not regress it.
 func TestPruneHealthMissingFromRegistryRemovesInactiveEndpoint(t *testing.T) {
 	now := time.Now()
 	reg := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -258,6 +272,8 @@ func TestPruneHealthMissingFromRegistryRemovesInactiveEndpoint(t *testing.T) {
 		t.Fatalf("expected address-mismatched endpoint health to be removed")
 	}
 }
+
+// TestResolveHealthEtcdPasswordPrefersEnvThenFileThenFlag locks the resolve health etcd password prefers env then file then flag contract so future changes do not regress it.
 func TestResolveHealthEtcdPasswordPrefersEnvThenFileThenFlag(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerHealthStateFlags(fs)
@@ -276,6 +292,8 @@ func TestResolveHealthEtcdPasswordPrefersEnvThenFileThenFlag(t *testing.T) {
 		t.Fatalf("expected env password priority, got %q err=%v", got, err)
 	}
 }
+
+// TestRegisterPolicyFlagsIncludesEtcdOptions locks the register policy flags includes etcd options contract so future changes do not regress it.
 func TestRegisterPolicyFlagsIncludesEtcdOptions(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerPolicyFlags(fs)
@@ -299,6 +317,7 @@ func TestRegisterPolicyFlagsIncludesEtcdOptions(t *testing.T) {
 	}
 }
 
+// TestBuildPolicyStoreRejectsEtcdWithoutEndpoints locks the build policy store rejects etcd without endpoints contract so future changes do not regress it.
 func TestBuildPolicyStoreRejectsEtcdWithoutEndpoints(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerPolicyFlags(fs)
@@ -310,6 +329,7 @@ func TestBuildPolicyStoreRejectsEtcdWithoutEndpoints(t *testing.T) {
 	}
 }
 
+// TestResolvePolicyEtcdPasswordPrefersEnvThenFileThenFlag locks the resolve policy etcd password prefers env then file then flag contract so future changes do not regress it.
 func TestResolvePolicyEtcdPasswordPrefersEnvThenFileThenFlag(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerPolicyFlags(fs)
@@ -328,6 +348,8 @@ func TestResolvePolicyEtcdPasswordPrefersEnvThenFileThenFlag(t *testing.T) {
 		t.Fatalf("expected env password priority, got %q err=%v", got, err)
 	}
 }
+
+// TestRegisterSecurityFlagsAndBuildInsecureAuthForLocalTests locks the register security flags and build insecure auth for local tests contract so future changes do not regress it.
 func TestRegisterSecurityFlagsAndBuildInsecureAuthForLocalTests(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerSecurityFlags(fs)
@@ -349,6 +371,7 @@ func TestRegisterSecurityFlagsAndBuildInsecureAuthForLocalTests(t *testing.T) {
 	}
 }
 
+// TestBuildControllerServerOptionsRejectsOpenPlaintextByDefault locks the build controller server options rejects open plaintext by default contract so future changes do not regress it.
 func TestBuildControllerServerOptionsRejectsOpenPlaintextByDefault(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerSecurityFlags(fs)
@@ -360,6 +383,7 @@ func TestBuildControllerServerOptionsRejectsOpenPlaintextByDefault(t *testing.T)
 	}
 }
 
+// TestBuildControllerServerOptionsAllowsExplicitInsecureDev locks the build controller server options allows explicit insecure dev contract so future changes do not regress it.
 func TestBuildControllerServerOptionsAllowsExplicitInsecureDev(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerSecurityFlags(fs)
@@ -370,6 +394,8 @@ func TestBuildControllerServerOptionsAllowsExplicitInsecureDev(t *testing.T) {
 		t.Fatalf("expected explicit insecure dev mode to be allowed: %v", err)
 	}
 }
+
+// TestBuildControllerServerOptionsRejectsPlaintextAuthByDefault locks the build controller server options rejects plaintext auth by default contract so future changes do not regress it.
 func TestBuildControllerServerOptionsRejectsPlaintextAuthByDefault(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerSecurityFlags(fs)
@@ -381,6 +407,7 @@ func TestBuildControllerServerOptionsRejectsPlaintextAuthByDefault(t *testing.T)
 	}
 }
 
+// TestBuildControllerServerOptionsAcceptsScopedAuthToken locks the build controller server options accepts scoped auth token contract so future changes do not regress it.
 func TestBuildControllerServerOptionsAcceptsScopedAuthToken(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerSecurityFlags(fs)
@@ -395,6 +422,8 @@ func TestBuildControllerServerOptionsAcceptsScopedAuthToken(t *testing.T) {
 		t.Fatalf("expected auth interceptors to be installed")
 	}
 }
+
+// TestBuildControllerServerOptionsRejectsInvalidAuthRole locks the build controller server options rejects invalid auth role contract so future changes do not regress it.
 func TestBuildControllerServerOptionsRejectsInvalidAuthRole(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerSecurityFlags(fs)
@@ -405,6 +434,8 @@ func TestBuildControllerServerOptionsRejectsInvalidAuthRole(t *testing.T) {
 		t.Fatalf("expected invalid auth role to be rejected")
 	}
 }
+
+// TestResolveControllerAuthTokensPrefersEnvThenFileThenFlag locks the resolve controller auth tokens prefers env then file then flag contract so future changes do not regress it.
 func TestResolveControllerAuthTokensPrefersEnvThenFileThenFlag(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerSecurityFlags(fs)
@@ -423,6 +454,8 @@ func TestResolveControllerAuthTokensPrefersEnvThenFileThenFlag(t *testing.T) {
 		t.Fatalf("expected env token priority, got %q err=%v", got, err)
 	}
 }
+
+// TestResolveControllerAuthCertPrincipalsPrefersEnvThenFileThenFlag locks the resolve controller auth cert principals prefers env then file then flag contract so future changes do not regress it.
 func TestResolveControllerAuthCertPrincipalsPrefersEnvThenFileThenFlag(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerSecurityFlags(fs)
@@ -442,6 +475,7 @@ func TestResolveControllerAuthCertPrincipalsPrefersEnvThenFileThenFlag(t *testin
 	}
 }
 
+// TestBuildControllerServerOptionsRejectsCertificatePrincipalsWithoutTLS locks the build controller server options rejects certificate principals without tls contract so future changes do not regress it.
 func TestBuildControllerServerOptionsRejectsCertificatePrincipalsWithoutTLS(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerSecurityFlags(fs)
@@ -453,6 +487,7 @@ func TestBuildControllerServerOptionsRejectsCertificatePrincipalsWithoutTLS(t *t
 	}
 }
 
+// TestBuildControllerServerOptionsRejectsCertificatePrincipalsWithoutCA locks the build controller server options rejects certificate principals without ca contract so future changes do not regress it.
 func TestBuildControllerServerOptionsRejectsCertificatePrincipalsWithoutCA(t *testing.T) {
 	certFile, keyFile, _ := writeControllerServerTLSMaterial(t)
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
@@ -465,6 +500,7 @@ func TestBuildControllerServerOptionsRejectsCertificatePrincipalsWithoutCA(t *te
 	}
 }
 
+// TestBuildControllerServerOptionsRequiresClientCertForCertificateOnlyAuth locks the build controller server options requires client cert for certificate only auth contract so future changes do not regress it.
 func TestBuildControllerServerOptionsRequiresClientCertForCertificateOnlyAuth(t *testing.T) {
 	certFile, keyFile, caFile := writeControllerServerTLSMaterial(t)
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
@@ -477,6 +513,7 @@ func TestBuildControllerServerOptionsRequiresClientCertForCertificateOnlyAuth(t 
 	}
 }
 
+// TestBuildControllerServerOptionsAcceptsCertificateOnlyMTLSAuth locks the build controller server options accepts certificate only mtls auth contract so future changes do not regress it.
 func TestBuildControllerServerOptionsAcceptsCertificateOnlyMTLSAuth(t *testing.T) {
 	certFile, keyFile, caFile := writeControllerServerTLSMaterial(t)
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
@@ -493,6 +530,7 @@ func TestBuildControllerServerOptionsAcceptsCertificateOnlyMTLSAuth(t *testing.T
 	}
 }
 
+// TestBuildControllerServerOptionsAcceptsMixedTokenAndOptionalCertificateAuth locks the build controller server options accepts mixed token and optional certificate auth contract so future changes do not regress it.
 func TestBuildControllerServerOptionsAcceptsMixedTokenAndOptionalCertificateAuth(t *testing.T) {
 	certFile, keyFile, caFile := writeControllerServerTLSMaterial(t)
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
@@ -508,6 +546,8 @@ func TestBuildControllerServerOptionsAcceptsMixedTokenAndOptionalCertificateAuth
 		t.Fatalf("expected TLS credentials and auth interceptors")
 	}
 }
+
+// TestSplitCommaListTrimsEmptyItems locks the split comma list trims empty items contract so future changes do not regress it.
 func TestSplitCommaListTrimsEmptyItems(t *testing.T) {
 	got := splitCommaList(" http://127.0.0.1:2379,;http://127.0.0.2:2379 ,, ")
 	if len(got) != 2 || got[0] != "http://127.0.0.1:2379" || got[1] != "http://127.0.0.2:2379" {
@@ -515,6 +555,7 @@ func TestSplitCommaListTrimsEmptyItems(t *testing.T) {
 	}
 }
 
+// TestResolveEtcdPasswordPrefersEnvThenFileThenFlag locks the resolve etcd password prefers env then file then flag contract so future changes do not regress it.
 func TestResolveEtcdPasswordPrefersEnvThenFileThenFlag(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerRegistryFlags(fs)
@@ -534,6 +575,7 @@ func TestResolveEtcdPasswordPrefersEnvThenFileThenFlag(t *testing.T) {
 	}
 }
 
+// TestRegisterRegistryFlagsIncludesEtcdSecurityOptions locks the register registry flags includes etcd security options contract so future changes do not regress it.
 func TestRegisterRegistryFlagsIncludesEtcdSecurityOptions(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerRegistryFlags(fs)
@@ -555,6 +597,8 @@ func TestRegisterRegistryFlagsIncludesEtcdSecurityOptions(t *testing.T) {
 		t.Fatalf("unexpected etcd TLS flags: ca=%q cert=%q key=%q server=%q", *cfg.etcdTLSCAFile, *cfg.etcdTLSCertFile, *cfg.etcdTLSKeyFile, *cfg.etcdTLSServerName)
 	}
 }
+
+// TestBuildRegistryFromFlagsRejectsEtcdWithoutEndpoints locks the build registry from flags rejects etcd without endpoints contract so future changes do not regress it.
 func TestBuildRegistryFromFlagsRejectsEtcdWithoutEndpoints(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerRegistryFlags(fs)
@@ -566,18 +610,22 @@ func TestBuildRegistryFromFlagsRejectsEtcdWithoutEndpoints(t *testing.T) {
 	}
 }
 
+// staticHealthSnapshotStore defines persistence operations for static health snapshot store state.
 type staticHealthSnapshotStore struct {
 	snapshot []fault.EndpointHealth
 }
 
+// Load reads the current state from the configured backing source.
 func (s *staticHealthSnapshotStore) Load(context.Context) ([]fault.EndpointHealth, int64, error) {
 	return append([]fault.EndpointHealth(nil), s.snapshot...), 7, nil
 }
 
+// Save persists save state to the backing store.
 func (s *staticHealthSnapshotStore) Save(context.Context, []fault.EndpointHealth) (int64, error) {
 	return 0, nil
 }
 
+// Watch streams backing-source changes to callers until the source or context closes.
 func (s *staticHealthSnapshotStore) Watch(ctx context.Context, _ int64) (<-chan fault.HealthStoreEvent, error) {
 	ch := make(chan fault.HealthStoreEvent)
 	go func() {
@@ -587,7 +635,10 @@ func (s *staticHealthSnapshotStore) Watch(ctx context.Context, _ int64) (<-chan 
 	return ch, nil
 }
 
+// Close closes owned resources and makes repeated calls safe.
 func (s *staticHealthSnapshotStore) Close() error { return nil }
+
+// writeControllerServerTLSMaterial writes write controller server tls material data to the configured output.
 func writeControllerServerTLSMaterial(t *testing.T) (string, string, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -629,6 +680,7 @@ func writeControllerServerTLSMaterial(t *testing.T) (string, string, string) {
 	return certFile, keyFile, caFile
 }
 
+// newControllerTestKey initializes controller test key with package defaults for this package's call path.
 func newControllerTestKey(t *testing.T) *rsa.PrivateKey {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -638,6 +690,7 @@ func newControllerTestKey(t *testing.T) *rsa.PrivateKey {
 	return key
 }
 
+// writeControllerTestPEM writes write controller test pem data to the configured output.
 func writeControllerTestPEM(t *testing.T, path, typ string, der []byte) {
 	t.Helper()
 	file, err := os.Create(path)
@@ -652,6 +705,8 @@ func writeControllerTestPEM(t *testing.T, path, typ string, der []byte) {
 		t.Fatalf("close %s: %v", path, err)
 	}
 }
+
+// TestBuildRegistryFromFlagsSelectsEtcdBackend locks the build registry from flags selects etcd backend contract so future changes do not regress it.
 func TestBuildRegistryFromFlagsSelectsEtcdBackend(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerRegistryFlags(fs)
@@ -673,6 +728,8 @@ func TestBuildRegistryFromFlagsSelectsEtcdBackend(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildRegistryFromFlagsSelectsFileV2Backend locks the build registry from flags selects file v2 backend contract so future changes do not regress it.
 func TestBuildRegistryFromFlagsSelectsFileV2Backend(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	cfg := registerRegistryFlags(fs)

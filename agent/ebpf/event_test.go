@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// TestDecodeRawTCPRetransmitEvent locks the decode raw tcp retransmit event contract so future changes do not regress it.
 func TestDecodeRawTCPRetransmitEvent(t *testing.T) {
 	raw := testRawTCPEvent{
 		TimestampNS: uint64(time.Second),
@@ -38,6 +39,7 @@ func TestDecodeRawTCPRetransmitEvent(t *testing.T) {
 	}
 }
 
+// TestDecodeRawTCPConnectErrorEvent locks the decode raw tcp connect error event contract so future changes do not regress it.
 func TestDecodeRawTCPConnectErrorEvent(t *testing.T) {
 	raw := testRawTCPEvent{
 		TimestampNS:      uint64(2 * time.Second),
@@ -66,6 +68,7 @@ func TestDecodeRawTCPConnectErrorEvent(t *testing.T) {
 	}
 }
 
+// TestDecodeRawTCPEventRejectsShortSample locks the decode raw tcp event rejects short sample contract so future changes do not regress it.
 func TestDecodeRawTCPEventRejectsShortSample(t *testing.T) {
 	_, err := DecodeRawTCPEvent([]byte{1, 2, 3})
 	if !errors.Is(err, ErrShortSample) {
@@ -73,6 +76,7 @@ func TestDecodeRawTCPEventRejectsShortSample(t *testing.T) {
 	}
 }
 
+// testRawTCPEvent mirrors the binary TCP event layout used by decode fixtures.
 type testRawTCPEvent struct {
 	TimestampNS      uint64
 	PID              uint32
@@ -88,6 +92,7 @@ type testRawTCPEvent struct {
 	Comm             [16]byte
 }
 
+// encodeTestRawEvent keeps encode test raw event rules consistent for the eBPF telemetry path.
 func encodeTestRawEvent(t *testing.T, event testRawTCPEvent) []byte {
 	t.Helper()
 	buf := make([]byte, rawTCPEventSize)

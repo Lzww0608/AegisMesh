@@ -10,21 +10,26 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+// RoutingPolicy describes routing policy rules distributed through the control plane.
 type RoutingPolicy string
 
 const (
+	// RoutingAdaptiveP2C identifies the routing adaptive p2 c constant used by this package.
 	RoutingAdaptiveP2C RoutingPolicy = "adaptive_p2c"
 	RoutingRoundRobin  RoutingPolicy = "round_robin"
 )
 
+// RetryMode names the retry mode values accepted by resolver, picker, and reporter state.
 type RetryMode string
 
 const (
+	// RetryBudget identifies the retry budget constant used by this package.
 	RetryBudget        RetryMode = "budget"
 	RetryWithoutBudget RetryMode = "without_budget"
 	RetryOff           RetryMode = "off"
 )
 
+// DialOptions holds optional settings for dial options operations.
 type DialOptions struct {
 	RoutingPolicy        RoutingPolicy
 	RetryMode            RetryMode
@@ -38,6 +43,7 @@ type DialOptions struct {
 	TraceLogPath         string
 }
 
+// DefaultDialOptions keeps default dial options rules consistent for resolver, picker, and reporter state.
 func DefaultDialOptions() DialOptions {
 	return DialOptions{
 		RoutingPolicy: RoutingAdaptiveP2C,
@@ -51,6 +57,7 @@ func DefaultDialOptions() DialOptions {
 	}
 }
 
+// normalizeDialOptions normalizes normalize dial options so downstream logic sees one canonical form.
 func normalizeDialOptions(options DialOptions) DialOptions {
 	defaults := DefaultDialOptions()
 	if options.RoutingPolicy == "" {
@@ -68,10 +75,12 @@ func normalizeDialOptions(options DialOptions) DialOptions {
 	return options
 }
 
+// isZeroBudgetConfig provides the shared is zero budget config helper for resolver, picker, and reporter state.
 func isZeroBudgetConfig(cfg retrypkg.BudgetConfig) bool {
 	return cfg.BudgetRatio == 0 && cfg.MinBudget == 0 && cfg.Window == 0 && cfg.Now == nil
 }
 
+// serviceConfigForRoutingPolicy provides the shared service config for routing policy helper for resolver, picker, and reporter state.
 func serviceConfigForRoutingPolicy(policy RoutingPolicy) (string, error) {
 	switch policy {
 	case "", RoutingAdaptiveP2C:
@@ -83,6 +92,7 @@ func serviceConfigForRoutingPolicy(policy RoutingPolicy) (string, error) {
 	}
 }
 
+// retryComponentsForDialOptions provides the shared retry components for dial options helper for resolver, picker, and reporter state.
 func retryComponentsForDialOptions(options DialOptions) (RetryPolicy, *retrypkg.Budget) {
 	options = normalizeDialOptions(options)
 	policy := options.RetryPolicy
@@ -100,6 +110,7 @@ func retryComponentsForDialOptions(options DialOptions) (RetryPolicy, *retrypkg.
 	}
 }
 
+// applyPolicySnapshotToDialOptions applies apply policy snapshot to dial options to the mutable target while preserving transition rules.
 func applyPolicySnapshotToDialOptions(options DialOptions, snapshot *aegisv1.PolicySnapshot) DialOptions {
 	if snapshot == nil {
 		return options
@@ -110,6 +121,7 @@ func applyPolicySnapshotToDialOptions(options DialOptions, snapshot *aegisv1.Pol
 	return applyRetryPolicyToDialOptions(options, snapshot.Retry)
 }
 
+// applyMethodPolicyToDialOptions applies apply method policy to dial options to the mutable target while preserving transition rules.
 func applyMethodPolicyToDialOptions(options DialOptions, method *aegisv1.MethodPolicy) DialOptions {
 	if method == nil {
 		return options
@@ -127,6 +139,7 @@ func applyMethodPolicyToDialOptions(options DialOptions, method *aegisv1.MethodP
 	return options
 }
 
+// applyRetryPolicyToDialOptions applies apply retry policy to dial options to the mutable target while preserving transition rules.
 func applyRetryPolicyToDialOptions(options DialOptions, policy *aegisv1.RetryPolicy) DialOptions {
 	if !policyRetryHasAnyField(policy) {
 		return options
@@ -156,6 +169,7 @@ func applyRetryPolicyToDialOptions(options DialOptions, policy *aegisv1.RetryPol
 	return options
 }
 
+// policyRetryHasAnyField provides the shared policy retry has any field helper for resolver, picker, and reporter state.
 func policyRetryHasAnyField(policy *aegisv1.RetryPolicy) bool {
 	return policy != nil &&
 		(policy.Enabled ||

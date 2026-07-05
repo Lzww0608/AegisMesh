@@ -5,6 +5,7 @@ import os
 from collections import Counter
 
 
+# main parses command-line options and runs the script workflow.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--recovery", required=True)
@@ -63,6 +64,7 @@ def main():
         )
 
 
+# read_probing_rows loads probing rows rows from disk for the analysis stage.
 def read_probing_rows(path, probing_port):
     rows = []
     with open(path, newline="", encoding="utf-8") as f:
@@ -80,6 +82,7 @@ def read_probing_rows(path, probing_port):
     return rows
 
 
+# read_trace_rows loads trace rows rows from disk for the analysis stage.
 def read_trace_rows(path, destination, start_ms, end_ms):
     rows = []
     with open(path, encoding="utf-8") as f:
@@ -95,12 +98,14 @@ def read_trace_rows(path, destination, start_ms, end_ms):
     return rows
 
 
+# endpoint_port keeps the endpoint port helper near the workflow that consumes its formatted output.
 def endpoint_port(address):
     if not address or ":" not in address:
         return ""
     return address.rsplit(":", 1)[-1]
 
 
+# parse_float converts float values from user input or result files.
 def parse_float(raw):
     try:
         return float(raw)
@@ -108,6 +113,7 @@ def parse_float(raw):
         return 0.0
 
 
+# conclusion keeps the conclusion helper near the workflow that consumes its formatted output.
 def conclusion(ratio, expected):
     if ratio <= expected:
         return "PASS: PROBING endpoint traffic stayed within the configured probe-ratio bound."

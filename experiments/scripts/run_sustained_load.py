@@ -10,6 +10,7 @@ import urllib.error
 import urllib.request
 
 
+# main parses command-line options and runs the script workflow.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", required=True)
@@ -26,6 +27,7 @@ def main():
     lock = threading.Lock()
     started_ms = int(time.time() * 1000)
 
+    # worker keeps the worker helper near the workflow that consumes its formatted output.
     def worker():
         local = []
         while time.monotonic() < deadline:
@@ -42,6 +44,7 @@ def main():
     write_latency_row(args.latency_out, args.experiment, args.variant, started_ms, ended_ms, results)
 
 
+# parse_duration converts duration values from user input or result files.
 def parse_duration(raw):
     raw = str(raw).strip()
     if raw.endswith("ms"):
@@ -53,6 +56,7 @@ def parse_duration(raw):
     return float(raw)
 
 
+# request_once keeps the request once helper near the workflow that consumes its formatted output.
 def request_once(url):
     started = time.perf_counter()
     try:
@@ -64,6 +68,7 @@ def request_once(url):
     return (time.perf_counter() - started) * 1000.0, ok
 
 
+# write_latency_row writes write latency row output for downstream analysis.
 def write_latency_row(path, experiment, variant, started_ms, ended_ms, results):
     latencies = sorted(latency for latency, ok in results if ok)
     failures = len(results) - len(latencies)
@@ -99,6 +104,7 @@ def write_latency_row(path, experiment, variant, started_ms, ended_ms, results):
         ])
 
 
+# percentile keeps the percentile helper near the workflow that consumes its formatted output.
 def percentile(values, pct):
     if not values:
         return ""

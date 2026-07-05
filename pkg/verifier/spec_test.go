@@ -2,6 +2,7 @@ package verifier
 
 import "testing"
 
+// TestParseSpecReadsVerifierYAML locks the parse spec reads verifier yaml contract so future changes do not regress it.
 func TestParseSpecReadsVerifierYAML(t *testing.T) {
 	spec, err := ParseSpec([]byte(`
 test:
@@ -32,6 +33,7 @@ expect:
 	}
 }
 
+// TestVerifyTraceDistributionPassesWithinTolerance locks the verify trace distribution passes within tolerance contract so future changes do not regress it.
 func TestVerifyTraceDistributionPassesWithinTolerance(t *testing.T) {
 	spec := Spec{
 		Expect: ExpectSpec{
@@ -59,6 +61,7 @@ func TestVerifyTraceDistributionPassesWithinTolerance(t *testing.T) {
 	}
 }
 
+// TestVerifyTraceDistributionFailsOutsideToleranceAndForbiddenEdge locks the verify trace distribution fails outside tolerance and forbidden edge contract so future changes do not regress it.
 func TestVerifyTraceDistributionFailsOutsideToleranceAndForbiddenEdge(t *testing.T) {
 	spec := Spec{
 		Expect: ExpectSpec{

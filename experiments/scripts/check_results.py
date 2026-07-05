@@ -6,6 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 
 
+# main parses command-line options and runs the script workflow.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--results", default="experiments/results")
@@ -64,6 +65,7 @@ def main():
         print("All required experiment comparisons have evidence rows.")
 
 
+# read_rows loads CSV rows from disk for the analysis stage.
 def read_rows(path):
     if not path.exists():
         return []
@@ -71,6 +73,7 @@ def read_rows(path):
         return list(csv.DictReader(f))
 
 
+# derive_latency keeps the derive latency helper near the workflow that consumes its formatted output.
 def derive_latency(rows):
     by_key = group_rows(rows)
     print("Latency comparisons:")
@@ -81,6 +84,7 @@ def derive_latency(rows):
     print()
 
 
+# compare_p99 keeps the compare p99 helper near the workflow that consumes its formatted output.
 def compare_p99(by_key, left, right):
     if left not in by_key or right not in by_key:
         print(f"- {left[0]}: missing {left[1]} vs {right[1]}")
@@ -102,6 +106,7 @@ def compare_p99(by_key, left, right):
     )
 
 
+# derive_retry keeps the derive retry helper near the workflow that consumes its formatted output.
 def derive_retry(rows):
     by_key = group_rows(rows)
     print("Retry comparisons:")
@@ -123,6 +128,7 @@ def derive_retry(rows):
     print()
 
 
+# derive_recovery keeps the derive recovery helper near the workflow that consumes its formatted output.
 def derive_recovery(rows):
     print("Recovery coverage:")
     if not rows:
@@ -138,6 +144,7 @@ def derive_recovery(rows):
     print()
 
 
+# group_rows keeps the group rows helper near the workflow that consumes its formatted output.
 def group_rows(rows):
     grouped = defaultdict(list)
     for row in rows:
@@ -145,6 +152,7 @@ def group_rows(rows):
     return grouped
 
 
+# numeric_values keeps the numeric values helper near the workflow that consumes its formatted output.
 def numeric_values(rows, field):
     values = []
     for row in rows:

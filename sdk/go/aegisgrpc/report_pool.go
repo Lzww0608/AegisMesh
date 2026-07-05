@@ -9,6 +9,7 @@ import (
 
 const defaultProtoSamplesCap = 64
 
+// acquireProtoSamples returns acquire proto samples data for telemetryReporter callers without handing out mutable receiver state.
 func (r *telemetryReporter) acquireProtoSamples(n int) []*aegisv1.EndpointStatsSample {
 	if n < defaultProtoSamplesCap {
 		n = defaultProtoSamplesCap
@@ -26,6 +27,7 @@ func (r *telemetryReporter) acquireProtoSamples(n int) []*aegisv1.EndpointStatsS
 	return samples
 }
 
+// releaseProtoSamples releases previously acquired capacity back to the limiter.
 func (r *telemetryReporter) releaseProtoSamples(samples []*aegisv1.EndpointStatsSample) {
 	if len(samples) == 0 {
 		return
@@ -36,6 +38,7 @@ func (r *telemetryReporter) releaseProtoSamples(samples []*aegisv1.EndpointStats
 	r.protoSamplesPool.Put(samples[:0])
 }
 
+// resetProtoSample provides the shared reset proto sample helper for resolver, picker, and reporter state.
 func resetProtoSample(sample *aegisv1.EndpointStatsSample) {
 	if sample == nil {
 		return
@@ -43,6 +46,7 @@ func resetProtoSample(sample *aegisv1.EndpointStatsSample) {
 	*sample = aegisv1.EndpointStatsSample{}
 }
 
+// fillProtoSample provides the shared fill proto sample helper for resolver, picker, and reporter state.
 func fillProtoSample(dst *aegisv1.EndpointStatsSample, stat telemetry.EndpointStats) {
 	dst.Source = stat.Source
 	dst.Service = stat.Destination
@@ -60,6 +64,7 @@ func fillProtoSample(dst *aegisv1.EndpointStatsSample, stat telemetry.EndpointSt
 	dst.WindowEndUnixMillis = stat.WindowEnd.UnixMilli()
 }
 
+// protoSamplesPoolHolder carries proto samples pool holder state for resolver, picker, and reporter state.
 type protoSamplesPoolHolder struct {
 	protoSamplesPool sync.Pool
 }

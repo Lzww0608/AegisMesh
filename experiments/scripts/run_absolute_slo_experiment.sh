@@ -21,6 +21,7 @@ RECOVERY_INTERVAL="${RECOVERY_INTERVAL:-1s}"
 URL_ADAPTIVE="${URL_ADAPTIVE:-http://127.0.0.1:8083/checkout}"
 MIN_SCORE="${MIN_SCORE:-1.0}"
 
+# assert_recovery_rows checks that required experiment artifacts are present before continuing.
 assert_recovery_rows() {
   local path="$1"
   if [[ ! -s "$path" ]]; then
@@ -35,6 +36,7 @@ assert_recovery_rows() {
   fi
 }
 
+# reset_targets resets external fault-injection state before the next experiment step.
 reset_targets() {
   for target in $TARGETS; do
     TARGET="$target" DEVICE="$DEVICE" bash scripts/reset_faults.sh || true

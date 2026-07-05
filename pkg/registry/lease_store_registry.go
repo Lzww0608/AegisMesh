@@ -11,6 +11,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/status"
 )
 
+// leaseStore defines persistence operations for lease store state.
 type leaseStore interface {
 	Put(ctx context.Context, key string, value []byte, ttl time.Duration) (int64, error)
 	Update(ctx context.Context, key string, value []byte, ttl time.Duration, expectedModRevision int64) (int64, bool, error)
@@ -20,26 +21,31 @@ type leaseStore interface {
 	Close() error
 }
 
+// leaseStoreSweeper defines the lease store sweeper contract used by registry persistence and watch paths.
 type leaseStoreSweeper interface {
 	SweepExpired(ctx context.Context) int
 }
 
+// leaseStoreKV carries lease store kv state for registry persistence and watch paths.
 type leaseStoreKV struct {
 	Key         string
 	Value       []byte
 	ModRevision int64
 }
 
+// leaseStoreRevision carries lease store revision state for registry persistence and watch paths.
 type leaseStoreRevision struct {
 	Revision int64
 }
 
+// LeaseStoreRegistry stores endpoint leases behind a revisioned key-value contract used by watches and heartbeats.
 type LeaseStoreRegistry struct {
 	store  leaseStore
 	prefix string
 	now    func() time.Time
 }
 
+// leaseStoreRecord carries lease store record state for registry persistence and watch paths.
 type leaseStoreRecord struct {
 	ID                string            `json:"id"`
 	Service           string            `json:"service"`
@@ -51,6 +57,7 @@ type leaseStoreRecord struct {
 	OwnerToken        string            `json:"owner_token,omitempty"`
 }
 
+// newLeaseStoreRegistry initializes lease store registry with package defaults for this package's call path.
 func newLeaseStoreRegistry(store leaseStore, prefix string, now func() time.Time) (*LeaseStoreRegistry, error) {
 	if store == nil {
 		return nil, ErrInvalidInstance
@@ -65,6 +72,7 @@ func newLeaseStoreRegistry(store leaseStore, prefix string, now func() time.Time
 	}, nil
 }
 
+// Register registers register with the controller or local registry.
 func (r *LeaseStoreRegistry) Register(ctx context.Context, inst Instance, ttl time.Duration) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -87,10 +95,12 @@ func (r *LeaseStoreRegistry) Register(ctx context.Context, inst Instance, ttl ti
 	return err
 }
 
+// Heartbeat refreshes the instance lease using the current registration fence.
 func (r *LeaseStoreRegistry) Heartbeat(ctx context.Context, service, id string, ttl time.Duration) error {
 	return r.heartbeat(ctx, service, id, "", "", ttl, false, false)
 }
 
+// HeartbeatWithEpoch refreshes the instance lease using the current registration fence.
 func (r *LeaseStoreRegistry) HeartbeatWithEpoch(ctx context.Context, service, id, registrationEpoch string, ttl time.Duration) error {
 	if registrationEpoch == "" {
 		return ErrInvalidInstance
@@ -98,6 +108,7 @@ func (r *LeaseStoreRegistry) HeartbeatWithEpoch(ctx context.Context, service, id
 	return r.heartbeat(ctx, service, id, registrationEpoch, "", ttl, true, false)
 }
 
+// HeartbeatWithOwner refreshes the instance lease using the current registration fence.
 func (r *LeaseStoreRegistry) HeartbeatWithOwner(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration) error {
 	if registrationEpoch == "" || ownerToken == "" {
 		return ErrInvalidInstance
@@ -105,6 +116,7 @@ func (r *LeaseStoreRegistry) HeartbeatWithOwner(ctx context.Context, service, id
 	return r.heartbeat(ctx, service, id, registrationEpoch, ownerToken, ttl, true, true)
 }
 
+// heartbeat refreshes the instance lease using the current registration fence.
 func (r *LeaseStoreRegistry) heartbeat(ctx context.Context, service, id, registrationEpoch, ownerToken string, ttl time.Duration, requireEpoch, requireOwner bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -144,6 +156,8 @@ func (r *LeaseStoreRegistry) heartbeat(ctx context.Context, service, id, registr
 	}
 	return nil
 }
+
+// List returns a point-in-time list of list visible to the caller.
 func (r *LeaseStoreRegistry) List(ctx context.Context, service string) ([]Instance, error) {
 	snapshot, err := r.Snapshot(ctx, service)
 	if err != nil {
@@ -152,6 +166,7 @@ func (r *LeaseStoreRegistry) List(ctx context.Context, service string) ([]Instan
 	return snapshot.Instances, nil
 }
 
+// Snapshot returns an immutable snapshot of the current snapshot state.
 func (r *LeaseStoreRegistry) Snapshot(ctx context.Context, service string) (InstanceSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return InstanceSnapshot{}, err
@@ -190,6 +205,7 @@ func (r *LeaseStoreRegistry) Snapshot(ctx context.Context, service string) (Inst
 	}, nil
 }
 
+// Watch streams backing-source changes to callers until the source or context closes.
 func (r *LeaseStoreRegistry) Watch(ctx context.Context, service string, afterVersion int64) (<-chan InstanceSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -215,6 +231,7 @@ func (r *LeaseStoreRegistry) Watch(ctx context.Context, service string, afterVer
 	return updates, nil
 }
 
+// watch streams backing-source changes to callers until the source or context closes.
 func (r *LeaseStoreRegistry) watch(ctx context.Context, service string, afterVersion int64, initial InstanceSnapshot, revisions <-chan leaseStoreRevision, updates chan InstanceSnapshot) {
 	defer close(updates)
 
@@ -255,6 +272,7 @@ func (r *LeaseStoreRegistry) watch(ctx context.Context, service string, afterVer
 	}
 }
 
+// SweepExpired removes expired sweep expired records from the backing store.
 func (r *LeaseStoreRegistry) SweepExpired(ctx context.Context) int {
 	if sweeper, ok := r.store.(leaseStoreSweeper); ok {
 		return sweeper.SweepExpired(ctx)
@@ -262,18 +280,22 @@ func (r *LeaseStoreRegistry) SweepExpired(ctx context.Context) int {
 	return 0
 }
 
+// Close closes owned resources and makes repeated calls safe.
 func (r *LeaseStoreRegistry) Close() error {
 	return r.store.Close()
 }
 
+// instanceKey returns instance key data for LeaseStoreRegistry callers without handing out mutable receiver state.
 func (r *LeaseStoreRegistry) instanceKey(service, id string) string {
 	return r.servicePrefix(service) + escapeLeaseStorePathSegment(id)
 }
 
+// servicePrefix returns service prefix data for LeaseStoreRegistry callers without handing out mutable receiver state.
 func (r *LeaseStoreRegistry) servicePrefix(service string) string {
 	return r.prefix + "/" + escapeLeaseStorePathSegment(service) + "/"
 }
 
+// cleanLeaseStorePrefix provides the shared clean lease store prefix helper for registry persistence and watch paths.
 func cleanLeaseStorePrefix(prefix string) string {
 	prefix = strings.TrimSpace(prefix)
 	if prefix == "" {
@@ -283,10 +305,12 @@ func cleanLeaseStorePrefix(prefix string) string {
 	return prefix
 }
 
+// escapeLeaseStorePathSegment provides the shared escape lease store path segment helper for registry persistence and watch paths.
 func escapeLeaseStorePathSegment(value string) string {
 	return url.PathEscape(value)
 }
 
+// encodeLeaseStoreRecord keeps encode lease store record rules consistent for registry persistence and watch paths.
 func encodeLeaseStoreRecord(inst Instance) ([]byte, error) {
 	record := leaseStoreRecord{
 		ID:                inst.ID,
@@ -301,6 +325,7 @@ func encodeLeaseStoreRecord(inst Instance) ([]byte, error) {
 	return json.Marshal(record)
 }
 
+// decodeLeaseStoreRecord keeps decode lease store record rules consistent for registry persistence and watch paths.
 func decodeLeaseStoreRecord(raw []byte) (Instance, error) {
 	var record leaseStoreRecord
 	if err := json.Unmarshal(raw, &record); err != nil {

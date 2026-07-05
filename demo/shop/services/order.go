@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// OrderServer carries order server state for this package call path.
 type OrderServer struct {
 	shopv1.UnimplementedOrderServiceServer
 
@@ -18,10 +19,12 @@ type OrderServer struct {
 	nextID  atomic.Uint64
 }
 
+// NewOrderServer initializes order server with package defaults for this package's call path.
 func NewOrderServer(variant string) *OrderServer {
 	return NewOrderServerWithFault(variant, FaultProfile{})
 }
 
+// NewOrderServerWithFault initializes order server with fault with package defaults for this package's call path.
 func NewOrderServerWithFault(variant string, fault FaultProfile) *OrderServer {
 	if variant == "" {
 		variant = "primary"
@@ -29,6 +32,7 @@ func NewOrderServerWithFault(variant string, fault FaultProfile) *OrderServer {
 	return &OrderServer{variant: variant, fault: fault}
 }
 
+// CreateOrder applies the configured fault hook, assigns a monotonic demo order ID, and copies item IDs into the response.
 func (s *OrderServer) CreateOrder(ctx context.Context, req *shopv1.CreateOrderRequest) (*shopv1.CreateOrderResponse, error) {
 	if err := s.fault.BeforeCall(ctx); err != nil {
 		return nil, status.Error(codes.Unavailable, err.Error())

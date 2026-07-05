@@ -2,6 +2,7 @@ package status
 
 import "testing"
 
+// TestParseAndStringRoundTrip locks the parse and string round trip contract so future changes do not regress it.
 func TestParseAndStringRoundTrip(t *testing.T) {
 	cases := []struct {
 		input  string
@@ -26,6 +27,7 @@ func TestParseAndStringRoundTrip(t *testing.T) {
 	}
 }
 
+// TestRoutableAndNormalTraffic locks the routable and normal traffic contract so future changes do not regress it.
 func TestRoutableAndNormalTraffic(t *testing.T) {
 	if !Healthy.Routable() || !Degraded.Routable() || !Probing.Routable() {
 		t.Fatalf("expected healthy/degraded/probing to be routable")

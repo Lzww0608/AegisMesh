@@ -19,6 +19,7 @@ RECOVERY_DURATION="${RECOVERY_DURATION:-90s}"
 RECOVERY_INTERVAL="${RECOVERY_INTERVAL:-1s}"
 URL_ADAPTIVE="${URL_ADAPTIVE:-http://127.0.0.1:8083/checkout}"
 
+# assert_recovery_rows checks that required experiment artifacts are present before continuing.
 assert_recovery_rows() {
   local path="$1"
   if [[ ! -s "$path" ]]; then

@@ -11,11 +11,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Spec carries spec state for this package call path.
 type Spec struct {
 	Test   TestSpec   `yaml:"test" json:"test"`
 	Expect ExpectSpec `yaml:"expect" json:"expect"`
 }
 
+// TestSpec carries test spec state for this package call path.
 type TestSpec struct {
 	Name     string `yaml:"name" json:"name"`
 	Service  string `yaml:"service" json:"service"`
@@ -23,6 +25,7 @@ type TestSpec struct {
 	Requests int    `yaml:"requests" json:"requests"`
 }
 
+// ExpectSpec carries expect spec state for this package call path.
 type ExpectSpec struct {
 	Routes           map[string]float64 `yaml:"routes" json:"routes"`
 	Tolerance        float64            `yaml:"tolerance" json:"tolerance"`
@@ -30,6 +33,7 @@ type ExpectSpec struct {
 	ForbiddenEdges   []string           `yaml:"forbidden_edges" json:"forbidden_edges"`
 }
 
+// TraceRecord carries trace record state for this package call path.
 type TraceRecord struct {
 	TraceID       string   `json:"trace_id" yaml:"trace_id"`
 	Route         string   `json:"route" yaml:"route"`
@@ -38,6 +42,7 @@ type TraceRecord struct {
 	Status        string   `json:"status" yaml:"status"`
 }
 
+// Report carries report state for this package call path.
 type Report struct {
 	Passed            bool               `json:"passed"`
 	Checks            []CheckResult      `json:"checks"`
@@ -45,12 +50,14 @@ type Report struct {
 	TraceCount        int                `json:"trace_count"`
 }
 
+// CheckResult reports one verifier assertion so reports can preserve both pass/fail state and diagnostic text.
 type CheckResult struct {
 	Name    string `json:"name"`
 	Passed  bool   `json:"passed"`
 	Message string `json:"message"`
 }
 
+// ParseSpec decodes spec input into the package's typed representation.
 func ParseSpec(raw []byte) (Spec, error) {
 	var spec Spec
 	if err := yaml.Unmarshal(raw, &spec); err != nil {
@@ -65,6 +72,7 @@ func ParseSpec(raw []byte) (Spec, error) {
 	return spec, nil
 }
 
+// Verify provides the shared verify helper for this package call path.
 func Verify(spec Spec, traces []TraceRecord) Report {
 	report := Report{
 		Passed:            true,
@@ -120,6 +128,7 @@ func Verify(spec Spec, traces []TraceRecord) Report {
 	return report
 }
 
+// add appends a verifier check result and flips the aggregate pass flag on the first failure.
 func (r *Report) add(name string, passed bool, message string) {
 	r.Checks = append(r.Checks, CheckResult{Name: name, Passed: passed, Message: message})
 	if !passed {
@@ -127,6 +136,7 @@ func (r *Report) add(name string, passed bool, message string) {
 	}
 }
 
+// HasFailedCheck returns has failed check data for Report callers without handing out mutable receiver state.
 func (r Report) HasFailedCheck(name string) bool {
 	for _, check := range r.Checks {
 		if check.Name == name && !check.Passed {
@@ -136,6 +146,7 @@ func (r Report) HasFailedCheck(name string) bool {
 	return false
 }
 
+// routeDistribution provides the shared route distribution helper for this package call path.
 func routeDistribution(traces []TraceRecord) map[string]float64 {
 	out := make(map[string]float64)
 	if len(traces) == 0 {
@@ -154,6 +165,7 @@ func routeDistribution(traces []TraceRecord) map[string]float64 {
 	return out
 }
 
+// traceEdges provides the shared trace edges helper for this package call path.
 func traceEdges(path []string) []string {
 	if len(path) < 2 {
 		return nil
@@ -165,6 +177,7 @@ func traceEdges(path []string) []string {
 	return edges
 }
 
+// LoadTraceJSONL reads trace jsonl state from the configured backing source and returns a caller-owned view.
 func LoadTraceJSONL(r io.Reader) ([]TraceRecord, error) {
 	scanner := bufio.NewScanner(r)
 	traces := make([]TraceRecord, 0)

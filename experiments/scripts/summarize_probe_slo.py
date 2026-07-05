@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 
+# main parses command-line options and runs the script workflow.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--runs-dir", default="experiments/results/runs")
@@ -69,6 +70,7 @@ def main():
     print(f"wrote {out}")
 
 
+# load_summaries keeps the load summaries helper near the workflow that consumes its formatted output.
 def load_summaries(runs_dir, filename):
     out = []
     if not runs_dir.exists():
@@ -80,6 +82,7 @@ def load_summaries(runs_dir, filename):
     return out
 
 
+# yes_no keeps the yes no helper near the workflow that consumes its formatted output.
 def yes_no(value):
     return "PASS" if value else "FAIL"
 

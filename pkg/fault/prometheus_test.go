@@ -7,6 +7,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
+// TestPrometheusHealthMetricsExportsSlowScoreAndState locks the prometheus health metrics exports slow score and state contract so future changes do not regress it.
 func TestPrometheusHealthMetricsExportsSlowScoreAndState(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	metrics, err := NewPrometheusHealthMetrics(reg)
@@ -34,6 +35,7 @@ func TestPrometheusHealthMetricsExportsSlowScoreAndState(t *testing.T) {
 	}
 }
 
+// hasMetricFamily provides the shared has metric family helper for fault-state scoring and recovery.
 func hasMetricFamily(families []*dto.MetricFamily, name string) bool {
 	for _, family := range families {
 		if family.GetName() == name {

@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// TestLeaseStoreRegistrySharesStateAcrossControllers locks the lease store registry shares state across controllers contract so future changes do not regress it.
 func TestLeaseStoreRegistrySharesStateAcrossControllers(t *testing.T) {
 	now := time.Unix(100, 0)
 	store := newFakeLeaseStore(func() time.Time { return now })
@@ -52,6 +53,7 @@ func TestLeaseStoreRegistrySharesStateAcrossControllers(t *testing.T) {
 	}
 }
 
+// TestLeaseStoreRegistryWatchReceivesRemoteWriteAndExpiry locks the lease store registry watch receives remote write and expiry contract so future changes do not regress it.
 func TestLeaseStoreRegistryWatchReceivesRemoteWriteAndExpiry(t *testing.T) {
 	now := time.Unix(200, 0)
 	store := newFakeLeaseStore(func() time.Time { return now })
@@ -89,6 +91,7 @@ func TestLeaseStoreRegistryWatchReceivesRemoteWriteAndExpiry(t *testing.T) {
 	}
 }
 
+// TestLeaseStoreRegistryWatchReceivesPartialExpiryWithRemainingInstance locks the lease store registry watch receives partial expiry with remaining instance contract so future changes do not regress it.
 func TestLeaseStoreRegistryWatchReceivesPartialExpiryWithRemainingInstance(t *testing.T) {
 	now := time.Unix(225, 0)
 	store := newFakeLeaseStore(func() time.Time { return now })
@@ -134,6 +137,8 @@ func TestLeaseStoreRegistryWatchReceivesPartialExpiryWithRemainingInstance(t *te
 		t.Fatalf("expected watch to remove only expired instance, got %+v", snapshot.Instances)
 	}
 }
+
+// TestLeaseStoreRegistryHeartbeatMissingInstance locks the lease store registry heartbeat missing instance contract so future changes do not regress it.
 func TestLeaseStoreRegistryHeartbeatMissingInstance(t *testing.T) {
 	store := newFakeLeaseStore(time.Now)
 	reg, err := newLeaseStoreRegistry(store, "/aegis/test", time.Now)
@@ -145,6 +150,7 @@ func TestLeaseStoreRegistryHeartbeatMissingInstance(t *testing.T) {
 	}
 }
 
+// TestLeaseStoreRegistryHeartbeatDoesNotOverwriteConflictingRegister locks the lease store registry heartbeat does not overwrite conflicting register contract so future changes do not regress it.
 func TestLeaseStoreRegistryHeartbeatDoesNotOverwriteConflictingRegister(t *testing.T) {
 	now := time.Unix(250, 0)
 	store := newFakeLeaseStore(func() time.Time { return now })
@@ -179,6 +185,7 @@ func TestLeaseStoreRegistryHeartbeatDoesNotOverwriteConflictingRegister(t *testi
 	}
 }
 
+// TestLeaseStoreRegistrySnapshotVersionIsServiceScopedForExistingService locks the lease store registry snapshot version is service scoped for existing service contract so future changes do not regress it.
 func TestLeaseStoreRegistrySnapshotVersionIsServiceScopedForExistingService(t *testing.T) {
 	now := time.Unix(260, 0)
 	store := newFakeLeaseStore(func() time.Time { return now })
@@ -204,6 +211,8 @@ func TestLeaseStoreRegistrySnapshotVersionIsServiceScopedForExistingService(t *t
 		t.Fatalf("expected unrelated service write not to change user-service version: before=%d after=%d", before.Version, after.Version)
 	}
 }
+
+// TestLeaseStoreRegistryEscapesServiceAndInstancePathSegments locks the lease store registry escapes service and instance path segments contract so future changes do not regress it.
 func TestLeaseStoreRegistryEscapesServiceAndInstancePathSegments(t *testing.T) {
 	now := time.Unix(300, 0)
 	store := newFakeLeaseStore(func() time.Time { return now })
@@ -228,6 +237,7 @@ func TestLeaseStoreRegistryEscapesServiceAndInstancePathSegments(t *testing.T) {
 	}
 }
 
+// TestLeaseTTLSecondsRoundsUp locks the lease ttl seconds rounds up contract so future changes do not regress it.
 func TestLeaseTTLSecondsRoundsUp(t *testing.T) {
 	tests := map[time.Duration]int64{
 		0:                       1,
@@ -242,6 +252,7 @@ func TestLeaseTTLSecondsRoundsUp(t *testing.T) {
 	}
 }
 
+// readLeaseStoreSnapshot reads read lease store snapshot data from the supplied input.
 func readLeaseStoreSnapshot(t *testing.T, updates <-chan InstanceSnapshot) InstanceSnapshot {
 	t.Helper()
 	select {
@@ -256,6 +267,7 @@ func readLeaseStoreSnapshot(t *testing.T, updates <-chan InstanceSnapshot) Insta
 	}
 }
 
+// fakeLeaseStore defines persistence operations for fake lease store state.
 type fakeLeaseStore struct {
 	mu       sync.Mutex
 	now      func() time.Time
@@ -267,18 +279,21 @@ type fakeLeaseStore struct {
 	afterGet func(key string)
 }
 
+// fakeLeaseEntry carries fake lease entry state for registry persistence and watch paths.
 type fakeLeaseEntry struct {
 	value       []byte
 	expiresAt   time.Time
 	modRevision int64
 }
 
+// fakeLeaseWatcher carries fake lease watcher state for registry persistence and watch paths.
 type fakeLeaseWatcher struct {
 	prefix       string
 	afterVersion int64
 	ch           chan leaseStoreRevision
 }
 
+// newFakeLeaseStore initializes fake lease store with package defaults for this package's call path.
 func newFakeLeaseStore(now func() time.Time) *fakeLeaseStore {
 	if now == nil {
 		now = time.Now
@@ -290,6 +305,7 @@ func newFakeLeaseStore(now func() time.Time) *fakeLeaseStore {
 	}
 }
 
+// Put stores a fake leased value, assigns a new revision, and records its expiry deadline.
 func (s *fakeLeaseStore) Put(ctx context.Context, key string, value []byte, ttl time.Duration) (int64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
@@ -308,6 +324,7 @@ func (s *fakeLeaseStore) Put(ctx context.Context, key string, value []byte, ttl 
 	return s.revision, nil
 }
 
+// Update replaces a fake leased value only when the expected revision still matches.
 func (s *fakeLeaseStore) Update(ctx context.Context, key string, value []byte, ttl time.Duration, expectedModRevision int64) (int64, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, false, err
@@ -330,6 +347,7 @@ func (s *fakeLeaseStore) Update(ctx context.Context, key string, value []byte, t
 	return s.revision, true, nil
 }
 
+// Get returns get state for the requested key.
 func (s *fakeLeaseStore) Get(ctx context.Context, key string) ([]byte, int64, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, 0, false, err
@@ -352,6 +370,7 @@ func (s *fakeLeaseStore) Get(ctx context.Context, key string) ([]byte, int64, bo
 	return value, modRevision, true, nil
 }
 
+// List returns a point-in-time list of list visible to the caller.
 func (s *fakeLeaseStore) List(ctx context.Context, prefix string) ([]leaseStoreKV, int64, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, 0, err
@@ -368,6 +387,7 @@ func (s *fakeLeaseStore) List(ctx context.Context, prefix string) ([]leaseStoreK
 	return out, s.revision, nil
 }
 
+// Watch streams backing-source changes to callers until the source or context closes.
 func (s *fakeLeaseStore) Watch(ctx context.Context, prefix string, afterVersion int64) (<-chan leaseStoreRevision, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -395,6 +415,7 @@ func (s *fakeLeaseStore) Watch(ctx context.Context, prefix string, afterVersion 
 	return ch, nil
 }
 
+// SweepExpired removes expired sweep expired records from the backing store.
 func (s *fakeLeaseStore) SweepExpired(ctx context.Context) int {
 	if err := ctx.Err(); err != nil {
 		return 0
@@ -415,6 +436,7 @@ func (s *fakeLeaseStore) SweepExpired(ctx context.Context) int {
 	return expired
 }
 
+// Close closes owned resources and makes repeated calls safe.
 func (s *fakeLeaseStore) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -429,6 +451,7 @@ func (s *fakeLeaseStore) Close() error {
 	return nil
 }
 
+// notifyLocked advances the fake revision channel while the store mutex is already held.
 func (s *fakeLeaseStore) notifyLocked(key string) {
 	for id, watcher := range s.watchers {
 		if s.revision <= watcher.afterVersion || !strings.HasPrefix(key, watcher.prefix) {
@@ -451,6 +474,7 @@ func (s *fakeLeaseStore) notifyLocked(key string) {
 	}
 }
 
+// TestLeaseStoreRegistryOwnerHeartbeatRejectsStaleReplacement locks the lease store registry owner heartbeat rejects stale replacement contract so future changes do not regress it.
 func TestLeaseStoreRegistryOwnerHeartbeatRejectsStaleReplacement(t *testing.T) {
 	now := time.Unix(251, 0)
 	store := newFakeLeaseStore(func() time.Time { return now })

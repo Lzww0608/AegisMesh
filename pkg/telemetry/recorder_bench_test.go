@@ -10,6 +10,7 @@ import (
 
 var benchmarkRecorderStats []EndpointStats
 
+// BenchmarkShardedLatencyHistogramRecordParallel reports latency and allocation cost for sharded latency histogram record parallel.
 func BenchmarkShardedLatencyHistogramRecordParallel(b *testing.B) {
 	var hist shardedLatencyHistogram
 	sample := 750 * time.Microsecond
@@ -23,6 +24,7 @@ func BenchmarkShardedLatencyHistogramRecordParallel(b *testing.B) {
 	})
 }
 
+// BenchmarkLatencyHistogramRecordParallel reports latency and allocation cost for latency histogram record parallel.
 func BenchmarkLatencyHistogramRecordParallel(b *testing.B) {
 	var hist latencyHistogram
 	sample := 750 * time.Microsecond
@@ -36,6 +38,7 @@ func BenchmarkLatencyHistogramRecordParallel(b *testing.B) {
 	})
 }
 
+// BenchmarkRecorderObserve reports latency and allocation cost for recorder observe.
 func BenchmarkRecorderObserve(b *testing.B) {
 	recorder := NewRecorderWithClock("bench-client", nil, fixedBenchmarkTime)
 	obs := Observation{
@@ -53,6 +56,7 @@ func BenchmarkRecorderObserve(b *testing.B) {
 	}
 }
 
+// BenchmarkRecorderObserveParallel reports latency and allocation cost for recorder observe parallel.
 func BenchmarkRecorderObserveParallel(b *testing.B) {
 	recorder := NewRecorderWithClock("bench-client", nil, fixedBenchmarkTime)
 	obs := Observation{
@@ -72,6 +76,7 @@ func BenchmarkRecorderObserveParallel(b *testing.B) {
 	})
 }
 
+// BenchmarkRecorderObserveParallelSharded reports latency and allocation cost for recorder observe parallel sharded.
 func BenchmarkRecorderObserveParallelSharded(b *testing.B) {
 	recorder := NewRecorderWithClock("bench-client", nil, fixedBenchmarkTime)
 	observations := make([]Observation, 64)
@@ -97,6 +102,7 @@ func BenchmarkRecorderObserveParallelSharded(b *testing.B) {
 	})
 }
 
+// BenchmarkPrometheusRecordCompatibility reports latency and allocation cost for prometheus record compatibility.
 func BenchmarkPrometheusRecordCompatibility(b *testing.B) {
 	metrics, err := NewPrometheusMetrics(prometheus.NewRegistry())
 	if err != nil {
@@ -119,6 +125,7 @@ func BenchmarkPrometheusRecordCompatibility(b *testing.B) {
 	}
 }
 
+// BenchmarkRecorderObserveWithPrometheusCachedRow reports latency and allocation cost for recorder observe with prometheus cached row.
 func BenchmarkRecorderObserveWithPrometheusCachedRow(b *testing.B) {
 	metrics, err := NewPrometheusMetrics(prometheus.NewRegistry())
 	if err != nil {
@@ -142,6 +149,7 @@ func BenchmarkRecorderObserveWithPrometheusCachedRow(b *testing.B) {
 	}
 }
 
+// BenchmarkRecorderSnapshotAndResetP95 reports latency and allocation cost for recorder snapshot and reset p95.
 func BenchmarkRecorderSnapshotAndResetP95(b *testing.B) {
 	upstreamCounts := []int{1, 8, 64}
 	observationCounts := []int{1_000, 10_000, 100_000}
@@ -168,10 +176,12 @@ func BenchmarkRecorderSnapshotAndResetP95(b *testing.B) {
 	}
 }
 
+// fixedBenchmarkTime provides the shared fixed benchmark time helper for recorder aggregation.
 func fixedBenchmarkTime() time.Time {
 	return time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 }
 
+// newBenchmarkRecorder initializes benchmark recorder with package defaults for this package's call path.
 func newBenchmarkRecorder(upstreams, observations int) *Recorder {
 	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 	recorder := NewRecorderWithClock("bench-client", nil, func() time.Time { return now })

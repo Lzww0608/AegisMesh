@@ -5,6 +5,7 @@ package status
 type Code uint8
 
 const (
+	// Unspecified identifies the unspecified constant used by this package.
 	Unspecified Code = iota
 	Healthy
 	Degraded
@@ -14,6 +15,7 @@ const (
 	Unavailable
 )
 
+// Parse converts a status string into the canonical Code value and reports whether it was recognized.
 func Parse(s string) Code {
 	switch s {
 	case "", "HEALTHY":
@@ -33,6 +35,7 @@ func Parse(s string) Code {
 	}
 }
 
+// String formats the value as its stable string representation.
 func (c Code) String() string {
 	switch c {
 	case Healthy:
@@ -52,6 +55,7 @@ func (c Code) String() string {
 	}
 }
 
+// Normalized normalizes normalized so downstream logic sees one canonical form.
 func Normalized(c Code) Code {
 	if c == Unspecified {
 		return Healthy
@@ -59,6 +63,7 @@ func Normalized(c Code) Code {
 	return c
 }
 
+// Routable returns routable data for Code callers without handing out mutable receiver state.
 func (c Code) Routable() bool {
 	switch Normalized(c) {
 	case Healthy, Degraded, Probing:
@@ -68,6 +73,7 @@ func (c Code) Routable() bool {
 	}
 }
 
+// NormalTraffic returns normal traffic data for Code callers without handing out mutable receiver state.
 func (c Code) NormalTraffic() bool {
 	switch Normalized(c) {
 	case Healthy, Degraded:
@@ -77,6 +83,7 @@ func (c Code) NormalTraffic() bool {
 	}
 }
 
+// IsProbing returns is probing data for Code callers without handing out mutable receiver state.
 func (c Code) IsProbing() bool {
 	return c == Probing
 }

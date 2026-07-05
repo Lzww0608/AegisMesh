@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// TestEWMAUsesFirstSampleAsInitialValue locks the ewma uses first sample as initial value contract so future changes do not regress it.
 func TestEWMAUsesFirstSampleAsInitialValue(t *testing.T) {
 	ewma := NewEWMA(0.2)
 
@@ -18,6 +19,7 @@ func TestEWMAUsesFirstSampleAsInitialValue(t *testing.T) {
 	}
 }
 
+// TestEWMAAppliesAlphaToLaterSamples locks the ewma applies alpha to later samples contract so future changes do not regress it.
 func TestEWMAAppliesAlphaToLaterSamples(t *testing.T) {
 	ewma := NewEWMA(0.2)
 

@@ -15,6 +15,7 @@ import (
 
 const eventBufferSize = 1024
 
+// linuxCollector carries linux collector state for the eBPF telemetry path.
 type linuxCollector struct {
 	cfg Config
 
@@ -30,6 +31,7 @@ type linuxCollector struct {
 	wg       sync.WaitGroup
 }
 
+// NewCollector initializes collector with package defaults for this package's call path.
 func NewCollector(cfg Config) (Collector, error) {
 	if cfg.ObjectPath == "" {
 		cfg.ObjectPath = DefaultObjectPath()
@@ -41,6 +43,7 @@ func NewCollector(cfg Config) (Collector, error) {
 	}, nil
 }
 
+// Start begins collection and binds the collector lifetime to its owned resources.
 func (c *linuxCollector) Start() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -84,6 +87,7 @@ func (c *linuxCollector) Start() error {
 	return nil
 }
 
+// Stop releases collector resources and makes repeated shutdown calls harmless.
 func (c *linuxCollector) Stop() error {
 	var err error
 	c.stopOnce.Do(func() {
@@ -96,10 +100,12 @@ func (c *linuxCollector) Stop() error {
 	return err
 }
 
+// Events returns events data for linuxCollector callers without handing out mutable receiver state.
 func (c *linuxCollector) Events() <-chan TCPEvent {
 	return c.events
 }
 
+// attachProgramsLocked returns attach programs locked data for linuxCollector callers without handing out mutable receiver state.
 func (c *linuxCollector) attachProgramsLocked() error {
 	attachPlan := []struct {
 		program string
@@ -117,6 +123,7 @@ func (c *linuxCollector) attachProgramsLocked() error {
 			return fmt.Errorf("eBPF object %q does not contain program %q", c.cfg.ObjectPath, item.program)
 		}
 		var (
+			// attached identifies the attached constant used by this package.
 			attached link.Link
 			err      error
 		)
@@ -133,6 +140,7 @@ func (c *linuxCollector) attachProgramsLocked() error {
 	return nil
 }
 
+// closeLocked closes owned resources and makes repeated calls safe.
 func (c *linuxCollector) closeLocked() error {
 	var closeErr error
 	if c.reader != nil {
@@ -150,6 +158,7 @@ func (c *linuxCollector) closeLocked() error {
 	return closeErr
 }
 
+// readLoop reads read loop data from the supplied input.
 func (c *linuxCollector) readLoop(reader *ringbuf.Reader) {
 	defer c.wg.Done()
 	for {

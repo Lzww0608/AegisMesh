@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// TestEtcdStoreLoadsPolicySnapshotsFromPrefix locks the etcd store loads policy snapshots from prefix contract so future changes do not regress it.
 func TestEtcdStoreLoadsPolicySnapshotsFromPrefix(t *testing.T) {
 	kv := newFakePolicyKVStore()
 	kv.putSnapshotLocked(PolicyServiceKey("/aegis/test", "z-service"), &aegisv1.PolicySnapshot{Retry: &aegisv1.RetryPolicy{MaxAttempts: 3}})
@@ -62,6 +63,7 @@ func TestEtcdStoreLoadsPolicySnapshotsFromPrefix(t *testing.T) {
 	}
 }
 
+// TestEtcdStoreWatchesSharedUpdatesAndDeletes locks the etcd store watches shared updates and deletes contract so future changes do not regress it.
 func TestEtcdStoreWatchesSharedUpdatesAndDeletes(t *testing.T) {
 	kv := newFakePolicyKVStore()
 	storeA := newTestEtcdPolicyStore(t, kv, EtcdStoreConfig{Prefix: "/aegis/test", WatchBackoff: time.Millisecond})
@@ -91,6 +93,7 @@ func TestEtcdStoreWatchesSharedUpdatesAndDeletes(t *testing.T) {
 	waitForPolicyMissing(t, storeB, "user-service")
 }
 
+// TestEtcdStoreUsesOneWatchAndCacheReadsDoNotHitBackend locks the etcd store uses one watch and cache reads do not hit backend contract so future changes do not regress it.
 func TestEtcdStoreUsesOneWatchAndCacheReadsDoNotHitBackend(t *testing.T) {
 	kv := newFakePolicyKVStore()
 	kv.PutSnapshot(PolicyServiceKey("/aegis/test", "user-service"), &aegisv1.PolicySnapshot{Retry: &aegisv1.RetryPolicy{MaxAttempts: 2}})
@@ -117,6 +120,7 @@ func TestEtcdStoreUsesOneWatchAndCacheReadsDoNotHitBackend(t *testing.T) {
 	}
 }
 
+// TestEtcdStoreResyncsAfterWatchClose locks the etcd store resyncs after watch close contract so future changes do not regress it.
 func TestEtcdStoreResyncsAfterWatchClose(t *testing.T) {
 	kv := newFakePolicyKVStore()
 	store := newTestEtcdPolicyStore(t, kv, EtcdStoreConfig{Prefix: "/aegis/test", WatchBackoff: time.Millisecond})
@@ -136,6 +140,7 @@ func TestEtcdStoreResyncsAfterWatchClose(t *testing.T) {
 	})
 }
 
+// TestEtcdPolicyIntegrationSharedStateAcrossStores locks the etcd policy integration shared state across stores contract so future changes do not regress it.
 func TestEtcdPolicyIntegrationSharedStateAcrossStores(t *testing.T) {
 	cfg := testEtcdPolicyConfig(t)
 	client := testEtcdPolicyClient(t, cfg)
@@ -184,6 +189,7 @@ func TestEtcdPolicyIntegrationSharedStateAcrossStores(t *testing.T) {
 	waitForPolicyMissing(t, storeB, "user-service")
 }
 
+// newTestEtcdPolicyStore initializes test etcd policy store with package defaults for this package's call path.
 func newTestEtcdPolicyStore(t *testing.T, kv policyKVStore, cfg EtcdStoreConfig) *EtcdStore {
 	t.Helper()
 	store, err := newEtcdStoreWithKV(context.Background(), kv, cfg)
@@ -193,6 +199,7 @@ func newTestEtcdPolicyStore(t *testing.T, kv policyKVStore, cfg EtcdStoreConfig)
 	return store
 }
 
+// fakePolicyKVStore defines persistence operations for fake policy kv store state.
 type fakePolicyKVStore struct {
 	mu         sync.Mutex
 	kvs        map[string]policyKV
@@ -204,10 +211,12 @@ type fakePolicyKVStore struct {
 	closed     bool
 }
 
+// newFakePolicyKVStore initializes fake policy kv store with package defaults for this package's call path.
 func newFakePolicyKVStore() *fakePolicyKVStore {
 	return &fakePolicyKVStore{kvs: make(map[string]policyKV), watchers: make(map[int]chan policyWatchEvent)}
 }
 
+// List returns a point-in-time list of list visible to the caller.
 func (s *fakePolicyKVStore) List(context.Context, string) ([]policyKV, int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -219,6 +228,7 @@ func (s *fakePolicyKVStore) List(context.Context, string) ([]policyKV, int64, er
 	return out, s.revision, nil
 }
 
+// Watch streams backing-source changes to callers until the source or context closes.
 func (s *fakePolicyKVStore) Watch(ctx context.Context, _ string, _ int64) (<-chan policyWatchEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -240,6 +250,7 @@ func (s *fakePolicyKVStore) Watch(ctx context.Context, _ string, _ int64) (<-cha
 	return updates, nil
 }
 
+// Close closes owned resources and makes repeated calls safe.
 func (s *fakePolicyKVStore) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -254,12 +265,14 @@ func (s *fakePolicyKVStore) Close() error {
 	return nil
 }
 
+// PutSnapshot stores a cloned fake policy value and advances the in-memory revision counter.
 func (s *fakePolicyKVStore) PutSnapshot(key string, snapshot *aegisv1.PolicySnapshot) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.putSnapshotLocked(key, snapshot)
 }
 
+// putSnapshotLocked returns put snapshot locked data for fakePolicyKVStore callers without handing out mutable receiver state.
 func (s *fakePolicyKVStore) putSnapshotLocked(key string, snapshot *aegisv1.PolicySnapshot) {
 	s.revision++
 	kv := policyKV{Key: key, Value: marshalPolicySnapshotForFake(snapshot), ModRevision: s.revision}
@@ -267,6 +280,7 @@ func (s *fakePolicyKVStore) putSnapshotLocked(key string, snapshot *aegisv1.Poli
 	s.broadcastLocked(policyWatchEvent{Revision: s.revision, Puts: []policyKV{clonePolicyKV(kv)}})
 }
 
+// Delete removes a fake policy value and advances the revision when a key was present.
 func (s *fakePolicyKVStore) Delete(key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -275,6 +289,7 @@ func (s *fakePolicyKVStore) Delete(key string) {
 	s.broadcastLocked(policyWatchEvent{Revision: s.revision, Deletes: []string{key}})
 }
 
+// CloseWatchers closes owned resources and makes repeated calls safe.
 func (s *fakePolicyKVStore) CloseWatchers() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -284,12 +299,14 @@ func (s *fakePolicyKVStore) CloseWatchers() {
 	}
 }
 
+// Counts returns counts data for fakePolicyKVStore callers without handing out mutable receiver state.
 func (s *fakePolicyKVStore) Counts() (int, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.listCalls, s.watchCalls
 }
 
+// broadcastLocked returns broadcast locked data for fakePolicyKVStore callers without handing out mutable receiver state.
 func (s *fakePolicyKVStore) broadcastLocked(event policyWatchEvent) {
 	for _, ch := range s.watchers {
 		select {
@@ -299,10 +316,12 @@ func (s *fakePolicyKVStore) broadcastLocked(event policyWatchEvent) {
 	}
 }
 
+// clonePolicyKV returns an isolated copy of clone policy kv input so callers cannot mutate shared state.
 func clonePolicyKV(kv policyKV) policyKV {
 	return policyKV{Key: kv.Key, Value: append([]byte(nil), kv.Value...), ModRevision: kv.ModRevision}
 }
 
+// marshalPolicySnapshotForFake provides the shared marshal policy snapshot for fake helper for policy storage and hot-apply.
 func marshalPolicySnapshotForFake(snapshot *aegisv1.PolicySnapshot) []byte {
 	out, err := proto.Marshal(snapshot)
 	if err != nil {
@@ -311,6 +330,7 @@ func marshalPolicySnapshotForFake(snapshot *aegisv1.PolicySnapshot) []byte {
 	return out
 }
 
+// waitForPolicySnapshot waits for wait for policy snapshot to reach the expected state or timeout.
 func waitForPolicySnapshot(t *testing.T, store *EtcdStore, service string, ok func(*aegisv1.PolicySnapshot) bool) {
 	t.Helper()
 	deadline := time.After(2 * time.Second)
@@ -329,6 +349,7 @@ func waitForPolicySnapshot(t *testing.T, store *EtcdStore, service string, ok fu
 	}
 }
 
+// waitForPolicyMissing waits for wait for policy missing to reach the expected state or timeout.
 func waitForPolicyMissing(t *testing.T, store *EtcdStore, service string) {
 	t.Helper()
 	deadline := time.After(2 * time.Second)
@@ -346,6 +367,7 @@ func waitForPolicyMissing(t *testing.T, store *EtcdStore, service string) {
 	}
 }
 
+// waitForBackendCounts waits for wait for backend counts to reach the expected state or timeout.
 func waitForBackendCounts(t *testing.T, kv *fakePolicyKVStore, wantList, wantWatch int) {
 	t.Helper()
 	deadline := time.After(2 * time.Second)
@@ -365,6 +387,7 @@ func waitForBackendCounts(t *testing.T, kv *fakePolicyKVStore, wantList, wantWat
 	}
 }
 
+// marshalPolicySnapshot provides the shared marshal policy snapshot helper for policy storage and hot-apply.
 func marshalPolicySnapshot(t *testing.T, snapshot *aegisv1.PolicySnapshot) []byte {
 	t.Helper()
 	out, err := proto.Marshal(snapshot)
@@ -374,6 +397,7 @@ func marshalPolicySnapshot(t *testing.T, snapshot *aegisv1.PolicySnapshot) []byt
 	return out
 }
 
+// testEtcdPolicyConfig locks the etcd policy config contract so future changes do not regress it.
 func testEtcdPolicyConfig(t *testing.T) EtcdStoreConfig {
 	t.Helper()
 	raw := os.Getenv("AEGIS_TEST_ETCD_ENDPOINTS")
@@ -391,6 +415,7 @@ func testEtcdPolicyConfig(t *testing.T) EtcdStoreConfig {
 	}
 }
 
+// testEtcdPolicyClient locks the etcd policy client contract so future changes do not regress it.
 func testEtcdPolicyClient(t *testing.T, cfg EtcdStoreConfig) *clientv3.Client {
 	t.Helper()
 	client, err := clientv3.New(clientv3.Config{
@@ -405,6 +430,7 @@ func testEtcdPolicyClient(t *testing.T, cfg EtcdStoreConfig) *clientv3.Client {
 	return client
 }
 
+// splitPolicyIntegrationList keeps split policy integration list rules consistent for policy storage and hot-apply.
 func splitPolicyIntegrationList(raw string) []string {
 	items := strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ';' })
 	out := make([]string, 0, len(items))

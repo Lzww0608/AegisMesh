@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// TestNetemDelayCommandBuildsDockerTcArgs locks the netem delay command builds docker tc args contract so future changes do not regress it.
 func TestNetemDelayCommandBuildsDockerTcArgs(t *testing.T) {
 	fault := NetemDelay{
 		Container: "user-v2",
@@ -24,6 +25,7 @@ func TestNetemDelayCommandBuildsDockerTcArgs(t *testing.T) {
 	}
 }
 
+// TestNetemResetCommandBuildsDockerTcDeleteArgs locks the netem reset command builds docker tc delete args contract so future changes do not regress it.
 func TestNetemResetCommandBuildsDockerTcDeleteArgs(t *testing.T) {
 	got := NetemReset{Container: "user-v2", Device: "eth0"}.Command()
 	want := Command{
@@ -35,6 +37,7 @@ func TestNetemResetCommandBuildsDockerTcDeleteArgs(t *testing.T) {
 	}
 }
 
+// TestNetemLossCommandBuildsDockerTcArgs locks the netem loss command builds docker tc args contract so future changes do not regress it.
 func TestNetemLossCommandBuildsDockerTcArgs(t *testing.T) {
 	got := NetemLoss{
 		Container:   "user-v2",
@@ -50,6 +53,7 @@ func TestNetemLossCommandBuildsDockerTcArgs(t *testing.T) {
 	}
 }
 
+// TestCPUThrottleCommandBuildsDockerUpdateArgs locks the cpu throttle command builds docker update args contract so future changes do not regress it.
 func TestCPUThrottleCommandBuildsDockerUpdateArgs(t *testing.T) {
 	got := CPUThrottle{Container: "user-v2", CPUs: 0.25}.Command()
 	want := Command{

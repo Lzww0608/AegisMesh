@@ -5,6 +5,7 @@ import os
 from collections import Counter, defaultdict
 
 
+# main parses command-line options and runs the script workflow.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--recovery", required=True)
@@ -60,6 +61,7 @@ def main():
         raise SystemExit(f"no expected degraded/ejected/probing state observed in {args.recovery}")
 
 
+# read_rows loads CSV rows from disk for the analysis stage.
 def read_rows(path):
     rows = []
     with open(path, newline="", encoding="utf-8") as f:
@@ -78,6 +80,7 @@ def read_rows(path):
     return rows
 
 
+# parse_float converts float values from user input or result files.
 def parse_float(raw):
     try:
         return float(raw)
@@ -85,6 +88,7 @@ def parse_float(raw):
         return 0.0
 
 
+# conclusion keeps the conclusion helper near the workflow that consumes its formatted output.
 def conclusion(summary):
     if summary["score_pass"] and summary["state_pass"]:
         return "PASS: absolute SLO scoring produced elevated slow_score and a health-state reaction."

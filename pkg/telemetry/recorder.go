@@ -18,6 +18,7 @@ const (
 
 var latencyBucketUpperBounds = buildLatencyBucketUpperBounds()
 
+// Observation carries observation state for recorder aggregation.
 type Observation struct {
 	Source            string
 	Destination       string
@@ -31,6 +32,7 @@ type Observation struct {
 	Timeout           bool
 }
 
+// EndpointStats carries endpoint stats state for recorder aggregation.
 type EndpointStats struct {
 	Source            string
 	Destination       string
@@ -48,6 +50,7 @@ type EndpointStats struct {
 	WindowEnd         time.Time
 }
 
+// MetricLabels carries metric labels state for recorder aggregation.
 type MetricLabels struct {
 	Source            string
 	Destination       string
@@ -57,18 +60,22 @@ type MetricLabels struct {
 	EndpointAddress   string
 }
 
+// MetricsSink defines the metrics sink contract used by recorder aggregation.
 type MetricsSink interface {
 	CreateRowMetrics(labels MetricLabels) RowMetrics
 }
 
+// RowMetrics owns metric collectors for row metrics observations.
 type RowMetrics interface {
 	Record(status string, latency time.Duration, latencyEWMA time.Duration, inflight int64)
 }
 
+// LegacyMetricsSink defines the legacy metrics sink contract used by recorder aggregation.
 type LegacyMetricsSink interface {
 	Record(obs Observation, latencyEWMA time.Duration, inflight int64)
 }
 
+// Recorder carries recorder state for recorder aggregation.
 type Recorder struct {
 	source  string
 	metrics any
@@ -76,11 +83,13 @@ type Recorder struct {
 	shards  [recorderShardCount]recorderShard
 }
 
+// recorderShard carries recorder shard state for recorder aggregation.
 type recorderShard struct {
 	mu   sync.Mutex
 	rows map[statsKey]*statsRow
 }
 
+// statsKey carries stats key state for recorder aggregation.
 type statsKey struct {
 	destination       string
 	method            string
@@ -89,6 +98,7 @@ type statsKey struct {
 	upstream          string
 }
 
+// statsRow carries stats row state for recorder aggregation.
 type statsRow struct {
 	key         statsKey
 	metrics     RowMetrics
@@ -100,6 +110,7 @@ type statsRow struct {
 	windowStart time.Time
 }
 
+// statsCounters carries stats counters state for recorder aggregation.
 type statsCounters struct {
 	requestCount atomic.Int64
 	errorCount   atomic.Int64
@@ -108,16 +119,19 @@ type statsCounters struct {
 	_            align.Pad48
 }
 
+// legacyRowMetrics owns metric collectors for legacy row metrics observations.
 type legacyRowMetrics struct {
 	sink   LegacyMetricsSink
 	source string
 	key    statsKey
 }
 
+// NewRecorder initializes recorder with package defaults for this package's call path.
 func NewRecorder(source string, metrics any) *Recorder {
 	return NewRecorderWithClock(source, metrics, time.Now)
 }
 
+// NewRecorderWithClock initializes recorder with clock with package defaults for this package's call path.
 func NewRecorderWithClock(source string, metrics any, now func() time.Time) *Recorder {
 	if source == "" {
 		source = "unknown"
@@ -136,6 +150,7 @@ func NewRecorderWithClock(source string, metrics any, now func() time.Time) *Rec
 	return recorder
 }
 
+// Start begins collection and binds the collector lifetime to its owned resources.
 func (r *Recorder) Start(destination, method, upstream string) func(status string) {
 	started := r.now()
 	key := makeStatsKey(destination, method, "", "", upstream)
@@ -160,6 +175,7 @@ func (r *Recorder) Start(destination, method, upstream string) func(status strin
 	}
 }
 
+// Observe observes observe and folds it into the current aggregate.
 func (r *Recorder) Observe(obs Observation) {
 	key := makeStatsKey(obs.Destination, obs.Method, obs.EndpointID, obs.RegistrationEpoch, obs.Upstream)
 	obs.Source = r.source
@@ -173,6 +189,7 @@ func (r *Recorder) Observe(obs Observation) {
 	r.recordObservation(row, obs, false)
 }
 
+// Snapshot returns an immutable snapshot of the current snapshot state.
 func (r *Recorder) Snapshot() []EndpointStats {
 	stats := r.snapshot(false)
 	if len(stats) == 0 {
@@ -189,10 +206,12 @@ func (r *Recorder) SnapshotAndReset() []EndpointStats {
 	return r.snapshot(true)
 }
 
+// finish records a completed observation and decrements inflight accounting exactly once.
 func (r *Recorder) finish(row *statsRow, obs Observation) {
 	r.recordObservation(row, obs, true)
 }
 
+// recordObservation records record observation in the current accounting window.
 func (r *Recorder) recordObservation(row *statsRow, obs Observation, decrementInflight bool) {
 	if decrementInflight {
 		decrementPositive(&row.counters.inflight)
@@ -219,6 +238,7 @@ func (r *Recorder) recordObservation(row *statsRow, obs Observation, decrementIn
 	}
 }
 
+// rowFor returns row for data for Recorder callers without handing out mutable receiver state.
 func (r *Recorder) rowFor(key statsKey, now time.Time) *statsRow {
 	shard := r.shardFor(key)
 	shard.mu.Lock()
@@ -238,6 +258,7 @@ func (r *Recorder) rowFor(key statsKey, now time.Time) *statsRow {
 	return row
 }
 
+// bindMetrics returns bind metrics data for Recorder callers without handing out mutable receiver state.
 func (r *Recorder) bindMetrics(key statsKey) RowMetrics {
 	if r.metrics == nil {
 		return nil
@@ -259,10 +280,12 @@ func (r *Recorder) bindMetrics(key statsKey) RowMetrics {
 	return nil
 }
 
+// shardFor returns shard for data for Recorder callers without handing out mutable receiver state.
 func (r *Recorder) shardFor(key statsKey) *recorderShard {
 	return &r.shards[statsKeyHash(key)&(recorderShardCount-1)]
 }
 
+// snapshot returns an immutable snapshot of the current snapshot state.
 func (r *Recorder) snapshot(reset bool) []EndpointStats {
 	now := r.now()
 	stats := acquireEndpointStatsSlice(r.rowCount())
@@ -291,6 +314,7 @@ func (r *Recorder) snapshot(reset bool) []EndpointStats {
 	return stats
 }
 
+// rowCount returns row count data for Recorder callers without handing out mutable receiver state.
 func (r *Recorder) rowCount() int {
 	count := 0
 	for i := range r.shards {
@@ -302,6 +326,7 @@ func (r *Recorder) rowCount() int {
 	return count
 }
 
+// snapshot returns an immutable snapshot of the current snapshot state.
 func (row *statsRow) snapshot(source string, key statsKey, now time.Time, reset bool) (EndpointStats, bool) {
 	row.mu.Lock()
 	requestCount := row.counters.requestCount.Load()
@@ -340,6 +365,7 @@ func (row *statsRow) snapshot(source string, key statsKey, now time.Time, reset 
 	return stat, true
 }
 
+// makeStatsKey folds endpoint identity and registration epoch into recorder shard identity.
 func makeStatsKey(destination, method, endpointID, registrationEpoch, upstream string) statsKey {
 	return statsKey{
 		destination:       firstNonEmpty(destination, "unknown"),
@@ -350,6 +376,7 @@ func makeStatsKey(destination, method, endpointID, registrationEpoch, upstream s
 	}
 }
 
+// normalizeStatus normalizes normalize status so downstream logic sees one canonical form.
 func normalizeStatus(status string) string {
 	status = strings.TrimSpace(status)
 	if status == "" {
@@ -358,6 +385,7 @@ func normalizeStatus(status string) string {
 	return status
 }
 
+// firstNonEmpty preserves explicit values while providing legacy fallbacks.
 func firstNonEmpty(value, fallback string) string {
 	if value != "" {
 		return value
@@ -365,6 +393,7 @@ func firstNonEmpty(value, fallback string) string {
 	return fallback
 }
 
+// decrementPositive prevents inflight counters from underflowing under duplicate completions.
 func decrementPositive(value *atomic.Int64) int64 {
 	for {
 		current := value.Load()
@@ -377,6 +406,7 @@ func decrementPositive(value *atomic.Int64) int64 {
 	}
 }
 
+// Record records record in the current accounting window.
 func (m legacyRowMetrics) Record(status string, latency time.Duration, latencyEWMA time.Duration, inflight int64) {
 	m.sink.Record(Observation{
 		Source:            m.source,
@@ -390,6 +420,7 @@ func (m legacyRowMetrics) Record(status string, latency time.Duration, latencyEW
 	}, latencyEWMA, inflight)
 }
 
+// statsKeyHash chooses the recorder shard for a stable endpoint/method identity.
 func statsKeyHash(key statsKey) uint64 {
 	const (
 		offset64 = 1469598103934665603
@@ -404,6 +435,7 @@ func statsKeyHash(key statsKey) uint64 {
 	return h
 }
 
+// hashString mixes string fields into the recorder shard hash without allocating.
 func hashString(h uint64, value string) uint64 {
 	const prime64 = 1099511628211
 	for i := 0; i < len(value); i++ {
@@ -415,6 +447,7 @@ func hashString(h uint64, value string) uint64 {
 	return h
 }
 
+// latencyBucketIndex maps nanosecond latency into the fixed recorder histogram buckets.
 func latencyBucketIndex(nanos uint64) int {
 	lo, hi := 0, len(latencyBucketUpperBounds)-1
 	for lo < hi {
@@ -428,6 +461,7 @@ func latencyBucketIndex(nanos uint64) int {
 	return lo
 }
 
+// buildLatencyBucketUpperBounds builds build latency bucket upper bounds dependencies from validated configuration.
 func buildLatencyBucketUpperBounds() [latencyHistogramBuckets]uint64 {
 	var bounds [latencyHistogramBuckets]uint64
 	bounds[0] = 0

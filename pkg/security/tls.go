@@ -18,10 +18,12 @@ type TLSConfig struct {
 	RequireClientCert bool
 }
 
+// Enabled returns enabled data for TLSConfig callers without handing out mutable receiver state.
 func (c TLSConfig) Enabled() bool {
 	return c.CertFile != "" || c.KeyFile != "" || c.CAFile != "" || c.ServerName != "" || c.RequireClientCert
 }
 
+// ServerTransportCredentials provides the shared server transport credentials helper for authorization checks.
 func ServerTransportCredentials(cfg TLSConfig) (credentials.TransportCredentials, error) {
 	if !cfg.Enabled() {
 		return nil, nil
@@ -54,6 +56,7 @@ func ServerTransportCredentials(cfg TLSConfig) (credentials.TransportCredentials
 	return credentials.NewTLS(tlsCfg), nil
 }
 
+// ClientTLSConfig provides the shared client tls config helper for authorization checks.
 func ClientTLSConfig(cfg TLSConfig) (*tls.Config, error) {
 	if !cfg.Enabled() {
 		return nil, nil
@@ -84,6 +87,7 @@ func ClientTLSConfig(cfg TLSConfig) (*tls.Config, error) {
 	return tlsCfg, nil
 }
 
+// ClientTransportCredentials provides the shared client transport credentials helper for authorization checks.
 func ClientTransportCredentials(cfg TLSConfig) (credentials.TransportCredentials, error) {
 	tlsCfg, err := ClientTLSConfig(cfg)
 	if err != nil || tlsCfg == nil {
@@ -92,6 +96,7 @@ func ClientTransportCredentials(cfg TLSConfig) (credentials.TransportCredentials
 	return credentials.NewTLS(tlsCfg), nil
 }
 
+// certPoolFromFile provides the shared cert pool from file helper for authorization checks.
 func certPoolFromFile(path string) (*x509.CertPool, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// BenchmarkBudgetManyIndependentParallel reports latency and allocation cost for budget many independent parallel.
 func BenchmarkBudgetManyIndependentParallel(b *testing.B) {
 	const budgets = 64
 	objs := make([]*Budget, budgets)
@@ -28,6 +29,7 @@ func BenchmarkBudgetManyIndependentParallel(b *testing.B) {
 	})
 }
 
+// BenchmarkBudgetRecordOriginalParallel reports latency and allocation cost for budget record original parallel.
 func BenchmarkBudgetRecordOriginalParallel(b *testing.B) {
 	budget := NewBudget(BudgetConfig{
 		BudgetRatio: 0.15,
@@ -45,6 +47,7 @@ func BenchmarkBudgetRecordOriginalParallel(b *testing.B) {
 	})
 }
 
+// BenchmarkBudgetTryAcquireRetryParallel reports latency and allocation cost for budget try acquire retry parallel.
 func BenchmarkBudgetTryAcquireRetryParallel(b *testing.B) {
 	budget := NewBudget(BudgetConfig{
 		BudgetRatio: 1,
@@ -64,6 +67,7 @@ func BenchmarkBudgetTryAcquireRetryParallel(b *testing.B) {
 	})
 }
 
+// BenchmarkBudgetAllowThenRecordRetryParallel reports latency and allocation cost for budget allow then record retry parallel.
 func BenchmarkBudgetAllowThenRecordRetryParallel(b *testing.B) {
 	budget := NewBudget(BudgetConfig{
 		BudgetRatio: 1,
@@ -83,6 +87,7 @@ func BenchmarkBudgetAllowThenRecordRetryParallel(b *testing.B) {
 	})
 }
 
+// BenchmarkBudgetWindowRollover reports latency and allocation cost for budget window rollover.
 func BenchmarkBudgetWindowRollover(b *testing.B) {
 	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 	budget := NewBudget(BudgetConfig{
@@ -100,6 +105,7 @@ func BenchmarkBudgetWindowRollover(b *testing.B) {
 	}
 }
 
+// benchmarkAllowThenRecordRetry reports latency and allocation cost for allow then record retry.
 func benchmarkAllowThenRecordRetry(budget *Budget) bool {
 	if !budget.AllowRetry() {
 		return false
@@ -108,6 +114,7 @@ func benchmarkAllowThenRecordRetry(budget *Budget) bool {
 	return true
 }
 
+// fixedBenchmarkTime provides the shared fixed benchmark time helper for this package call path.
 func fixedBenchmarkTime() time.Time {
 	return time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 }

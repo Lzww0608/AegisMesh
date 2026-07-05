@@ -6,6 +6,7 @@ const defaultEndpointStatsSliceCap = 64
 
 var endpointStatsSlicePool sync.Pool
 
+// acquireEndpointStatsSlice provides the shared acquire endpoint stats slice helper for recorder aggregation.
 func acquireEndpointStatsSlice(capHint int) []EndpointStats {
 	if capHint < defaultEndpointStatsSliceCap {
 		capHint = defaultEndpointStatsSliceCap
@@ -28,6 +29,7 @@ func ReleaseEndpointStatsSlice(stats []EndpointStats) {
 	endpointStatsSlicePool.Put(stats[:0])
 }
 
+// cloneEndpointStatsSlice returns an isolated copy of clone endpoint stats slice input so callers cannot mutate shared state.
 func cloneEndpointStatsSlice(stats []EndpointStats) []EndpointStats {
 	if len(stats) == 0 {
 		return nil

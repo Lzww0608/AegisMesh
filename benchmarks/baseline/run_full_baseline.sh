@@ -20,6 +20,7 @@ echo "log=${LOG}" | tee -a "${LOG}"
 echo "capture_jobs=${CAPTURE_JOBS} per_job_gomax=${PER_JOB_GOMAXPROCS} bench_count=${BENCH_COUNT}" | tee -a "${LOG}"
 echo | tee -a "${LOG}"
 
+# run_step runs the run step experiment step and records its outputs.
 run_step() {
 	local title="$1"
 	shift

@@ -12,12 +12,14 @@ import (
 
 const defaultRetryableMask = (uint64(1) << uint(codes.Unavailable)) | (uint64(1) << uint(codes.DeadlineExceeded))
 
+// RetryPolicy describes retry policy rules distributed through the control plane.
 type RetryPolicy struct {
 	MaxAttempts    int
 	PerTryTimeout  time.Duration
 	RetryableCodes []codes.Code
 }
 
+// compiledRetry carries compiled retry state for resolver, picker, and reporter state.
 type compiledRetry struct {
 	mode          RetryMode
 	maxAttempts   int
@@ -26,6 +28,7 @@ type compiledRetry struct {
 	budget        retrypkg.BudgetConfig
 }
 
+// compileRetryPolicy provides the shared compile retry policy helper for resolver, picker, and reporter state.
 func compileRetryPolicy(policy RetryPolicy) compiledRetry {
 	if policy.MaxAttempts <= 0 {
 		policy.MaxAttempts = 1
@@ -41,6 +44,7 @@ func compileRetryPolicy(policy RetryPolicy) compiledRetry {
 	}
 }
 
+// retryableCodeMask provides the shared retryable code mask helper for resolver, picker, and reporter state.
 func retryableCodeMask(retryableCodes []codes.Code) uint64 {
 	var mask uint64
 	for _, code := range retryableCodes {
@@ -49,6 +53,7 @@ func retryableCodeMask(retryableCodes []codes.Code) uint64 {
 	return mask
 }
 
+// retryableCodeBit provides the shared retryable code bit helper for resolver, picker, and reporter state.
 func retryableCodeBit(code codes.Code) uint64 {
 	shift := uint(code)
 	if shift >= 64 {
@@ -57,10 +62,12 @@ func retryableCodeBit(code codes.Code) uint64 {
 	return uint64(1) << shift
 }
 
+// IsRetryable returns is retryable data for compiledRetry callers without handing out mutable receiver state.
 func (r compiledRetry) IsRetryable(code codes.Code) bool {
 	return r.retryableMask&retryableCodeBit(code) != 0
 }
 
+// toPolicy returns to policy data for compiledRetry callers without handing out mutable receiver state.
 func (r compiledRetry) toPolicy() RetryPolicy {
 	return RetryPolicy{
 		MaxAttempts:    r.maxAttempts,
@@ -69,6 +76,7 @@ func (r compiledRetry) toPolicy() RetryPolicy {
 	}
 }
 
+// retryableCodesFromMask provides the shared retryable codes from mask helper for resolver, picker, and reporter state.
 func retryableCodesFromMask(mask uint64) []codes.Code {
 	if mask == 0 {
 		return nil
@@ -82,19 +90,23 @@ func retryableCodesFromMask(mask uint64) []codes.Code {
 	return out
 }
 
+// retryPolicySource defines the retry policy source contract used by resolver, picker, and reporter state.
 type retryPolicySource interface {
 	PolicyForMethod(method string) (compiledRetry, *retrypkg.Budget)
 }
 
+// staticRetrySource carries static retry source state for resolver, picker, and reporter state.
 type staticRetrySource struct {
 	retry  compiledRetry
 	budget *retrypkg.Budget
 }
 
+// PolicyForMethod returns policy for method data for staticRetrySource callers without handing out mutable receiver state.
 func (s staticRetrySource) PolicyForMethod(string) (compiledRetry, *retrypkg.Budget) {
 	return s.retry, s.budget
 }
 
+// defaultRetryPolicy keeps default retry policy rules consistent for resolver, picker, and reporter state.
 func defaultRetryPolicy() RetryPolicy {
 	return RetryPolicy{
 		MaxAttempts:    2,
@@ -103,10 +115,12 @@ func defaultRetryPolicy() RetryPolicy {
 	}
 }
 
+// newRetryUnaryInterceptor initializes retry unary interceptor with package defaults for this package's call path.
 func newRetryUnaryInterceptor(policy RetryPolicy, budget *retrypkg.Budget) grpc.UnaryClientInterceptor {
 	return newRetryUnaryInterceptorFromSource(staticRetrySource{retry: compileRetryPolicy(policy), budget: budget})
 }
 
+// newRetryUnaryInterceptorFromSource initializes retry unary interceptor from source with package defaults for this package's call path.
 func newRetryUnaryInterceptorFromSource(source retryPolicySource) grpc.UnaryClientInterceptor {
 	if source == nil {
 		source = staticRetrySource{retry: compileRetryPolicy(defaultRetryPolicy())}
@@ -118,6 +132,7 @@ func newRetryUnaryInterceptorFromSource(source retryPolicySource) grpc.UnaryClie
 	}
 }
 
+// invokeWithRetryPolicy provides the shared invoke with retry policy helper for resolver, picker, and reporter state.
 func invokeWithRetryPolicy(ctx context.Context, method string, req any, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, retry compiledRetry, budget *retrypkg.Budget, opts ...grpc.CallOption) error {
 	if retry.maxAttempts <= 0 {
 		retry.maxAttempts = 1

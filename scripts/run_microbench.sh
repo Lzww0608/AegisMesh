@@ -10,6 +10,7 @@ PER_JOB_GOMAXPROCS="${PER_JOB_GOMAXPROCS:-4}"
 
 RUNNING_JOBS=0
 
+# usage prints supported command-line modes for this helper.
 usage() {
 	cat <<'EOF'
 Usage: scripts/run_microbench.sh <command>
@@ -28,6 +29,7 @@ Environment:
 EOF
 }
 
+# bench_args keeps the bench args helper near the workflow that consumes its formatted output.
 bench_args() {
 	local args=(-run=NONE -benchmem "-count=${COUNT}")
 	if [[ -n "${BENCHTIME}" ]]; then
@@ -36,6 +38,7 @@ bench_args() {
 	printf '%s\n' "${args[@]}"
 }
 
+# run_bench_to runs the run bench to experiment step and records its outputs.
 run_bench_to() {
 	local output="$1"
 	local gomax="$2"
@@ -47,6 +50,7 @@ run_bench_to() {
 	GOMAXPROCS="${gomax}" go test "$@" "${args[@]}" -bench="${bench_filter}" >"${output}"
 }
 
+# wait_for_slot waits for an external dependency to become ready.
 wait_for_slot() {
 	while ((RUNNING_JOBS >= CAPTURE_JOBS)); do
 		wait -n
@@ -54,12 +58,14 @@ wait_for_slot() {
 	done
 }
 
+# launch_job keeps the launch job helper near the workflow that consumes its formatted output.
 launch_job() {
 	wait_for_slot
 	"$@" &
 	RUNNING_JOBS=$((RUNNING_JOBS + 1))
 }
 
+# wait_all_jobs waits for an external dependency to become ready.
 wait_all_jobs() {
 	while ((RUNNING_JOBS > 0)); do
 		wait -n
@@ -67,6 +73,7 @@ wait_all_jobs() {
 	done
 }
 
+# launch_capture keeps the launch capture helper near the workflow that consumes its formatted output.
 launch_capture() {
 	local name="$1"
 	local bench_filter="$2"
@@ -78,6 +85,7 @@ launch_capture() {
 	launch_job run_bench_to "${output}" "${gomax}" "${bench_filter}" "$@"
 }
 
+# capture_all keeps the capture all helper near the workflow that consumes its formatted output.
 capture_all() {
 	local label="${1:-main}"
 	local telemetry_bench="Observe"
@@ -111,6 +119,7 @@ capture_all() {
 	echo "Hot-path baseline written to ${BASELINE_DIR}"
 }
 
+# capture_snapshots_parallel keeps the capture snapshots parallel helper near the workflow that consumes its formatted output.
 capture_snapshots_parallel() {
 	local label="${1:-main}"
 	echo "Capturing snapshot grids (count=${COUNT}, jobs=${CAPTURE_JOBS}, per_job_gomax=${PER_JOB_GOMAXPROCS})"
@@ -150,6 +159,7 @@ capture_snapshots_parallel() {
 	echo "Snapshot baselines: telemetry_snapshot_${label}.txt, ebpf_snapshot_${label}.txt"
 }
 
+# run_race runs the run race experiment step and records its outputs.
 run_race() {
 	echo "Running race detector on hot-path packages..."
 	go test -race ./sdk/go/aegisgrpc/ ./pkg/retry/ ./pkg/circuitbreaker/
@@ -158,6 +168,7 @@ run_race() {
 	echo "Race checks passed."
 }
 
+# compare_adaptive keeps the compare adaptive helper near the workflow that consumes its formatted output.
 compare_adaptive() {
 	local old="${1:?old result file}"
 	local new="${2:?new result file}"
@@ -171,6 +182,7 @@ compare_adaptive() {
 	GOMAXPROCS=8 benchstat "${old}" "${new}"
 }
 
+# main parses command-line options and runs the script workflow.
 main() {
 	local cmd="${1:-}"
 	case "${cmd}" in

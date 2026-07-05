@@ -14,10 +14,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// HealthMetricsSink receives controller-side health records for metrics export.
 type HealthMetricsSink interface {
 	RecordHealth(health fault.EndpointHealth)
 }
 
+// TelemetryService implements the controller RPC surface for telemetry service.
 type TelemetryService struct {
 	aegisv1.UnimplementedTelemetryServiceServer
 
@@ -27,10 +29,12 @@ type TelemetryService struct {
 	healthStore fault.HealthSnapshotStore
 }
 
+// NewTelemetryService initializes telemetry service with package defaults for this package's call path.
 func NewTelemetryService(store registry.Registry, manager *fault.HealthManager, metrics HealthMetricsSink) *TelemetryService {
 	return NewTelemetryServiceWithHealthStore(store, manager, metrics, nil)
 }
 
+// NewTelemetryServiceWithHealthStore builds telemetry ingestion with optional snapshot persistence.
 func NewTelemetryServiceWithHealthStore(store registry.Registry, manager *fault.HealthManager, metrics HealthMetricsSink, healthStore fault.HealthSnapshotStore) *TelemetryService {
 	if manager == nil {
 		manager = fault.NewHealthManager(fault.HealthManagerConfig{})
@@ -43,6 +47,7 @@ func NewTelemetryServiceWithHealthStore(store registry.Registry, manager *fault.
 	}
 }
 
+// ReportEndpointStats accepts SDK samples only after they resolve to active registry instances.
 func (s *TelemetryService) ReportEndpointStats(ctx context.Context, req *aegisv1.ReportEndpointStatsRequest) (*aegisv1.ReportEndpointStatsResponse, error) {
 	if err := security.AuthorizeControllerPrincipal(ctx, aegisv1.TelemetryService_ReportEndpointStats_FullMethodName, req); err != nil {
 		return nil, err
@@ -61,6 +66,7 @@ func (s *TelemetryService) ReportEndpointStats(ctx context.Context, req *aegisv1
 	return &aegisv1.ReportEndpointStatsResponse{Endpoints: healthToProto(health)}, nil
 }
 
+// ListEndpointHealth returns current health state for all services or one service.
 func (s *TelemetryService) ListEndpointHealth(ctx context.Context, req *aegisv1.ListEndpointHealthRequest) (*aegisv1.ListEndpointHealthResponse, error) {
 	if err := security.AuthorizeControllerPrincipal(ctx, aegisv1.TelemetryService_ListEndpointHealth_FullMethodName, req); err != nil {
 		return nil, err
@@ -73,6 +79,7 @@ func (s *TelemetryService) ListEndpointHealth(ctx context.Context, req *aegisv1.
 	return &aegisv1.ListEndpointHealthResponse{Endpoints: healthToProto(health)}, nil
 }
 
+// samplesFromProto filters telemetry against registry identity and registration epoch.
 func (s *TelemetryService) samplesFromProto(ctx context.Context, protoSamples []*aegisv1.EndpointStatsSample) ([]fault.EndpointSample, error) {
 	samples := make([]fault.EndpointSample, 0, len(protoSamples))
 	instanceCache := make(map[string]telemetryServiceInstances)
@@ -87,6 +94,7 @@ func (s *TelemetryService) samplesFromProto(ctx context.Context, protoSamples []
 		if !ok {
 			continue
 		}
+		// Stale SDK samples must not revive a superseded registration owner.
 		if protoSample.RegistrationEpoch != "" && inst.RegistrationEpoch != "" && protoSample.RegistrationEpoch != inst.RegistrationEpoch {
 			continue
 		}
@@ -118,11 +126,13 @@ func (s *TelemetryService) samplesFromProto(ctx context.Context, protoSamples []
 	return samples, nil
 }
 
+// telemetryServiceInstances carries telemetry service instances state for this package call path.
 type telemetryServiceInstances struct {
 	byAddress map[string]registry.Instance
 	byID      map[string]registry.Instance
 }
 
+// resolveTelemetryInstance binds a telemetry sample to a currently registered instance.
 func (s *TelemetryService) resolveTelemetryInstance(ctx context.Context, cache map[string]telemetryServiceInstances, protoSample *aegisv1.EndpointStatsSample) (registry.Instance, bool, error) {
 	instances, err := s.telemetryInstances(ctx, cache, protoSample.Service)
 	if err != nil {
@@ -148,6 +158,7 @@ func (s *TelemetryService) resolveTelemetryInstance(ctx context.Context, cache m
 	return inst, ok, nil
 }
 
+// telemetryInstances caches one service registry listing for the duration of a report call.
 func (s *TelemetryService) telemetryInstances(ctx context.Context, cache map[string]telemetryServiceInstances, service string) (telemetryServiceInstances, error) {
 	if service == "" {
 		return telemetryServiceInstances{}, nil
@@ -175,6 +186,7 @@ func (s *TelemetryService) telemetryInstances(ctx context.Context, cache map[str
 	return instances, nil
 }
 
+// resolveInstanceByUniquePort accepts port-only identity only when it is unique.
 func resolveInstanceByUniquePort(byAddress map[string]registry.Instance, observedAddress string) (registry.Instance, bool) {
 	_, observedPort, err := net.SplitHostPort(observedAddress)
 	if err != nil || observedPort == "" {
@@ -198,6 +210,7 @@ func resolveInstanceByUniquePort(byAddress map[string]registry.Instance, observe
 	return match, true
 }
 
+// resolveInstanceID resolves legacy address-only health samples to instance IDs.
 func (s *TelemetryService) resolveInstanceID(ctx context.Context, cache map[string]map[string]string, service, address string) (string, error) {
 	if service == "" || address == "" {
 		return "", nil
@@ -220,6 +233,7 @@ func (s *TelemetryService) resolveInstanceID(ctx context.Context, cache map[stri
 	return resolveInstanceIDByUniquePort(byAddress, address), nil
 }
 
+// resolveInstanceIDByUniquePort maps an observed address to an instance only when the port is unique.
 func resolveInstanceIDByUniquePort(byAddress map[string]string, observedAddress string) string {
 	_, observedPort, err := net.SplitHostPort(observedAddress)
 	if err != nil || observedPort == "" {
@@ -239,6 +253,8 @@ func resolveInstanceIDByUniquePort(byAddress map[string]string, observedAddress 
 	}
 	return match
 }
+
+// recordHealth publishes health results to the optional metrics sink.
 func (s *TelemetryService) recordHealth(health []fault.EndpointHealth) {
 	if s.metrics == nil {
 		return
@@ -247,6 +263,8 @@ func (s *TelemetryService) recordHealth(health []fault.EndpointHealth) {
 		s.metrics.RecordHealth(endpoint)
 	}
 }
+
+// saveHealthSnapshot persists save health snapshot state to the backing store.
 func (s *TelemetryService) saveHealthSnapshot(ctx context.Context, health []fault.EndpointHealth) {
 	if s.healthStore == nil || len(health) == 0 {
 		return
@@ -256,6 +274,7 @@ func (s *TelemetryService) saveHealthSnapshot(ctx context.Context, health []faul
 	}
 }
 
+// healthToProto provides the shared health to proto helper for this package call path.
 func healthToProto(health []fault.EndpointHealth) []*aegisv1.EndpointHealth {
 	out := make([]*aegisv1.EndpointHealth, 0, len(health))
 	for _, endpoint := range health {
@@ -273,6 +292,7 @@ func healthToProto(health []fault.EndpointHealth) []*aegisv1.EndpointHealth {
 	return out
 }
 
+// secondsToDuration provides the shared seconds to duration helper for this package call path.
 func secondsToDuration(seconds float64) time.Duration {
 	if seconds <= 0 {
 		return 0

@@ -4,6 +4,7 @@ import urllib.error
 import urllib.request
 
 
+# main parses command-line options and runs the script workflow.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", required=True)
@@ -27,6 +28,7 @@ def main():
     raise SystemExit(f"{args.url} did not become ready within {args.timeout}; last error: {last_error}")
 
 
+# parse_duration converts duration values from user input or result files.
 def parse_duration(raw):
     raw = str(raw).strip()
     if raw.endswith("ms"):

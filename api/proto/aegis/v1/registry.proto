@@ -4,13 +4,19 @@ package aegis.v1;
 
 option go_package = "github.com/aegismesh/aegismesh/api/proto/aegis/v1;aegisv1";
 
+// RegistryService owns service discovery leases and watchable endpoint snapshots.
 service RegistryService {
+  // RegisterInstance creates a new lease and ownership fence for one service instance.
   rpc RegisterInstance(RegisterInstanceRequest) returns (RegisterInstanceResponse);
+  // Heartbeat refreshes a lease only when epoch and owner token still match.
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  // ListInstances returns the current snapshot for resolver and reader clients.
   rpc ListInstances(ListInstancesRequest) returns (ListInstancesResponse);
+  // WatchInstances streams versioned snapshots after the caller's last seen version.
   rpc WatchInstances(WatchInstancesRequest) returns (stream ListInstancesResponse);
 }
 
+// ServiceInstance is the wire form of one registry endpoint record.
 message ServiceInstance {
   string id = 1;
   string service = 2;
@@ -19,6 +25,7 @@ message ServiceInstance {
   map<string, string> labels = 5;
   int64 last_seen_unix_millis = 6;
   double slow_score = 7;
+  // registration_epoch changes on each successful registration and fences stale heartbeats.
   string registration_epoch = 8;
 }
 
@@ -29,6 +36,7 @@ message RegisterInstanceRequest {
 
 message RegisterInstanceResponse {
   ServiceInstance instance = 1;
+  // owner_token is returned only to the registering owner and is required by Heartbeat.
   string owner_token = 2;
 }
 
@@ -50,10 +58,12 @@ message ListInstancesRequest {
 
 message WatchInstancesRequest {
   string service = 1;
+  // last_seen_version lets watchers resume without replaying already delivered snapshots.
   int64 last_seen_version = 2;
 }
 
 message ListInstancesResponse {
   repeated ServiceInstance instances = 1;
+  // version combines registry and health-overlay revisions for change detection.
   int64 version = 2;
 }

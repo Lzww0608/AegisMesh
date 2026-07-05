@@ -10,12 +10,15 @@ import (
 	"google.golang.org/grpc"
 )
 
+// benchTelemetryClient defines the client calls required for bench telemetry client.
 type benchTelemetryClient struct{}
 
+// ReportEndpointStats consumes benchmark samples without adding controller I/O to reporter timings.
 func (benchTelemetryClient) ReportEndpointStats(context.Context, *aegisv1.ReportEndpointStatsRequest, ...grpc.CallOption) (*aegisv1.ReportEndpointStatsResponse, error) {
 	return &aegisv1.ReportEndpointStatsResponse{}, nil
 }
 
+// BenchmarkTelemetryReporterReportOnce reports latency and allocation cost for telemetry reporter report once.
 func BenchmarkTelemetryReporterReportOnce(b *testing.B) {
 	recorder := telemetry.NewRecorder("frontend", nil)
 	reporter := newTelemetryReporter(benchTelemetryClient{}, recorder, time.Minute)

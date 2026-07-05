@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// TestCompilePolicySnapshotIncludesCircuitBreakerMaxImmutable locks the compile policy snapshot includes circuit breaker max immutable contract so future changes do not regress it.
 func TestCompilePolicySnapshotIncludesCircuitBreakerMaxImmutable(t *testing.T) {
 	snapshot := &aegisv1.PolicySnapshot{
 		Revision:      11,
@@ -34,6 +35,7 @@ func TestCompilePolicySnapshotIncludesCircuitBreakerMaxImmutable(t *testing.T) {
 	}
 }
 
+// TestPolicyTombstoneClearsCircuitBreakerPolicy locks the policy tombstone clears circuit breaker policy contract so future changes do not regress it.
 func TestPolicyTombstoneClearsCircuitBreakerPolicy(t *testing.T) {
 	pool := newAdaptiveLimiterPool(1)
 	manager := &policyManager{circuitBreaker: pool}
@@ -57,6 +59,8 @@ func TestPolicyTombstoneClearsCircuitBreakerPolicy(t *testing.T) {
 		t.Fatalf("expected compiled tombstone policy to hold defaults, got %+v", policy)
 	}
 }
+
+// TestPolicyWatcherUsesConnectionLifecycleAfterDialContextCancel locks the policy watcher uses connection lifecycle after dial context cancel contract so future changes do not regress it.
 func TestPolicyWatcherUsesConnectionLifecycleAfterDialContextCancel(t *testing.T) {
 	policyUpdates := make(chan *aegisv1.PolicySnapshot, 1)
 	addr, stop := startPolicyTestServer(t, policyUpdates)
@@ -102,11 +106,13 @@ func TestPolicyWatcherUsesConnectionLifecycleAfterDialContextCancel(t *testing.T
 	}
 }
 
+// scriptedPolicyServer carries scripted policy server state for resolver, picker, and reporter state.
 type scriptedPolicyServer struct {
 	aegisv1.UnimplementedPolicyServiceServer
 	updates <-chan *aegisv1.PolicySnapshot
 }
 
+// WatchPolicy streams policy changes to callers until the source or context closes.
 func (s scriptedPolicyServer) WatchPolicy(req *aegisv1.WatchPolicyRequest, stream aegisv1.PolicyService_WatchPolicyServer) error {
 	for {
 		select {
@@ -123,6 +129,7 @@ func (s scriptedPolicyServer) WatchPolicy(req *aegisv1.WatchPolicyRequest, strea
 	}
 }
 
+// startPolicyTestServer exposes a policy stream fixture that lets hot-apply tests push snapshots on demand.
 func startPolicyTestServer(t *testing.T, updates <-chan *aegisv1.PolicySnapshot) (string, func()) {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")

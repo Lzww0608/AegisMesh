@@ -4,29 +4,37 @@ package demo.shop.v1;
 
 option go_package = "github.com/aegismesh/aegismesh/api/proto/demo/shop/v1;shopv1";
 
+// UserService is the demo user backend used by AegisMesh routing experiments.
 service UserService {
+  // GetUser returns a synthetic user response from the selected backend variant.
   rpc GetUser(GetUserRequest) returns (GetUserResponse);
 }
 
+// OrderService is the demo order backend used by checkout flows.
 service OrderService {
+  // CreateOrder returns a synthetic order response for the requested items.
   rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
 }
 
+// GetUserRequest identifies the demo user to fetch.
 message GetUserRequest {
   string user_id = 1;
 }
 
+// GetUserResponse includes the backend variant for routing verification.
 message GetUserResponse {
   string user_id = 1;
   string name = 2;
   string variant = 3;
 }
 
+// CreateOrderRequest carries demo checkout item IDs.
 message CreateOrderRequest {
   string user_id = 1;
   repeated string item_ids = 2;
 }
 
+// CreateOrderResponse includes the backend variant for routing verification.
 message CreateOrderResponse {
   string order_id = 1;
   string user_id = 2;

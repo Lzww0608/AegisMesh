@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// TestEtcdRegistryIntegrationSharedStateAcrossControllers locks the etcd registry integration shared state across controllers contract so future changes do not regress it.
 func TestEtcdRegistryIntegrationSharedStateAcrossControllers(t *testing.T) {
 	cfg := testEtcdRegistryConfig(t)
 	nowA := time.Unix(1000, 0)
@@ -46,6 +47,7 @@ func TestEtcdRegistryIntegrationSharedStateAcrossControllers(t *testing.T) {
 	}
 }
 
+// TestEtcdRegistryIntegrationWatchRemoteWriteAndLeaseExpiry locks the etcd registry integration watch remote write and lease expiry contract so future changes do not regress it.
 func TestEtcdRegistryIntegrationWatchRemoteWriteAndLeaseExpiry(t *testing.T) {
 	cfg := testEtcdRegistryConfig(t)
 	controllerA, err := NewEtcdRegistry(cfg, time.Now)
@@ -78,6 +80,7 @@ func TestEtcdRegistryIntegrationWatchRemoteWriteAndLeaseExpiry(t *testing.T) {
 	}
 }
 
+// TestEtcdRegistryIntegrationHeartbeatExtendsRealLease locks the etcd registry integration heartbeat extends real lease contract so future changes do not regress it.
 func TestEtcdRegistryIntegrationHeartbeatExtendsRealLease(t *testing.T) {
 	cfg := testEtcdRegistryConfig(t)
 	reg, err := NewEtcdRegistry(cfg, time.Now)
@@ -112,6 +115,7 @@ func TestEtcdRegistryIntegrationHeartbeatExtendsRealLease(t *testing.T) {
 	}
 }
 
+// TestEtcdLeaseStoreIntegrationFencedUpdate locks the etcd lease store integration fenced update contract so future changes do not regress it.
 func TestEtcdLeaseStoreIntegrationFencedUpdate(t *testing.T) {
 	cfg := testEtcdRegistryConfig(t)
 	reg, err := NewEtcdRegistry(cfg, time.Now)
@@ -149,6 +153,7 @@ func TestEtcdLeaseStoreIntegrationFencedUpdate(t *testing.T) {
 	}
 }
 
+// TestEtcdRegistryIntegrationServiceVersionIsolation locks the etcd registry integration service version isolation contract so future changes do not regress it.
 func TestEtcdRegistryIntegrationServiceVersionIsolation(t *testing.T) {
 	cfg := testEtcdRegistryConfig(t)
 	reg, err := NewEtcdRegistry(cfg, time.Now)
@@ -177,6 +182,7 @@ func TestEtcdRegistryIntegrationServiceVersionIsolation(t *testing.T) {
 	}
 }
 
+// testEtcdRegistryConfig locks the etcd registry config contract so future changes do not regress it.
 func testEtcdRegistryConfig(t *testing.T) EtcdRegistryConfig {
 	t.Helper()
 	raw := os.Getenv("AEGIS_TEST_ETCD_ENDPOINTS")
@@ -193,6 +199,7 @@ func testEtcdRegistryConfig(t *testing.T) EtcdRegistryConfig {
 	}
 }
 
+// splitIntegrationList keeps split integration list rules consistent for registry persistence and watch paths.
 func splitIntegrationList(raw string) []string {
 	items := strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ';' })
 	out := make([]string, 0, len(items))
@@ -205,6 +212,7 @@ func splitIntegrationList(raw string) []string {
 	return out
 }
 
+// readEtcdIntegrationSnapshot reads read etcd integration snapshot data from the supplied input.
 func readEtcdIntegrationSnapshot(t *testing.T, updates <-chan InstanceSnapshot, timeout time.Duration) InstanceSnapshot {
 	t.Helper()
 	select {

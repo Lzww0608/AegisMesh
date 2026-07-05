@@ -3,6 +3,7 @@ import csv
 import os
 
 
+# main parses command-line options and runs the script workflow.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--latency", default="experiments/results/latency.csv")
@@ -40,6 +41,7 @@ def main():
             ])
 
 
+# read_rows loads CSV rows from disk for the analysis stage.
 def read_rows(path):
     if not os.path.exists(path):
         return []
@@ -47,6 +49,7 @@ def read_rows(path):
         return list(csv.DictReader(f))
 
 
+# estimate_retry_attempts keeps the estimate retry attempts helper near the workflow that consumes its formatted output.
 def estimate_retry_attempts(row):
     # The demo exposes request/error windows through SDK telemetry, but the
     # standalone HTTP benchmark only sees end-to-end outcomes. Keep this

@@ -10,6 +10,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/registry"
 )
 
+// TestTelemetryServiceReportsStatsAndReturnsHealth locks the telemetry service reports stats and returns health contract so future changes do not regress it.
 func TestTelemetryServiceReportsStatsAndReturnsHealth(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -53,6 +54,7 @@ func TestTelemetryServiceReportsStatsAndReturnsHealth(t *testing.T) {
 	}
 }
 
+// TestTelemetryServiceDropsStaleRegistrationEpochSamples locks the telemetry service drops stale registration epoch samples contract so future changes do not regress it.
 func TestTelemetryServiceDropsStaleRegistrationEpochSamples(t *testing.T) {
 	now := time.Date(2026, 6, 29, 15, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -104,6 +106,8 @@ func TestTelemetryServiceDropsStaleRegistrationEpochSamples(t *testing.T) {
 		t.Fatalf("expected current epoch health, got %+v", current.Endpoints)
 	}
 }
+
+// TestTelemetryServicePersistsHealthSnapshot locks the telemetry service persists health snapshot contract so future changes do not regress it.
 func TestTelemetryServicePersistsHealthSnapshot(t *testing.T) {
 	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -148,6 +152,8 @@ func TestTelemetryServicePersistsHealthSnapshot(t *testing.T) {
 		t.Fatalf("unexpected persisted slow health snapshot: %+v", slow)
 	}
 }
+
+// TestTelemetryServiceResolvesDockerPeerAddressByUniquePort locks the telemetry service resolves docker peer address by unique port contract so future changes do not regress it.
 func TestTelemetryServiceResolvesDockerPeerAddressByUniquePort(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -171,6 +177,7 @@ func TestTelemetryServiceResolvesDockerPeerAddressByUniquePort(t *testing.T) {
 	}
 }
 
+// TestRegistryServiceOverlaysHealthStateOnDiscoveredInstances locks the registry service overlays health state on discovered instances contract so future changes do not regress it.
 func TestRegistryServiceOverlaysHealthStateOnDiscoveredInstances(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -191,6 +198,7 @@ func TestRegistryServiceOverlaysHealthStateOnDiscoveredInstances(t *testing.T) {
 	}
 }
 
+// TestRegistryServiceSkipsHealthOverlayWhenAddressMismatch locks the registry service skips health overlay when address mismatch contract so future changes do not regress it.
 func TestRegistryServiceSkipsHealthOverlayWhenAddressMismatch(t *testing.T) {
 	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -210,6 +218,8 @@ func TestRegistryServiceSkipsHealthOverlayWhenAddressMismatch(t *testing.T) {
 		t.Fatalf("expected address-mismatched health overlay to be skipped, got %+v", resp.Instances[0])
 	}
 }
+
+// TestRegistryServiceOverlaysSlowScoreOnDiscoveredInstances locks the registry service overlays slow score on discovered instances contract so future changes do not regress it.
 func TestRegistryServiceOverlaysSlowScoreOnDiscoveredInstances(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -227,6 +237,7 @@ func TestRegistryServiceOverlaysSlowScoreOnDiscoveredInstances(t *testing.T) {
 	}
 }
 
+// registerTestInstance registers register test instance with the controller or local registry.
 func registerTestInstance(t *testing.T, store registry.Registry, service, id, address string) {
 	t.Helper()
 	if err := store.Register(context.Background(), registry.Instance{
@@ -239,6 +250,7 @@ func registerTestInstance(t *testing.T, store registry.Registry, service, id, ad
 	}
 }
 
+// findHealth provides the shared find health helper for this package call path.
 func findHealth(endpoints []*aegisv1.EndpointHealth, instanceID string) *aegisv1.EndpointHealth {
 	for _, endpoint := range endpoints {
 		if endpoint.InstanceId == instanceID {
@@ -248,16 +260,19 @@ func findHealth(endpoints []*aegisv1.EndpointHealth, instanceID string) *aegisv1
 	return nil
 }
 
+// staticHealthProvider carries static health provider state for this package call path.
 type staticHealthProvider struct {
 	state     fault.EndpointState
 	slowScore float64
 	address   string
 }
 
+// HealthState returns health state data for staticHealthProvider callers without handing out mutable receiver state.
 func (p staticHealthProvider) HealthState(service, instanceID string) (fault.EndpointState, bool) {
 	return p.state, true
 }
 
+// Get returns get state for the requested key.
 func (p staticHealthProvider) Get(service, instanceID string) (fault.EndpointHealth, bool) {
 	return fault.EndpointHealth{
 		Service:    service,
@@ -268,19 +283,23 @@ func (p staticHealthProvider) Get(service, instanceID string) (fault.EndpointHea
 	}, true
 }
 
+// recordingHealthSnapshotStore defines persistence operations for recording health snapshot store state.
 type recordingHealthSnapshotStore struct {
 	saved []fault.EndpointHealth
 }
 
+// Load reads the current state from the configured backing source.
 func (s *recordingHealthSnapshotStore) Load(context.Context) ([]fault.EndpointHealth, int64, error) {
 	return append([]fault.EndpointHealth(nil), s.saved...), 0, nil
 }
 
+// Save persists save state to the backing store.
 func (s *recordingHealthSnapshotStore) Save(_ context.Context, health []fault.EndpointHealth) (int64, error) {
 	s.saved = append([]fault.EndpointHealth(nil), health...)
 	return 1, nil
 }
 
+// Watch streams backing-source changes to callers until the source or context closes.
 func (s *recordingHealthSnapshotStore) Watch(ctx context.Context, _ int64) (<-chan fault.HealthStoreEvent, error) {
 	ch := make(chan fault.HealthStoreEvent)
 	go func() {
@@ -290,4 +309,5 @@ func (s *recordingHealthSnapshotStore) Watch(ctx context.Context, _ int64) (<-ch
 	return ch, nil
 }
 
+// Close closes owned resources and makes repeated calls safe.
 func (s *recordingHealthSnapshotStore) Close() error { return nil }

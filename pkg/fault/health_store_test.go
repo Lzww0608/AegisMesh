@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// TestHealthManagerMergeSnapshotRestoresEjectedStateMachine locks the health manager merge snapshot restores ejected state machine contract so future changes do not regress it.
 func TestHealthManagerMergeSnapshotRestoresEjectedStateMachine(t *testing.T) {
 	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
 	manager := NewHealthManager(HealthManagerConfig{
@@ -47,6 +48,7 @@ func TestHealthManagerMergeSnapshotRestoresEjectedStateMachine(t *testing.T) {
 	}
 }
 
+// TestHealthManagerMergeSnapshotSkipsOlderEndpointHealth locks the health manager merge snapshot skips older endpoint health contract so future changes do not regress it.
 func TestHealthManagerMergeSnapshotSkipsOlderEndpointHealth(t *testing.T) {
 	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
 	manager := NewHealthManager(HealthManagerConfig{Now: func() time.Time { return now }})
@@ -73,6 +75,7 @@ func TestHealthManagerMergeSnapshotSkipsOlderEndpointHealth(t *testing.T) {
 	}
 }
 
+// TestEtcdHealthStoreRoundTripAndNewestWins locks the etcd health store round trip and newest wins contract so future changes do not regress it.
 func TestEtcdHealthStoreRoundTripAndNewestWins(t *testing.T) {
 	kv := newFakeHealthKVStore()
 	store := newTestEtcdHealthStore(t, kv, EtcdHealthStoreConfig{Prefix: "/aegis/health"})
@@ -137,6 +140,7 @@ func TestEtcdHealthStoreRoundTripAndNewestWins(t *testing.T) {
 	}
 }
 
+// newTestEtcdHealthStore initializes test etcd health store with package defaults for this package's call path.
 func newTestEtcdHealthStore(t *testing.T, kv healthKVStore, cfg EtcdHealthStoreConfig) *EtcdHealthStore {
 	t.Helper()
 	store, err := newEtcdHealthStoreWithKV(kv, cfg)
@@ -146,6 +150,7 @@ func newTestEtcdHealthStore(t *testing.T, kv healthKVStore, cfg EtcdHealthStoreC
 	return store
 }
 
+// fakeHealthKVStore defines persistence operations for fake health kv store state.
 type fakeHealthKVStore struct {
 	mu        sync.Mutex
 	kvs       map[string]healthKV
@@ -155,10 +160,12 @@ type fakeHealthKVStore struct {
 	closed    bool
 }
 
+// newFakeHealthKVStore initializes fake health kv store with package defaults for this package's call path.
 func newFakeHealthKVStore() *fakeHealthKVStore {
 	return &fakeHealthKVStore{kvs: make(map[string]healthKV), watchers: make(map[int]chan HealthStoreEvent)}
 }
 
+// List returns a point-in-time list of list visible to the caller.
 func (s *fakeHealthKVStore) List(_ context.Context, prefix string) ([]healthKV, int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -171,6 +178,7 @@ func (s *fakeHealthKVStore) List(_ context.Context, prefix string) ([]healthKV, 
 	return out, s.revision, nil
 }
 
+// Get returns get state for the requested key.
 func (s *fakeHealthKVStore) Get(_ context.Context, key string) (healthKV, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -181,6 +189,7 @@ func (s *fakeHealthKVStore) Get(_ context.Context, key string) (healthKV, bool, 
 	return cloneHealthKV(kv), true, nil
 }
 
+// PutIfModRevision emulates etcd compare-and-swap writes for health-store concurrency tests.
 func (s *fakeHealthKVStore) PutIfModRevision(_ context.Context, key string, value []byte, expectedModRevision int64) (int64, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -202,6 +211,7 @@ func (s *fakeHealthKVStore) PutIfModRevision(_ context.Context, key string, valu
 	return s.revision, true, nil
 }
 
+// Watch streams backing-source changes to callers until the source or context closes.
 func (s *fakeHealthKVStore) Watch(ctx context.Context, _ string, _ int64) (<-chan HealthStoreEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -222,6 +232,7 @@ func (s *fakeHealthKVStore) Watch(ctx context.Context, _ string, _ int64) (<-cha
 	return updates, nil
 }
 
+// Close closes owned resources and makes repeated calls safe.
 func (s *fakeHealthKVStore) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -236,6 +247,7 @@ func (s *fakeHealthKVStore) Close() error {
 	return nil
 }
 
+// cloneHealthKV returns an isolated copy of clone health kv input so callers cannot mutate shared state.
 func cloneHealthKV(kv healthKV) healthKV {
 	return healthKV{Key: kv.Key, Value: append([]byte(nil), kv.Value...), ModRevision: kv.ModRevision}
 }

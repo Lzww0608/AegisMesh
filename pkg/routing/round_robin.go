@@ -13,6 +13,7 @@ import (
 
 var ErrNoEndpoint = errors.New("no available endpoint")
 
+// EndpointStatus carries endpoint status state for this package call path.
 type EndpointStatus = status.Code
 
 const (
@@ -24,6 +25,7 @@ const (
 	EndpointUnavailable = status.Unavailable
 )
 
+// Endpoint carries endpoint state for this package call path.
 type Endpoint struct {
 	ID          string
 	Address     string
@@ -34,23 +36,27 @@ type Endpoint struct {
 	SlowScore   float64
 }
 
+// Picker defines the picker contract used by this package call path.
 type Picker interface {
 	Pick(ctx context.Context) (Endpoint, error)
 	Update(endpoints []Endpoint)
 }
 
+// RoundRobinPicker carries round robin picker state for this package call path.
 type RoundRobinPicker struct {
 	mu        sync.Mutex
 	endpoints []Endpoint
 	next      int
 }
 
+// NewRoundRobinPicker initializes round robin picker with package defaults for this package's call path.
 func NewRoundRobinPicker(endpoints []Endpoint) *RoundRobinPicker {
 	p := &RoundRobinPicker{}
 	p.Update(endpoints)
 	return p
 }
 
+// Pick selects the best endpoint candidate for the current RPC.
 func (p *RoundRobinPicker) Pick(ctx context.Context) (Endpoint, error) {
 	if err := ctx.Err(); err != nil {
 		return Endpoint{}, err
@@ -76,6 +82,7 @@ func (p *RoundRobinPicker) Pick(ctx context.Context) (Endpoint, error) {
 	return Endpoint{}, ErrNoEndpoint
 }
 
+// Update applies the supplied update to its owned state.
 func (p *RoundRobinPicker) Update(endpoints []Endpoint) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -88,10 +95,12 @@ func (p *RoundRobinPicker) Update(endpoints []Endpoint) {
 	p.next %= len(p.endpoints)
 }
 
+// RandomSource defines the random source contract used by this package call path.
 type RandomSource interface {
 	Intn(n int) int
 }
 
+// AdaptiveP2CConfig tunes random sampling, latency penalties, probing, and least-bad fallback for endpoint choice.
 type AdaptiveP2CConfig struct {
 	Random           RandomSource
 	LatencyPenalty   float64
@@ -100,6 +109,7 @@ type AdaptiveP2CConfig struct {
 	LeastBadFallback bool
 }
 
+// AdaptiveP2CPicker carries adaptive p2 c picker state for this package call path.
 type AdaptiveP2CPicker struct {
 	mu        sync.Mutex
 	endpoints []Endpoint
@@ -107,6 +117,7 @@ type AdaptiveP2CPicker struct {
 	cfg       AdaptiveP2CConfig
 }
 
+// NewAdaptiveP2CPicker initializes adaptive p2 c picker with package defaults for this package's call path.
 func NewAdaptiveP2CPicker(endpoints []Endpoint, cfg AdaptiveP2CConfig) *AdaptiveP2CPicker {
 	if cfg.Random == nil {
 		cfg.Random = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -128,6 +139,7 @@ func NewAdaptiveP2CPicker(endpoints []Endpoint, cfg AdaptiveP2CConfig) *Adaptive
 	return p
 }
 
+// Pick selects the best endpoint candidate for the current RPC.
 func (p *AdaptiveP2CPicker) Pick(ctx context.Context) (Endpoint, error) {
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
@@ -158,6 +170,7 @@ func (p *AdaptiveP2CPicker) Pick(ctx context.Context) (Endpoint, error) {
 	return candidates[b], nil
 }
 
+// Update applies the supplied update to its owned state.
 func (p *AdaptiveP2CPicker) Update(endpoints []Endpoint) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -165,6 +178,7 @@ func (p *AdaptiveP2CPicker) Update(endpoints []Endpoint) {
 	p.endpoints = append(p.endpoints[:0], endpoints...)
 }
 
+// routableEndpoints provides the shared routable endpoints helper for this package call path.
 func routableEndpoints(endpoints []Endpoint) []Endpoint {
 	out := make([]Endpoint, 0, len(endpoints))
 	for _, endpoint := range endpoints {
@@ -175,6 +189,7 @@ func routableEndpoints(endpoints []Endpoint) []Endpoint {
 	return out
 }
 
+// pickCandidates selects the best endpoint candidate for the current RPC.
 func (p *AdaptiveP2CPicker) pickCandidates(endpoints []Endpoint) []Endpoint {
 	normal := make([]Endpoint, 0, len(endpoints))
 	probing := make([]Endpoint, 0, len(endpoints))
@@ -196,6 +211,7 @@ func (p *AdaptiveP2CPicker) pickCandidates(endpoints []Endpoint) []Endpoint {
 	return normal
 }
 
+// endpointCost provides the shared endpoint cost helper for this package call path.
 func endpointCost(endpoint Endpoint, cfg AdaptiveP2CConfig) float64 {
 	weight := endpoint.Weight
 	if weight <= 0 || math.IsNaN(weight) {
@@ -215,6 +231,7 @@ func endpointCost(endpoint Endpoint, cfg AdaptiveP2CConfig) float64 {
 	return inflightCost + latencyCost + slowCost
 }
 
+// maxInt64 keeps max int64 rules consistent for this package call path.
 func maxInt64(a, b int64) int64 {
 	if a > b {
 		return a

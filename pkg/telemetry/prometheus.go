@@ -7,12 +7,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// PrometheusOption adjusts collector label shape before Prometheus metrics are registered.
 type PrometheusOption func(*prometheusConfig)
 
+// prometheusConfig controls optional labels that affect Prometheus series cardinality.
 type prometheusConfig struct {
 	includeEndpointAddress bool
 }
 
+// PrometheusMetrics owns metric collectors for prometheus metrics observations.
 type PrometheusMetrics struct {
 	requests               *prometheus.CounterVec
 	latency                *prometheus.HistogramVec
@@ -22,6 +25,7 @@ type PrometheusMetrics struct {
 	rows                   sync.Map
 }
 
+// prometheusMetricKey carries prometheus metric key state for recorder aggregation.
 type prometheusMetricKey struct {
 	source          string
 	destination     string
@@ -30,6 +34,7 @@ type prometheusMetricKey struct {
 	endpointAddress string
 }
 
+// prometheusRowMetrics owns metric collectors for prometheus row metrics observations.
 type prometheusRowMetrics struct {
 	owner       *PrometheusMetrics
 	rowValues   []string
@@ -40,22 +45,26 @@ type prometheusRowMetrics struct {
 	statuses    map[string]prometheusStatusMetrics
 }
 
+// prometheusStatusMetrics owns metric collectors for prometheus status metrics observations.
 type prometheusStatusMetrics struct {
 	requests prometheus.Counter
 	latency  prometheus.Observer
 }
 
 var (
+	// defaultPrometheusOnce identifies the default prometheus once constant used by this package.
 	defaultPrometheusOnce    sync.Once
 	defaultPrometheusMetrics *PrometheusMetrics
 )
 
+// WithPrometheusEndpointAddressLabels provides the shared with prometheus endpoint address labels helper for recorder aggregation.
 func WithPrometheusEndpointAddressLabels() PrometheusOption {
 	return func(config *prometheusConfig) {
 		config.includeEndpointAddress = true
 	}
 }
 
+// NewPrometheusMetrics initializes prometheus metrics with package defaults for this package's call path.
 func NewPrometheusMetrics(reg prometheus.Registerer, options ...PrometheusOption) (*PrometheusMetrics, error) {
 	if reg == nil {
 		reg = prometheus.DefaultRegisterer
@@ -102,6 +111,7 @@ func NewPrometheusMetrics(reg prometheus.Registerer, options ...PrometheusOption
 	return m, nil
 }
 
+// DefaultPrometheusMetrics keeps default prometheus metrics rules consistent for recorder aggregation.
 func DefaultPrometheusMetrics() *PrometheusMetrics {
 	defaultPrometheusOnce.Do(func() {
 		metrics, err := NewPrometheusMetrics(prometheus.DefaultRegisterer)
@@ -113,6 +123,7 @@ func DefaultPrometheusMetrics() *PrometheusMetrics {
 	return defaultPrometheusMetrics
 }
 
+// CreateRowMetrics returns or creates the cached metric row for a normalized label set.
 func (m *PrometheusMetrics) CreateRowMetrics(labels MetricLabels) RowMetrics {
 	if m == nil {
 		return nil
@@ -127,6 +138,7 @@ func (m *PrometheusMetrics) CreateRowMetrics(labels MetricLabels) RowMetrics {
 	return actual.(RowMetrics)
 }
 
+// Record records record in the current accounting window.
 func (m *PrometheusMetrics) Record(obs Observation, latencyEWMA time.Duration, inflight int64) {
 	if m == nil {
 		return
@@ -143,6 +155,7 @@ func (m *PrometheusMetrics) Record(obs Observation, latencyEWMA time.Duration, i
 	}
 }
 
+// newRowMetrics initializes row metrics with package defaults for this package's call path.
 func (m *PrometheusMetrics) newRowMetrics(labels MetricLabels) RowMetrics {
 	rowValues := m.rowLabelValues(labels)
 	return &prometheusRowMetrics{
@@ -154,6 +167,7 @@ func (m *PrometheusMetrics) newRowMetrics(labels MetricLabels) RowMetrics {
 	}
 }
 
+// rowLabelValues returns row label values data for PrometheusMetrics callers without handing out mutable receiver state.
 func (m *PrometheusMetrics) rowLabelValues(labels MetricLabels) []string {
 	if m.includeEndpointAddress {
 		return []string{labels.Source, labels.Destination, labels.Method, labels.EndpointID, labels.EndpointAddress}
@@ -161,6 +175,7 @@ func (m *PrometheusMetrics) rowLabelValues(labels MetricLabels) []string {
 	return []string{labels.Source, labels.Destination, labels.Method, labels.EndpointID}
 }
 
+// metricKey returns metric key data for PrometheusMetrics callers without handing out mutable receiver state.
 func (m *PrometheusMetrics) metricKey(labels MetricLabels) prometheusMetricKey {
 	key := prometheusMetricKey{
 		source:      labels.Source,
@@ -174,6 +189,7 @@ func (m *PrometheusMetrics) metricKey(labels MetricLabels) prometheusMetricKey {
 	return key
 }
 
+// bindStatus returns bind status data for PrometheusMetrics callers without handing out mutable receiver state.
 func (m *PrometheusMetrics) bindStatus(rowValues []string, status string) prometheusStatusMetrics {
 	values := valuesWithStatus(rowValues, status)
 	return prometheusStatusMetrics{
@@ -182,6 +198,7 @@ func (m *PrometheusMetrics) bindStatus(rowValues []string, status string) promet
 	}
 }
 
+// Record records record in the current accounting window.
 func (m *prometheusRowMetrics) Record(status string, latency time.Duration, latencyEWMA time.Duration, inflight int64) {
 	if m == nil {
 		return
@@ -193,6 +210,7 @@ func (m *prometheusRowMetrics) Record(status string, latency time.Duration, late
 	m.latencyEWMA.Set(latencyEWMA.Seconds())
 }
 
+// statusMetrics returns status metrics data for prometheusRowMetrics callers without handing out mutable receiver state.
 func (m *prometheusRowMetrics) statusMetrics(status string) prometheusStatusMetrics {
 	if status == "OK" {
 		return m.ok
@@ -210,6 +228,7 @@ func (m *prometheusRowMetrics) statusMetrics(status string) prometheusStatusMetr
 	return metrics
 }
 
+// normalizeMetricLabels normalizes normalize metric labels so downstream logic sees one canonical form.
 func normalizeMetricLabels(labels MetricLabels) MetricLabels {
 	labels.Source = firstNonEmpty(labels.Source, "unknown")
 	labels.Destination = firstNonEmpty(labels.Destination, "unknown")
@@ -219,6 +238,7 @@ func normalizeMetricLabels(labels MetricLabels) MetricLabels {
 	return labels
 }
 
+// valuesWithStatus provides the shared values with status helper for recorder aggregation.
 func valuesWithStatus(rowValues []string, status string) []string {
 	values := make([]string, len(rowValues)+1)
 	copy(values, rowValues)
@@ -226,6 +246,7 @@ func valuesWithStatus(rowValues []string, status string) []string {
 	return values
 }
 
+// MustDefaultPrometheusMetrics returns the requested value and fails the test immediately when setup is invalid.
 func MustDefaultPrometheusMetrics() *PrometheusMetrics {
 	return DefaultPrometheusMetrics()
 }

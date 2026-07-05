@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+// TestBPFProgramDeclaresRequiredHooksAndMaps locks the bpf program declares required hooks and maps contract so future changes do not regress it.
 func TestBPFProgramDeclaresRequiredHooksAndMaps(t *testing.T) {
 	source, err := os.ReadFile("bpf/tcp_metrics.bpf.c")
 	if err != nil {

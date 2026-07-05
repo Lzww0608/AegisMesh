@@ -19,6 +19,7 @@ import (
 const adaptiveP2CBalancerName = "aegis_adaptive_p2c"
 
 var (
+	// registerBalancerOnce keeps balancer registration idempotent across repeated Dial helpers.
 	registerBalancerOnce sync.Once
 	adaptiveStats        sync.Map
 )
@@ -29,20 +30,25 @@ const (
 	adaptiveRandomIncrement             = uint64(0x9e3779b97f4a7c15)
 )
 
+// registerDefaultBalancer installs the process-wide adaptive P2C balancer once.
 func registerDefaultBalancer() {
 	registerBalancerOnce.Do(func() {
 		balancer.Register(base.NewBalancerBuilder(adaptiveP2CBalancerName, adaptivePickerBuilder{}, base.Config{}))
 	})
 }
 
+// adaptivePickerBuilder carries adaptive picker builder state for resolver, picker, and reporter state.
 type adaptivePickerBuilder struct {
 	random adaptiveRandomSource
 }
 
+// Build precomputes routable endpoint slices for one gRPC picker generation.
 func (b adaptivePickerBuilder) Build(info base.PickerBuildInfo) balancer.Picker {
 	items := make([]adaptivePickerItem, 0, len(info.ReadySCs))
 	normalIndexes := make([]int, 0, len(info.ReadySCs))
 	probingIndexes := make([]int, 0, len(info.ReadySCs))
+	// Build may allocate because gRPC calls it on resolver updates; Pick must stay
+	// focused on precomputed slices and live atomic stats.
 	for sc, scInfo := range info.ReadySCs {
 		item, ok := newAdaptivePickerItem(sc, scInfo.Address)
 		if !ok {
@@ -72,6 +78,7 @@ func (b adaptivePickerBuilder) Build(info base.PickerBuildInfo) balancer.Picker 
 	return picker
 }
 
+// adaptivePicker carries adaptive picker state for resolver, picker, and reporter state.
 type adaptivePicker struct {
 	items          []adaptivePickerItem
 	normalIndexes  []int
@@ -81,6 +88,7 @@ type adaptivePicker struct {
 	completions    sync.Pool
 }
 
+// Pick selects the best endpoint candidate for the current RPC.
 func (p *adaptivePicker) Pick(info balancer.PickInfo) (balancer.PickResult, error) {
 	if len(p.items) == 0 {
 		return balancer.PickResult{}, balancer.ErrNoSubConnAvailable
@@ -96,6 +104,8 @@ func (p *adaptivePicker) Pick(info balancer.PickInfo) (balancer.PickResult, erro
 		return balancer.PickResult{}, status.Error(codes.Unavailable, "no available endpoint")
 	}
 
+	// Capacity is acquired before returning the SubConn and released by Done.
+	// Keeping that symmetry here avoids leaked permits on completed RPCs.
 	if !item.limiter.TryAcquire() {
 		return balancer.PickResult{}, status.Error(codes.ResourceExhausted, circuitbreaker.ErrOpen.Error())
 	}
@@ -111,6 +121,7 @@ func (p *adaptivePicker) Pick(info balancer.PickInfo) (balancer.PickResult, erro
 	}, nil
 }
 
+// adaptiveCompletion carries adaptive completion state for resolver, picker, and reporter state.
 type adaptiveCompletion struct {
 	picker  *adaptivePicker
 	item    *adaptivePickerItem
@@ -118,12 +129,14 @@ type adaptiveCompletion struct {
 	done    func(balancer.DoneInfo)
 }
 
+// newAdaptiveCompletion initializes adaptive completion with package defaults for this package's call path.
 func newAdaptiveCompletion() any {
 	completion := &adaptiveCompletion{}
 	completion.done = completion.finish
 	return completion
 }
 
+// finish releases one Pick acquisition and returns the completion wrapper to the pool.
 func (c *adaptiveCompletion) finish(balancer.DoneInfo) {
 	picker := c.picker
 	item := c.item
@@ -142,6 +155,7 @@ func (c *adaptiveCompletion) finish(balancer.DoneInfo) {
 	picker.completions.Put(c)
 }
 
+// pickItem selects the best endpoint candidate for the current RPC.
 func (p *adaptivePicker) pickItem() *adaptivePickerItem {
 	candidates := p.pickCandidateIndexes()
 	if len(candidates) == 0 {
@@ -165,6 +179,7 @@ func (p *adaptivePicker) pickItem() *adaptivePickerItem {
 	return &p.items[bIdx]
 }
 
+// pickCandidateIndexes separates normal traffic from bounded recovery probes.
 func (p *adaptivePicker) pickCandidateIndexes() []int {
 	switch {
 	case len(p.normalIndexes) == 0:
@@ -178,6 +193,7 @@ func (p *adaptivePicker) pickCandidateIndexes() []int {
 	}
 }
 
+// adaptivePickerItem carries adaptive picker item state for resolver, picker, and reporter state.
 type adaptivePickerItem struct {
 	subConn         balancer.SubConn
 	address         string
@@ -189,6 +205,7 @@ type adaptivePickerItem struct {
 	limiter         *circuitbreaker.EndpointLimiter
 }
 
+// newAdaptivePickerItem converts one resolver address into hot-path picker state.
 func newAdaptivePickerItem(sc balancer.SubConn, address resolver.Address) (adaptivePickerItem, bool) {
 	statusValue := aegisstatus.Normalized(endpointStatusFromAttributes(address.Attributes))
 	if !statusValue.Routable() {
@@ -209,6 +226,8 @@ func newAdaptivePickerItem(sc balancer.SubConn, address resolver.Address) (adapt
 		staticCost++
 	}
 	limiter := circuitbreaker.NewEndpointLimiter(adaptiveDefaultMaxInflightPerTarget)
+	// Resolver attributes carry the shared limiter pool so picker rebuilds do not
+	// reset per-endpoint in-flight limits on every controller update.
 	if limiterPool := limiterPoolFromAttributes(address.Attributes); limiterPool != nil {
 		limiter = limiterPool.limiter(address.Addr)
 	}
@@ -225,35 +244,42 @@ func newAdaptivePickerItem(sc balancer.SubConn, address resolver.Address) (adapt
 	}, true
 }
 
+// cost combines live pressure, EWMA latency, slow_score, and state penalties.
 func (i *adaptivePickerItem) cost() float64 {
 	return float64(maxInt64(i.stats.Inflight(), 0))*i.inflightPenalty +
 		i.stats.LatencySeconds()*i.latencyPenalty +
 		i.staticCost
 }
 
+// adaptiveEndpointHot carries adaptive endpoint hot state for resolver, picker, and reporter state.
 type adaptiveEndpointHot struct {
 	inflight  atomic.Int64
 	ewmaNanos atomic.Uint64
 	_         align.Pad48
 }
 
+// adaptiveEndpointStats carries adaptive endpoint stats state for resolver, picker, and reporter state.
 type adaptiveEndpointStats struct {
 	hot adaptiveEndpointHot
 }
 
+// statsForEndpoint returns the process-local hot counters for an endpoint address.
 func statsForEndpoint(address string) *adaptiveEndpointStats {
 	value, _ := adaptiveStats.LoadOrStore(address, &adaptiveEndpointStats{})
 	return value.(*adaptiveEndpointStats)
 }
 
+// Inflight returns inflight data for adaptiveEndpointStats callers without handing out mutable receiver state.
 func (s *adaptiveEndpointStats) Inflight() int64 {
 	return s.hot.inflight.Load()
 }
 
+// IncrementInflight records one in-flight RPC on the picker hot path.
 func (s *adaptiveEndpointStats) IncrementInflight() {
 	s.hot.inflight.Add(1)
 }
 
+// DecrementInflight removes one in-flight RPC without allowing negative pressure.
 func (s *adaptiveEndpointStats) DecrementInflight() {
 	for {
 		current := s.hot.inflight.Load()
@@ -266,6 +292,7 @@ func (s *adaptiveEndpointStats) DecrementInflight() {
 	}
 }
 
+// ObserveLatency folds one completed RPC into the endpoint latency EWMA.
 func (s *adaptiveEndpointStats) ObserveLatency(sample time.Duration) {
 	if sample < 0 {
 		sample = 0
@@ -280,22 +307,27 @@ func (s *adaptiveEndpointStats) ObserveLatency(sample time.Duration) {
 	s.hot.ewmaNanos.Store(uint64(updated))
 }
 
+// LatencyEWMA returns latency ewma data for adaptiveEndpointStats callers without handing out mutable receiver state.
 func (s *adaptiveEndpointStats) LatencyEWMA() time.Duration {
 	return time.Duration(s.hot.ewmaNanos.Load())
 }
 
+// LatencySeconds returns latency seconds data for adaptiveEndpointStats callers without handing out mutable receiver state.
 func (s *adaptiveEndpointStats) LatencySeconds() float64 {
 	return s.LatencyEWMA().Seconds()
 }
 
+// adaptiveRandomSource defines the adaptive random source contract used by resolver, picker, and reporter state.
 type adaptiveRandomSource interface {
 	Intn(n int) int
 }
 
+// adaptiveAtomicRandomSource carries adaptive atomic random source state for resolver, picker, and reporter state.
 type adaptiveAtomicRandomSource struct {
 	state atomic.Uint64
 }
 
+// newAdaptiveAtomicRandomSource initializes adaptive atomic random source with package defaults for this package's call path.
 func newAdaptiveAtomicRandomSource(seed uint64) *adaptiveAtomicRandomSource {
 	if seed == 0 {
 		seed = adaptiveRandomIncrement
@@ -305,6 +337,7 @@ func newAdaptiveAtomicRandomSource(seed uint64) *adaptiveAtomicRandomSource {
 	return source
 }
 
+// Intn returns a concurrency-safe pseudo-random value in [0, n).
 func (r *adaptiveAtomicRandomSource) Intn(n int) int {
 	if n <= 0 {
 		return 0
@@ -312,6 +345,7 @@ func (r *adaptiveAtomicRandomSource) Intn(n int) int {
 	return int(r.next() % uint64(n))
 }
 
+// next advances a splitmix-style atomic state without sharing math/rand state.
 func (r *adaptiveAtomicRandomSource) next() uint64 {
 	z := r.state.Add(adaptiveRandomIncrement)
 	z = (z ^ (z >> 30)) * uint64(0xbf58476d1ce4e5b9)
@@ -319,6 +353,7 @@ func (r *adaptiveAtomicRandomSource) next() uint64 {
 	return z ^ (z >> 31)
 }
 
+// maxInt64 keeps max int64 rules consistent for resolver, picker, and reporter state.
 func maxInt64(a, b int64) int64 {
 	if a > b {
 		return a

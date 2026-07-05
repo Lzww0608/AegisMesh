@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// TestEndpointStatsSlicePoolReusesCapacity locks the endpoint stats slice pool reuses capacity contract so future changes do not regress it.
 func TestEndpointStatsSlicePoolReusesCapacity(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34,6 +35,7 @@ func TestEndpointStatsSlicePoolReusesCapacity(t *testing.T) {
 	t.Fatalf("pool never returned >=128 cap slice across %d attempts (sync.Pool may be dropping puts)", attempts)
 }
 
+// TestSnapshotAndResetRequiresRelease locks the snapshot and reset requires release contract so future changes do not regress it.
 func TestSnapshotAndResetRequiresRelease(t *testing.T) {
 	recorder := NewRecorder("frontend", nil)
 	recorder.Observe(Observation{
@@ -51,6 +53,7 @@ func TestSnapshotAndResetRequiresRelease(t *testing.T) {
 	ReleaseEndpointStatsSlice(stats)
 }
 
+// TestSnapshotReturnsIndependentCopy locks the snapshot returns independent copy contract so future changes do not regress it.
 func TestSnapshotReturnsIndependentCopy(t *testing.T) {
 	recorder := NewRecorder("frontend", nil)
 	recorder.Observe(Observation{

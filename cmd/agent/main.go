@@ -14,6 +14,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/security"
 )
 
+// main wires the command-line entry point and reports fatal setup or runtime errors.
 func main() {
 	controllerAddr := flag.String("controller", "127.0.0.1:9000", "Aegis Controller gRPC address")
 	objectPath := flag.String("object", ebpf.DefaultObjectPath(), "compiled eBPF object path")

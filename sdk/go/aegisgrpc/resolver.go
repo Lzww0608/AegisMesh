@@ -26,14 +26,17 @@ const (
 
 var endpointIdentityByAddress sync.Map
 
+// endpointIdentity carries endpoint identity state for resolver, picker, and reporter state.
 type endpointIdentity struct {
 	instanceID        string
 	registrationEpoch string
 }
 
+// addressAttributeKey names the address attribute key values accepted by resolver, picker, and reporter state.
 type addressAttributeKey string
 
 const (
+	// instanceIDAttribute identifies the instance id attribute constant used by this package.
 	instanceIDAttribute        addressAttributeKey = "aegis.instance_id"
 	registrationEpochAttribute addressAttributeKey = "aegis.registration_epoch"
 	statusAttribute            addressAttributeKey = "aegis.status"
@@ -41,18 +44,22 @@ const (
 	limiterPoolAttribute       addressAttributeKey = "aegis.limiter_pool"
 )
 
+// registryResolverBuilder carries registry resolver builder state for resolver, picker, and reporter state.
 type registryResolverBuilder struct {
 	refreshInterval time.Duration
 }
 
+// newRegistryResolverBuilder initializes registry resolver builder with package defaults for this package's call path.
 func newRegistryResolverBuilder() *registryResolverBuilder {
 	return &registryResolverBuilder{refreshInterval: defaultRefreshInterval}
 }
 
+// Scheme returns the resolver scheme registered with gRPC.
 func (b *registryResolverBuilder) Scheme() string {
 	return Scheme
 }
 
+// Build parses the target, opens the controller connection, and starts registry watching.
 func (b *registryResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, _ resolver.BuildOptions) (resolver.Resolver, error) {
 	controllerAddr, service, err := parseTarget(target)
 	if err != nil {
@@ -70,6 +77,7 @@ func (b *registryResolverBuilder) Build(target resolver.Target, cc resolver.Clie
 		controllerAddressesID = registerControllerAddresses(splitControllerAddresses(controllerAddr))
 		controllerAddressesOwned = true
 	}
+	// Resolver targets carry process-local IDs; failures must unregister owned IDs to avoid leaks.
 	cleanupBuildFailure := func() {
 		if controllerAddressesOwned {
 			unregisterControllerAddresses(controllerAddressesID)
@@ -113,6 +121,7 @@ func (b *registryResolverBuilder) Build(target resolver.Target, cc resolver.Clie
 	return r, nil
 }
 
+// registryResolver carries registry resolver state for resolver, picker, and reporter state.
 type registryResolver struct {
 	ctx                   context.Context
 	cancel                context.CancelFunc
@@ -132,10 +141,12 @@ type registryResolver struct {
 	watchBackoff  time.Duration
 }
 
+// ResolveNow forces an immediate ListInstances refresh from the controller.
 func (r *registryResolver) ResolveNow(resolver.ResolveNowOptions) {
 	r.resolve()
 }
 
+// Close stops watch/poll loops and releases process-local resolver handles.
 func (r *registryResolver) Close() {
 	r.cancel()
 	_ = r.conn.Close()
@@ -144,12 +155,14 @@ func (r *registryResolver) Close() {
 	unregisterControllerAddresses(r.controllerAddressesID)
 }
 
+// watch streams backing-source changes to callers until the source or context closes.
 func (r *registryResolver) watch() {
 	for {
 		err := r.watchStream()
 		if err == nil || r.ctx.Err() != nil {
 			return
 		}
+		// Older controllers may not implement WatchInstances; polling keeps discovery compatible.
 		if status.Code(err) == codes.Unimplemented {
 			r.pollLoop(false)
 			return
@@ -173,6 +186,7 @@ func (r *registryResolver) watch() {
 	}
 }
 
+// watchStream streams stream changes to callers until the source or context closes.
 func (r *registryResolver) watchStream() error {
 	stream, err := r.client.WatchInstances(r.ctx, &aegisv1.WatchInstancesRequest{
 		Service:         r.service,
@@ -194,12 +208,14 @@ func (r *registryResolver) watchStream() error {
 	}
 }
 
+// recordWatchFailure increments the consecutive streaming failure counter.
 func (r *registryResolver) recordWatchFailure() {
 	r.mu.Lock()
 	r.watchFailures++
 	r.mu.Unlock()
 }
 
+// resetWatchRetry clears streaming failure state after a successful watch.
 func (r *registryResolver) resetWatchRetry() {
 	r.mu.Lock()
 	r.watchFailures = 0
@@ -207,6 +223,7 @@ func (r *registryResolver) resetWatchRetry() {
 	r.mu.Unlock()
 }
 
+// waitWatchBackoff waits for wait watch backoff to reach the expected state or timeout.
 func (r *registryResolver) waitWatchBackoff() bool {
 	delay := r.nextWatchRetryDelay()
 	timer := time.NewTimer(delay)
@@ -220,6 +237,7 @@ func (r *registryResolver) waitWatchBackoff() bool {
 	}
 }
 
+// nextWatchRetryDelay returns next watch retry delay data for registryResolver callers without handing out mutable receiver state.
 func (r *registryResolver) nextWatchRetryDelay() time.Duration {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -233,6 +251,7 @@ func (r *registryResolver) nextWatchRetryDelay() time.Duration {
 	return delay
 }
 
+// pollLoop periodically lists instances and optionally returns to retry streaming.
 func (r *registryResolver) pollLoop(retryWatch bool) bool {
 	r.resolve()
 	ticker := time.NewTicker(r.refreshInterval)
@@ -253,6 +272,7 @@ func (r *registryResolver) pollLoop(retryWatch bool) bool {
 	}
 }
 
+// resolve refreshes resolver state from the controller.
 func (r *registryResolver) resolve() {
 	ctx, cancel := context.WithTimeout(r.ctx, 2*time.Second)
 	defer cancel()
@@ -268,6 +288,7 @@ func (r *registryResolver) resolve() {
 	}
 }
 
+// applyInstancesResponse applies apply instances response to the mutable target while preserving transition rules.
 func (r *registryResolver) applyInstancesResponse(resp *aegisv1.ListInstancesResponse) error {
 	if resp == nil {
 		return nil
@@ -288,6 +309,7 @@ func (r *registryResolver) applyInstancesResponse(resp *aegisv1.ListInstancesRes
 	return nil
 }
 
+// currentVersion returns current version data for registryResolver callers without handing out mutable receiver state.
 func (r *registryResolver) currentVersion() int64 {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -295,6 +317,7 @@ func (r *registryResolver) currentVersion() int64 {
 	return r.lastVersion
 }
 
+// parseTarget decodes target input into the package's typed representation.
 func parseTarget(target resolver.Target) (string, string, error) {
 	if target.URL.Scheme != Scheme {
 		return "", "", errors.New("target scheme must be aegis")
@@ -311,10 +334,12 @@ func parseTarget(target resolver.Target) (string, string, error) {
 	return controllerAddr, service, nil
 }
 
+// instancesToAddresses converts registry instances into resolver addresses with fresh attributes.
 func instancesToAddresses(instances []*aegisv1.ServiceInstance) []resolver.Address {
 	return instancesToAddressesWithLimiterPool(instances, nil)
 }
 
+// instancesToAddressesWithLimiterPool attaches stable limiter pools while rebuilding resolver addresses.
 func instancesToAddressesWithLimiterPool(instances []*aegisv1.ServiceInstance, limiterPool *adaptiveLimiterPool) []resolver.Address {
 	addresses := make([]resolver.Address, 0, len(instances))
 	for _, inst := range instances {
@@ -334,6 +359,7 @@ func instancesToAddressesWithLimiterPool(instances []*aegisv1.ServiceInstance, l
 	return addresses
 }
 
+// rememberEndpointIdentity caches address-to-identity metadata for telemetry emitted after picks.
 func rememberEndpointIdentity(address, endpointID, registrationEpoch string) {
 	if address == "" {
 		return
@@ -345,6 +371,7 @@ func rememberEndpointIdentity(address, endpointID, registrationEpoch string) {
 	endpointIdentityByAddress.Store(address, endpointIdentity{instanceID: endpointID, registrationEpoch: registrationEpoch})
 }
 
+// endpointIdentityForAddress returns cached identity metadata or falls back to the raw address.
 func endpointIdentityForAddress(address string) endpointIdentity {
 	value, _ := endpointIdentityByAddress.Load(address)
 	if identity, ok := value.(endpointIdentity); ok {
@@ -356,18 +383,22 @@ func endpointIdentityForAddress(address string) endpointIdentity {
 	return endpointIdentity{}
 }
 
+// endpointIDForAddress preserves legacy address identity when the registry has no instance id.
 func endpointIDForAddress(address string) string {
 	return endpointIdentityForAddress(address).instanceID
 }
 
+// addressAttributes stores health state on resolver addresses for the adaptive picker.
 func addressAttributes(instanceID string, statusCode aegisstatus.Code, slowScore float64) *attributes.Attributes {
 	return addressAttributesWithLimiterPool(instanceID, statusCode, slowScore, nil)
 }
 
+// addressAttributesWithLimiterPool carries limiter state across resolver updates.
 func addressAttributesWithLimiterPool(instanceID string, statusCode aegisstatus.Code, slowScore float64, limiterPool *adaptiveLimiterPool) *attributes.Attributes {
 	return addressAttributesWithLimiterPoolAndEpoch(instanceID, "", statusCode, slowScore, limiterPool)
 }
 
+// addressAttributesWithLimiterPoolAndEpoch carries limiter and epoch fencing data into picker attributes.
 func addressAttributesWithLimiterPoolAndEpoch(instanceID, registrationEpoch string, statusCode aegisstatus.Code, slowScore float64, limiterPool *adaptiveLimiterPool) *attributes.Attributes {
 	attrs := attributes.New(instanceIDAttribute, instanceID).
 		WithValue(registrationEpochAttribute, registrationEpoch).
@@ -379,6 +410,7 @@ func addressAttributesWithLimiterPoolAndEpoch(instanceID, registrationEpoch stri
 	return attrs
 }
 
+// limiterPoolFromAttributes recovers shared limiter state from resolver attributes.
 func limiterPoolFromAttributes(attrs *attributes.Attributes) *adaptiveLimiterPool {
 	if attrs == nil {
 		return nil
@@ -387,6 +419,7 @@ func limiterPoolFromAttributes(attrs *attributes.Attributes) *adaptiveLimiterPoo
 	return pool
 }
 
+// instanceIDFromAttributes extracts registry identity from resolver attributes for telemetry.
 func instanceIDFromAttributes(attrs *attributes.Attributes) string {
 	if attrs == nil {
 		return ""
@@ -394,6 +427,8 @@ func instanceIDFromAttributes(attrs *attributes.Attributes) string {
 	value, _ := attrs.Value(instanceIDAttribute).(string)
 	return value
 }
+
+// registrationEpochFromAttributes extracts epoch fencing metadata from resolver attributes.
 func registrationEpochFromAttributes(attrs *attributes.Attributes) string {
 	if attrs == nil {
 		return ""
@@ -402,6 +437,7 @@ func registrationEpochFromAttributes(attrs *attributes.Attributes) string {
 	return value
 }
 
+// endpointStatusFromAttributes defaults missing status to healthy for legacy resolver entries.
 func endpointStatusFromAttributes(attrs *attributes.Attributes) aegisstatus.Code {
 	if attrs == nil {
 		return aegisstatus.Unspecified
@@ -415,6 +451,7 @@ func endpointStatusFromAttributes(attrs *attributes.Attributes) aegisstatus.Code
 	return aegisstatus.Unspecified
 }
 
+// slowScoreFromAttributes extracts the fault score used by adaptive endpoint cost.
 func slowScoreFromAttributes(attrs *attributes.Attributes) float64 {
 	if attrs == nil {
 		return 0

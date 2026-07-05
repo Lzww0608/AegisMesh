@@ -4,6 +4,7 @@ import (
 	"testing"
 )
 
+// BenchmarkAdaptiveEndpointHotSharedParallel reports latency and allocation cost for adaptive endpoint hot shared parallel.
 func BenchmarkAdaptiveEndpointHotSharedParallel(b *testing.B) {
 	stats := make([]*adaptiveEndpointStats, 1)
 	stats[0] = &adaptiveEndpointStats{}
@@ -19,6 +20,7 @@ func BenchmarkAdaptiveEndpointHotSharedParallel(b *testing.B) {
 	})
 }
 
+// BenchmarkAdaptiveEndpointHotManyParallel reports latency and allocation cost for adaptive endpoint hot many parallel.
 func BenchmarkAdaptiveEndpointHotManyParallel(b *testing.B) {
 	const endpoints = 64
 	stats := make([]*adaptiveEndpointStats, endpoints)

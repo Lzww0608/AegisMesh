@@ -14,10 +14,12 @@ const (
 	defaultTelemetryReportTimeout  = 2 * time.Second
 )
 
+// telemetryClient defines the client calls required for telemetry client.
 type telemetryClient interface {
 	ReportEndpointStats(ctx context.Context, in *aegisv1.ReportEndpointStatsRequest, opts ...grpc.CallOption) (*aegisv1.ReportEndpointStatsResponse, error)
 }
 
+// telemetryReporter carries telemetry reporter state for resolver, picker, and reporter state.
 type telemetryReporter struct {
 	client         telemetryClient
 	recorder       *telemetry.Recorder
@@ -26,6 +28,7 @@ type telemetryReporter struct {
 	protoSamplesPoolHolder
 }
 
+// newTelemetryReporter initializes telemetry reporter with package defaults for this package's call path.
 func newTelemetryReporter(client telemetryClient, recorder *telemetry.Recorder, interval time.Duration) *telemetryReporter {
 	if interval <= 0 {
 		interval = defaultTelemetryReportInterval
@@ -38,6 +41,7 @@ func newTelemetryReporter(client telemetryClient, recorder *telemetry.Recorder, 
 	}
 }
 
+// Run runs the run workflow until it completes or the context is canceled.
 func (r *telemetryReporter) Run(ctx context.Context) {
 	ticker := time.NewTicker(r.interval)
 	defer ticker.Stop()
@@ -52,6 +56,7 @@ func (r *telemetryReporter) Run(ctx context.Context) {
 	}
 }
 
+// ReportOnce drains one stats snapshot, reuses pooled proto buffers, and sends a single telemetry request.
 func (r *telemetryReporter) ReportOnce(ctx context.Context) error {
 	if r == nil || r.client == nil || r.recorder == nil {
 		return nil
@@ -81,6 +86,7 @@ func (r *telemetryReporter) ReportOnce(ctx context.Context) error {
 	return err
 }
 
+// statsToProto provides the shared stats to proto helper for resolver, picker, and reporter state.
 func statsToProto(stat telemetry.EndpointStats) *aegisv1.EndpointStatsSample {
 	sample := &aegisv1.EndpointStatsSample{}
 	fillProtoSample(sample, stat)

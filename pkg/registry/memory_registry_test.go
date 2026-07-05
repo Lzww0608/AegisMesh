@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// TestMemoryRegistryRegistersAndListsLiveInstances locks the memory registry registers and lists live instances contract so future changes do not regress it.
 func TestMemoryRegistryRegistersAndListsLiveInstances(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	reg := NewMemoryRegistry(func() time.Time { return now })
@@ -39,6 +40,7 @@ func TestMemoryRegistryRegistersAndListsLiveInstances(t *testing.T) {
 	}
 }
 
+// TestMemoryRegistryExpiresInstancesAfterLease locks the memory registry expires instances after lease contract so future changes do not regress it.
 func TestMemoryRegistryExpiresInstancesAfterLease(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	reg := NewMemoryRegistry(func() time.Time { return now })
@@ -68,6 +70,7 @@ func TestMemoryRegistryExpiresInstancesAfterLease(t *testing.T) {
 	}
 }
 
+// TestMemoryRegistryHeartbeatExtendsLease locks the memory registry heartbeat extends lease contract so future changes do not regress it.
 func TestMemoryRegistryHeartbeatExtendsLease(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	reg := NewMemoryRegistry(func() time.Time { return now })
@@ -102,6 +105,7 @@ func TestMemoryRegistryHeartbeatExtendsLease(t *testing.T) {
 	}
 }
 
+// TestMemoryRegistrySnapshotVersionAndImmutableList locks the memory registry snapshot version and immutable list contract so future changes do not regress it.
 func TestMemoryRegistrySnapshotVersionAndImmutableList(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	reg := NewMemoryRegistry(func() time.Time { return now })
@@ -160,6 +164,7 @@ func TestMemoryRegistrySnapshotVersionAndImmutableList(t *testing.T) {
 	}
 }
 
+// TestMemoryRegistrySnapshotDoesNotLeakMutableState locks the memory registry snapshot does not leak mutable state contract so future changes do not regress it.
 func TestMemoryRegistrySnapshotDoesNotLeakMutableState(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	reg := NewMemoryRegistry(func() time.Time { return now })
@@ -185,6 +190,7 @@ func TestMemoryRegistrySnapshotDoesNotLeakMutableState(t *testing.T) {
 	}
 }
 
+// TestMemoryRegistryWatchPublishesExpiryWithoutExternalSweep locks the memory registry watch publishes expiry without external sweep contract so future changes do not regress it.
 func TestMemoryRegistryWatchPublishesExpiryWithoutExternalSweep(t *testing.T) {
 	base := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	var currentNanos atomic.Int64
@@ -216,6 +222,8 @@ func TestMemoryRegistryWatchPublishesExpiryWithoutExternalSweep(t *testing.T) {
 		t.Fatalf("expected expiry snapshot version to advance: before %d after %d", beforeExpiry.Version, expired.Version)
 	}
 }
+
+// TestMemoryRegistryListSweepsExpiredSnapshotForService locks the memory registry list sweeps expired snapshot for service contract so future changes do not regress it.
 func TestMemoryRegistryListSweepsExpiredSnapshotForService(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	reg := NewMemoryRegistry(func() time.Time { return now })
@@ -246,6 +254,7 @@ func TestMemoryRegistryListSweepsExpiredSnapshotForService(t *testing.T) {
 	}
 }
 
+// TestMemoryRegistrySweepExpiredBatchesSnapshotRebuildByService locks the memory registry sweep expired batches snapshot rebuild by service contract so future changes do not regress it.
 func TestMemoryRegistrySweepExpiredBatchesSnapshotRebuildByService(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	reg := NewMemoryRegistry(func() time.Time { return now })
@@ -277,8 +286,11 @@ func TestMemoryRegistrySweepExpiredBatchesSnapshotRebuildByService(t *testing.T)
 		t.Fatalf("expected one snapshot rebuild for batch expiry: before %d after %d", beforeExpiry.Version, afterExpiry.Version)
 	}
 }
+
+// TestMemoryRegistryWatchCoalescesUpdatesForSlowConsumer locks the memory registry watch coalesces updates for slow consumer contract so future changes do not regress it.
 func TestMemoryRegistryWatchCoalescesUpdatesForSlowConsumer(t *testing.T) {
 	var (
+		// clockMu identifies the clock mu constant used by this package.
 		clockMu sync.Mutex
 		now     = time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	)
@@ -326,6 +338,7 @@ func TestMemoryRegistryWatchCoalescesUpdatesForSlowConsumer(t *testing.T) {
 	}
 }
 
+// TestMemoryRegistryWatchPublishesChangedSnapshots locks the memory registry watch publishes changed snapshots contract so future changes do not regress it.
 func TestMemoryRegistryWatchPublishesChangedSnapshots(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	reg := NewMemoryRegistry(func() time.Time { return now })
@@ -354,6 +367,7 @@ func TestMemoryRegistryWatchPublishesChangedSnapshots(t *testing.T) {
 	}
 }
 
+// receiveSnapshot provides the shared receive snapshot helper for registry persistence and watch paths.
 func receiveSnapshot(t *testing.T, updates <-chan InstanceSnapshot) InstanceSnapshot {
 	t.Helper()
 	select {
@@ -365,6 +379,7 @@ func receiveSnapshot(t *testing.T, updates <-chan InstanceSnapshot) InstanceSnap
 	}
 }
 
+// TestMemoryRegistryOwnerHeartbeatFencesStaleOwner locks the memory registry owner heartbeat fences stale owner contract so future changes do not regress it.
 func TestMemoryRegistryOwnerHeartbeatFencesStaleOwner(t *testing.T) {
 	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
 	reg := NewMemoryRegistry(func() time.Time { return now })

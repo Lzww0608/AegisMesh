@@ -12,6 +12,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/faultinjector"
 )
 
+// main wires the command-line entry point and reports fatal setup or runtime errors.
 func main() {
 	kind := flag.String("kind", "delay", "fault kind: delay, loss, cpu, reset")
 	container := flag.String("container", "", "target Docker container")
@@ -41,6 +42,7 @@ func main() {
 	}
 }
 
+// buildCommand builds build command dependencies from validated configuration.
 func buildCommand(kind string, container string, device string, delay time.Duration, jitter time.Duration, lossPercent float64, cpus float64) faultinjector.Command {
 	switch strings.ToLower(kind) {
 	case "delay":
@@ -57,6 +59,7 @@ func buildCommand(kind string, container string, device string, delay time.Durat
 	}
 }
 
+// shellLine keeps shell line rules consistent for this package call path.
 func shellLine(command faultinjector.Command) string {
 	parts := append([]string{command.Name}, command.Args...)
 	return strings.Join(parts, " ")

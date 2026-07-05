@@ -8,6 +8,7 @@ import (
 
 const scoreEpsilon = 1e-9
 
+// ScoreWeights sets the relative contribution of latency, errors, load, and retransmits in slow-endpoint scoring.
 type ScoreWeights struct {
 	LatencyWeight    float64
 	ErrorWeight      float64
@@ -15,11 +16,13 @@ type ScoreWeights struct {
 	RetransmitWeight float64
 }
 
+// ScoreCalculatorConfig combines score weights with the latency SLO used to normalize endpoint samples.
 type ScoreCalculatorConfig struct {
 	Weights    ScoreWeights
 	LatencySLO time.Duration
 }
 
+// DefaultScoreWeights keeps default score weights rules consistent for fault-state scoring and recovery.
 func DefaultScoreWeights() ScoreWeights {
 	return ScoreWeights{
 		LatencyWeight:    0.45,
@@ -29,6 +32,7 @@ func DefaultScoreWeights() ScoreWeights {
 	}
 }
 
+// EndpointSample carries one endpoint sample measurement window.
 type EndpointSample struct {
 	Service           string
 	InstanceID        string
@@ -46,6 +50,7 @@ type EndpointSample struct {
 	ConnectError      int64
 }
 
+// EndpointScore carries endpoint score state for fault-state scoring and recovery.
 type EndpointScore struct {
 	Service           string
 	InstanceID        string
@@ -59,15 +64,18 @@ type EndpointScore struct {
 	RetransmitScore   float64
 }
 
+// ScoreCalculator carries score calculator state for fault-state scoring and recovery.
 type ScoreCalculator struct {
 	weights    ScoreWeights
 	latencySLO time.Duration
 }
 
+// NewScoreCalculator initializes score calculator with package defaults for this package's call path.
 func NewScoreCalculator(weights ScoreWeights) *ScoreCalculator {
 	return NewScoreCalculatorWithConfig(ScoreCalculatorConfig{Weights: weights})
 }
 
+// NewScoreCalculatorWithConfig initializes score calculator with config with package defaults for this package's call path.
 func NewScoreCalculatorWithConfig(cfg ScoreCalculatorConfig) *ScoreCalculator {
 	weights := cfg.Weights
 	total := weights.LatencyWeight + weights.ErrorWeight + weights.InflightWeight + weights.RetransmitWeight
@@ -80,6 +88,7 @@ func NewScoreCalculatorWithConfig(cfg ScoreCalculatorConfig) *ScoreCalculator {
 	return &ScoreCalculator{weights: weights, latencySLO: cfg.LatencySLO}
 }
 
+// Calculate returns calculate data for ScoreCalculator callers without handing out mutable receiver state.
 func (c *ScoreCalculator) Calculate(samples []EndpointSample) map[string]EndpointScore {
 	byService := make(map[string]map[string]EndpointSample)
 	for _, sample := range samples {
@@ -105,6 +114,7 @@ func (c *ScoreCalculator) Calculate(samples []EndpointSample) map[string]Endpoin
 	return out
 }
 
+// aggregateEndpointSample provides the shared aggregate endpoint sample helper for fault-state scoring and recovery.
 func aggregateEndpointSample(current EndpointSample, sample EndpointSample) EndpointSample {
 	if current.Service == "" {
 		return sample
@@ -140,6 +150,7 @@ func aggregateEndpointSample(current EndpointSample, sample EndpointSample) Endp
 	return current
 }
 
+// calculateService returns calculate service data for ScoreCalculator callers without handing out mutable receiver state.
 func (c *ScoreCalculator) calculateService(service string, samples []EndpointSample, out map[string]EndpointScore) {
 	latencies := make([]float64, 0, len(samples))
 	errorRates := make([]float64, 0, len(samples))
@@ -190,6 +201,7 @@ func (c *ScoreCalculator) calculateService(service string, samples []EndpointSam
 	}
 }
 
+// absoluteLatencyScore returns absolute latency score data for ScoreCalculator callers without handing out mutable receiver state.
 func (c *ScoreCalculator) absoluteLatencyScore(latency time.Duration) float64 {
 	if c.latencySLO <= 0 || latency <= 0 {
 		return 0
@@ -197,10 +209,12 @@ func (c *ScoreCalculator) absoluteLatencyScore(latency time.Duration) float64 {
 	return latency.Seconds() / c.latencySLO.Seconds()
 }
 
+// ScoreKey builds the stable service/instance map key used by score snapshots.
 func ScoreKey(service, instanceID string) string {
 	return service + "/" + instanceID
 }
 
+// rate returns zero for empty denominators so missing traffic does not inflate fault scores.
 func rate(count, total int64) float64 {
 	if total <= 0 {
 		return 0
@@ -208,6 +222,7 @@ func rate(count, total int64) float64 {
 	return float64(count) / float64(total)
 }
 
+// networkRate preserves raw network-event counts when request volume is unavailable.
 func networkRate(count, total int64) float64 {
 	if count <= 0 {
 		return 0
@@ -218,6 +233,7 @@ func networkRate(count, total int64) float64 {
 	return float64(count) / float64(total)
 }
 
+// capacity falls back to 100 so inflight ratios remain bounded when capacity is absent.
 func capacity(value int64) int64 {
 	if value <= 0 {
 		return 100
@@ -225,6 +241,7 @@ func capacity(value int64) int64 {
 	return value
 }
 
+// median sorts a copy so callers keep their original sample ordering.
 func median(values []float64) float64 {
 	if len(values) == 0 {
 		return 0
@@ -238,6 +255,7 @@ func median(values []float64) float64 {
 	return (sorted[mid-1] + sorted[mid]) / 2
 }
 
+// medianAbsoluteDeviation reuses median over absolute residuals for robust latency spread.
 func medianAbsoluteDeviation(values []float64, med float64) float64 {
 	if len(values) == 0 {
 		return 0
@@ -249,6 +267,7 @@ func medianAbsoluteDeviation(values []float64, med float64) float64 {
 	return median(deviations)
 }
 
+// average returns zero for empty slices to keep baseline calculations finite.
 func average(values []float64) float64 {
 	if len(values) == 0 {
 		return 0

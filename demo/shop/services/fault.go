@@ -9,6 +9,7 @@ import (
 
 var ErrInjectedFault = errors.New("injected application fault")
 
+// FaultProfile describes optional demo fault injection before a service handler runs.
 type FaultProfile struct {
 	SlowProbability  float64
 	SlowDuration     time.Duration
@@ -17,6 +18,7 @@ type FaultProfile struct {
 	Sleep            func(context.Context, time.Duration) error
 }
 
+// BeforeCall injects configured delay or error faults and respects context cancellation during sleeps.
 func (p FaultProfile) BeforeCall(ctx context.Context) error {
 	randomFloat := p.RandomFloat
 	if randomFloat == nil {
@@ -35,6 +37,7 @@ func (p FaultProfile) BeforeCall(ctx context.Context) error {
 	return nil
 }
 
+// sleepContext waits for the configured delay while allowing request cancellation to win.
 func sleepContext(ctx context.Context, d time.Duration) error {
 	timer := time.NewTimer(d)
 	defer timer.Stop()

@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config is the YAML/JSON contract for binding a DeathStarBench deployment to controller, frontend, and service mappings.
 type Config struct {
 	Benchmark   string                    `yaml:"benchmark" json:"benchmark"`
 	Repo        string                    `yaml:"repo" json:"repo"`
@@ -17,6 +18,7 @@ type Config struct {
 	Services    map[string]ServiceMapping `yaml:"services" json:"services"`
 }
 
+// FrontendConfig names the externally reachable frontend, readiness probe, and workload command used by runner artifacts.
 type FrontendConfig struct {
 	URL      string `yaml:"url" json:"url"`
 	ReadyURL string `yaml:"ready_url" json:"ready_url,omitempty"`
@@ -24,11 +26,13 @@ type FrontendConfig struct {
 	Command  string `yaml:"command" json:"command,omitempty"`
 }
 
+// ServiceMapping carries service mapping state for the DeathStarBench runner contract.
 type ServiceMapping struct {
 	AegisName string `yaml:"aegis_name" json:"aegis_name"`
 	Port      int    `yaml:"port" json:"port"`
 }
 
+// IntegrationPlan carries integration plan state for the DeathStarBench runner contract.
 type IntegrationPlan struct {
 	ComposeCommand     string            `json:"compose_command"`
 	ComposeDownCommand string            `json:"compose_down_command"`
@@ -39,6 +43,7 @@ type IntegrationPlan struct {
 	ServiceNames       []string          `json:"service_names"`
 }
 
+// ParseConfig decodes config input into the package's typed representation.
 func ParseConfig(raw []byte) (Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(raw, &cfg); err != nil {
@@ -50,6 +55,7 @@ func ParseConfig(raw []byte) (Config, error) {
 	return cfg, nil
 }
 
+// Plan returns plan data for Config callers without handing out mutable receiver state.
 func (c Config) Plan() IntegrationPlan {
 	serviceNames := make([]string, 0, len(c.Services))
 	mappingParts := make([]string, 0, len(c.Services))
@@ -85,6 +91,7 @@ func (c Config) Plan() IntegrationPlan {
 	}
 }
 
+// readyURL reads ready url data from the supplied input.
 func readyURL(c Config) string {
 	if c.Frontend.ReadyURL != "" {
 		return c.Frontend.ReadyURL

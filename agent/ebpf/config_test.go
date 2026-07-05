@@ -2,6 +2,7 @@ package ebpf
 
 import "testing"
 
+// TestParseEndpointMap locks the parse endpoint map contract so future changes do not regress it.
 func TestParseEndpointMap(t *testing.T) {
 	got, err := ParseEndpointMap("10.0.0.2:7001=user-service/user-a,10.0.0.3:7101=order-service/order-a")
 	if err != nil {
@@ -15,6 +16,7 @@ func TestParseEndpointMap(t *testing.T) {
 	}
 }
 
+// TestParseEndpointMapRejectsMalformedEntry locks the parse endpoint map rejects malformed entry contract so future changes do not regress it.
 func TestParseEndpointMapRejectsMalformedEntry(t *testing.T) {
 	if _, err := ParseEndpointMap("10.0.0.2:7001=user-service"); err == nil {
 		t.Fatalf("expected malformed mapping to fail")

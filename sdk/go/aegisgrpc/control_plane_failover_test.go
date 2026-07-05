@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// TestRegistryResolverUsesAvailableControllerAddress locks the registry resolver uses available controller address contract so future changes do not regress it.
 func TestRegistryResolverUsesAvailableControllerAddress(t *testing.T) {
 	registerDefaultResolver()
 	registryServer := &staticRegistryServer{
@@ -56,6 +57,7 @@ func TestRegistryResolverUsesAvailableControllerAddress(t *testing.T) {
 	}
 }
 
+// TestPolicyWatcherUsesAvailableControllerAddress locks the policy watcher uses available controller address contract so future changes do not regress it.
 func TestPolicyWatcherUsesAvailableControllerAddress(t *testing.T) {
 	registerDefaultResolver()
 	live := startControlPlaneTestServer(t, func(server *grpc.Server) {
@@ -97,6 +99,7 @@ func TestPolicyWatcherUsesAvailableControllerAddress(t *testing.T) {
 	}
 }
 
+// TestTelemetryReporterUsesAvailableControllerAddress locks the telemetry reporter uses available controller address contract so future changes do not regress it.
 func TestTelemetryReporterUsesAvailableControllerAddress(t *testing.T) {
 	registerDefaultResolver()
 	telemetryServer := &countingTelemetryServer{}
@@ -138,6 +141,7 @@ func TestTelemetryReporterUsesAvailableControllerAddress(t *testing.T) {
 	}
 }
 
+// startControlPlaneTestServer starts an in-process controller fixture and returns the address used by failover tests.
 func startControlPlaneTestServer(t *testing.T, register func(*grpc.Server)) controlPlaneTestServer {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -158,11 +162,13 @@ func startControlPlaneTestServer(t *testing.T, register func(*grpc.Server)) cont
 	}
 }
 
+// controlPlaneTestServer carries control plane test server state for resolver, picker, and reporter state.
 type controlPlaneTestServer struct {
 	addr string
 	stop func()
 }
 
+// unusedControllerAddr provides the shared unused controller addr helper for resolver, picker, and reporter state.
 func unusedControllerAddr(t *testing.T) string {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -176,10 +182,12 @@ func unusedControllerAddr(t *testing.T) string {
 	return addr
 }
 
+// parseResolverTarget decodes resolver target input into the package's typed representation.
 func parseResolverTarget(raw string) (*url.URL, error) {
 	return url.Parse(raw)
 }
 
+// staticRegistryServer carries static registry server state for resolver, picker, and reporter state.
 type staticRegistryServer struct {
 	aegisv1.UnimplementedRegistryServiceServer
 	mu             sync.Mutex
@@ -191,6 +199,7 @@ type staticRegistryServer struct {
 	watches        int
 }
 
+// ListInstances returns a point-in-time list of list instances visible to the caller.
 func (s *staticRegistryServer) ListInstances(context.Context, *aegisv1.ListInstancesRequest) (*aegisv1.ListInstancesResponse, error) {
 	s.mu.Lock()
 	s.lists++
@@ -198,6 +207,7 @@ func (s *staticRegistryServer) ListInstances(context.Context, *aegisv1.ListInsta
 	return &aegisv1.ListInstancesResponse{Instances: cloneServiceInstances(s.instances), Version: s.version}, nil
 }
 
+// WatchInstances streams instances changes to callers until the source or context closes.
 func (s *staticRegistryServer) WatchInstances(_ *aegisv1.WatchInstancesRequest, stream aegisv1.RegistryService_WatchInstancesServer) error {
 	s.mu.Lock()
 	s.watches++
@@ -209,18 +219,21 @@ func (s *staticRegistryServer) WatchInstances(_ *aegisv1.WatchInstancesRequest, 
 	return stream.Context().Err()
 }
 
+// listCount returns a point-in-time list of list count visible to the caller.
 func (s *staticRegistryServer) listCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.lists
 }
 
+// watchCount streams count changes to callers until the source or context closes.
 func (s *staticRegistryServer) watchCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.watches
 }
 
+// cloneServiceInstances returns an isolated copy of clone service instances input so callers cannot mutate shared state.
 func cloneServiceInstances(instances []*aegisv1.ServiceInstance) []*aegisv1.ServiceInstance {
 	out := make([]*aegisv1.ServiceInstance, 0, len(instances))
 	for _, inst := range instances {
@@ -229,11 +242,13 @@ func cloneServiceInstances(instances []*aegisv1.ServiceInstance) []*aegisv1.Serv
 	return out
 }
 
+// failoverPolicyServer carries failover policy server state for resolver, picker, and reporter state.
 type failoverPolicyServer struct {
 	aegisv1.UnimplementedPolicyServiceServer
 	snapshot *aegisv1.PolicySnapshot
 }
 
+// WatchPolicy streams policy changes to callers until the source or context closes.
 func (s failoverPolicyServer) WatchPolicy(req *aegisv1.WatchPolicyRequest, stream aegisv1.PolicyService_WatchPolicyServer) error {
 	if req.GetService() != s.snapshot.GetService() {
 		return nil
@@ -245,12 +260,14 @@ func (s failoverPolicyServer) WatchPolicy(req *aegisv1.WatchPolicyRequest, strea
 	return stream.Context().Err()
 }
 
+// countingTelemetryServer carries counting telemetry server state for resolver, picker, and reporter state.
 type countingTelemetryServer struct {
 	aegisv1.UnimplementedTelemetryServiceServer
 	mu      sync.Mutex
 	samples int
 }
 
+// ReportEndpointStats counts received samples so failover tests can observe reporter recovery.
 func (s *countingTelemetryServer) ReportEndpointStats(_ context.Context, req *aegisv1.ReportEndpointStatsRequest) (*aegisv1.ReportEndpointStatsResponse, error) {
 	s.mu.Lock()
 	s.samples += len(req.GetSamples())
@@ -258,12 +275,14 @@ func (s *countingTelemetryServer) ReportEndpointStats(_ context.Context, req *ae
 	return &aegisv1.ReportEndpointStatsResponse{}, nil
 }
 
+// sampleCount returns sample count data for countingTelemetryServer callers without handing out mutable receiver state.
 func (s *countingTelemetryServer) sampleCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.samples
 }
 
+// waitingResolverClientConn carries waiting resolver client conn state for resolver, picker, and reporter state.
 type waitingResolverClientConn struct {
 	mu      sync.Mutex
 	state   resolver.State
@@ -271,10 +290,12 @@ type waitingResolverClientConn struct {
 	ch      chan struct{}
 }
 
+// newWaitingResolverClientConn initializes waiting resolver client conn with package defaults for this package's call path.
 func newWaitingResolverClientConn() *waitingResolverClientConn {
 	return &waitingResolverClientConn{ch: make(chan struct{}, 1)}
 }
 
+// UpdateState records fake controller health updates without running the production state machine.
 func (c *waitingResolverClientConn) UpdateState(state resolver.State) error {
 	c.mu.Lock()
 	c.state = state
@@ -287,6 +308,7 @@ func (c *waitingResolverClientConn) UpdateState(state resolver.State) error {
 	return nil
 }
 
+// waitForAddress waits for wait for address to reach the expected state or timeout.
 func (c *waitingResolverClientConn) waitForAddress(t *testing.T, address string, timeout time.Duration) resolver.State {
 	t.Helper()
 	deadline := time.After(timeout)
@@ -308,6 +330,7 @@ func (c *waitingResolverClientConn) waitForAddress(t *testing.T, address string,
 	}
 }
 
+// resolverStateWithAddress refreshes resolver state from the controller.
 func resolverStateWithAddress(states []resolver.State, address string) (resolver.State, bool) {
 	for _, state := range states {
 		for _, addr := range state.Addresses {
@@ -319,10 +342,13 @@ func resolverStateWithAddress(states []resolver.State, address string) (resolver
 	return resolver.State{}, false
 }
 
+// ReportError records resolver errors while failover tests wait for an eventual ready state.
 func (c *waitingResolverClientConn) ReportError(error) {}
 
+// NewAddress initializes address with package defaults for this package's call path.
 func (c *waitingResolverClientConn) NewAddress([]resolver.Address) {}
 
+// ParseServiceConfig decodes service config input into the package's typed representation.
 func (c *waitingResolverClientConn) ParseServiceConfig(string) *serviceconfig.ParseResult {
 	return nil
 }

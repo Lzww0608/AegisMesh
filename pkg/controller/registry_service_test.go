@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TestRegistryServiceReturnsOwnerTokenAndRequiresFencedHeartbeat locks the registry service returns owner token and requires fenced heartbeat contract so future changes do not regress it.
 func TestRegistryServiceReturnsOwnerTokenAndRequiresFencedHeartbeat(t *testing.T) {
 	now := time.Date(2026, 6, 29, 14, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -46,6 +47,8 @@ func TestRegistryServiceReturnsOwnerTokenAndRequiresFencedHeartbeat(t *testing.T
 		t.Fatalf("heartbeat with owner credentials: %v", err)
 	}
 }
+
+// TestRegistryServiceRegistersAndListsInstances locks the registry service registers and lists instances contract so future changes do not regress it.
 func TestRegistryServiceRegistersAndListsInstances(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -82,6 +85,7 @@ func TestRegistryServiceRegistersAndListsInstances(t *testing.T) {
 	}
 }
 
+// TestRegistryServiceDirectHandlerHonorsPropagatedPrincipalScope locks the registry service direct handler honors propagated principal scope contract so future changes do not regress it.
 func TestRegistryServiceDirectHandlerHonorsPropagatedPrincipalScope(t *testing.T) {
 	store := registry.NewMemoryRegistry(time.Now)
 	service := NewRegistryService(store, 30*time.Second)
@@ -95,6 +99,8 @@ func TestRegistryServiceDirectHandlerHonorsPropagatedPrincipalScope(t *testing.T
 		t.Fatalf("expected direct handler to reject out-of-scope service, got %v", err)
 	}
 }
+
+// TestRegistryServiceUsesDefaultLeaseWhenRequestOmitsTTL locks the registry service uses default lease when request omits ttl contract so future changes do not regress it.
 func TestRegistryServiceUsesDefaultLeaseWhenRequestOmitsTTL(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -132,6 +138,7 @@ func TestRegistryServiceUsesDefaultLeaseWhenRequestOmitsTTL(t *testing.T) {
 	}
 }
 
+// TestRegistryServiceListInstancesVersionTracksRegistryChanges locks the registry service list instances version tracks registry changes contract so future changes do not regress it.
 func TestRegistryServiceListInstancesVersionTracksRegistryChanges(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -166,6 +173,7 @@ func TestRegistryServiceListInstancesVersionTracksRegistryChanges(t *testing.T) 
 	}
 }
 
+// TestRegistryServiceListInstancesVersionTracksHealthOverlay locks the registry service list instances version tracks health overlay contract so future changes do not regress it.
 func TestRegistryServiceListInstancesVersionTracksHealthOverlay(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -190,6 +198,7 @@ func TestRegistryServiceListInstancesVersionTracksHealthOverlay(t *testing.T) {
 	}
 }
 
+// TestRegistryServiceWatchInstancesSendsInitialAndRegistryUpdates locks the registry service watch instances sends initial and registry updates contract so future changes do not regress it.
 func TestRegistryServiceWatchInstancesSendsInitialAndRegistryUpdates(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := registry.NewMemoryRegistry(func() time.Time { return now })
@@ -221,6 +230,7 @@ func TestRegistryServiceWatchInstancesSendsInitialAndRegistryUpdates(t *testing.
 	}
 }
 
+// TestRegistryServiceWatchInstancesReopensClosedRegistryWatch locks the registry service watch instances reopens closed registry watch contract so future changes do not regress it.
 func TestRegistryServiceWatchInstancesReopensClosedRegistryWatch(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	store := &closingFirstWatchRegistry{
@@ -263,12 +273,14 @@ func TestRegistryServiceWatchInstancesReopensClosedRegistryWatch(t *testing.T) {
 	}
 }
 
+// closingFirstWatchRegistry forces the first watch stream to close so tests cover registry-service resubscription.
 type closingFirstWatchRegistry struct {
 	*registry.MemoryRegistry
 	watchCalls  atomic.Int32
 	firstClosed chan struct{}
 }
 
+// Watch returns a closed first stream, then delegates to the embedded registry for later watch attempts.
 func (s *closingFirstWatchRegistry) Watch(ctx context.Context, service string, afterVersion int64) (<-chan registry.InstanceSnapshot, error) {
 	if s.watchCalls.Add(1) == 1 {
 		updates := make(chan registry.InstanceSnapshot)
@@ -279,16 +291,19 @@ func (s *closingFirstWatchRegistry) Watch(ctx context.Context, service string, a
 	return s.MemoryRegistry.Watch(ctx, service, afterVersion)
 }
 
+// versionedHealthProvider carries versioned health provider state for this package call path.
 type versionedHealthProvider struct {
 	health  fault.EndpointHealth
 	version int64
 }
 
+// set updates set state while preserving package invariants.
 func (p *versionedHealthProvider) set(service, instanceID string, state fault.EndpointState, slowScore float64, version int64) {
 	p.health = fault.EndpointHealth{Service: service, InstanceID: instanceID, State: state, SlowScore: slowScore}
 	p.version = version
 }
 
+// HealthState returns health state data for versionedHealthProvider callers without handing out mutable receiver state.
 func (p *versionedHealthProvider) HealthState(service, instanceID string) (fault.EndpointState, bool) {
 	if p.health.Service != service || p.health.InstanceID != instanceID {
 		return fault.StateUnspecified, false
@@ -296,6 +311,7 @@ func (p *versionedHealthProvider) HealthState(service, instanceID string) (fault
 	return p.health.State, true
 }
 
+// Get returns get state for the requested key.
 func (p *versionedHealthProvider) Get(service, instanceID string) (fault.EndpointHealth, bool) {
 	if p.health.Service != service || p.health.InstanceID != instanceID {
 		return fault.EndpointHealth{}, false
@@ -303,6 +319,7 @@ func (p *versionedHealthProvider) Get(service, instanceID string) (fault.Endpoin
 	return p.health, true
 }
 
+// HealthVersion returns health version data for versionedHealthProvider callers without handing out mutable receiver state.
 func (p *versionedHealthProvider) HealthVersion(service string) int64 {
 	if p.health.Service != service {
 		return 0
@@ -310,15 +327,18 @@ func (p *versionedHealthProvider) HealthVersion(service string) int64 {
 	return p.version
 }
 
+// registryWatchTestStream carries registry watch test stream state for this package call path.
 type registryWatchTestStream struct {
 	ctx  context.Context
 	sent chan *aegisv1.ListInstancesResponse
 }
 
+// newRegistryWatchTestStream initializes registry watch test stream with package defaults for this package's call path.
 func newRegistryWatchTestStream(ctx context.Context) *registryWatchTestStream {
 	return &registryWatchTestStream{ctx: ctx, sent: make(chan *aegisv1.ListInstancesResponse, 4)}
 }
 
+// Send enqueues registry snapshots so watch tests can assert streamed updates.
 func (s *registryWatchTestStream) Send(resp *aegisv1.ListInstancesResponse) error {
 	select {
 	case s.sent <- resp:
@@ -328,11 +348,13 @@ func (s *registryWatchTestStream) Send(resp *aegisv1.ListInstancesResponse) erro
 	}
 }
 
+// receive returns receive data for registryWatchTestStream callers without handing out mutable receiver state.
 func (s *registryWatchTestStream) receive(t *testing.T) *aegisv1.ListInstancesResponse {
 	t.Helper()
 	return s.receiveWithin(t, time.Second)
 }
 
+// receiveWithin returns receive within data for registryWatchTestStream callers without handing out mutable receiver state.
 func (s *registryWatchTestStream) receiveWithin(t *testing.T, timeout time.Duration) *aegisv1.ListInstancesResponse {
 	t.Helper()
 	select {
@@ -344,9 +366,20 @@ func (s *registryWatchTestStream) receiveWithin(t *testing.T, timeout time.Durat
 	}
 }
 
-func (s *registryWatchTestStream) SetHeader(metadata.MD) error  { return nil }
+// SetHeader updates set header state while preserving package invariants.
+func (s *registryWatchTestStream) SetHeader(metadata.MD) error { return nil }
+
+// SendHeader satisfies grpc.ServerStream for this fixture without emitting metadata.
 func (s *registryWatchTestStream) SendHeader(metadata.MD) error { return nil }
-func (s *registryWatchTestStream) SetTrailer(metadata.MD)       {}
-func (s *registryWatchTestStream) Context() context.Context     { return s.ctx }
-func (s *registryWatchTestStream) SendMsg(any) error            { return nil }
-func (s *registryWatchTestStream) RecvMsg(any) error            { return io.EOF }
+
+// SetTrailer updates set trailer state while preserving package invariants.
+func (s *registryWatchTestStream) SetTrailer(metadata.MD) {}
+
+// Context exposes the fixture context used to cancel registry watch streams.
+func (s *registryWatchTestStream) Context() context.Context { return s.ctx }
+
+// SendMsg is a no-op because registry watch tests use the typed Send method.
+func (s *registryWatchTestStream) SendMsg(any) error { return nil }
+
+// RecvMsg is a no-op because server-side registry watch streams do not receive messages.
+func (s *registryWatchTestStream) RecvMsg(any) error { return io.EOF }

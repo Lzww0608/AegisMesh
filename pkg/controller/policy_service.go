@@ -11,14 +11,17 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// PolicyStore defines persistence operations for policy store state.
 type PolicyStore interface {
 	Get(service string) (*aegisv1.PolicySnapshot, bool)
 }
 
+// policyReloader defines the policy reloader contract used by this package call path.
 type policyReloader interface {
 	ReloadIfChanged() error
 }
 
+// PolicyService implements the controller RPC surface for policy service.
 type PolicyService struct {
 	aegisv1.UnimplementedPolicyServiceServer
 
@@ -26,6 +29,7 @@ type PolicyService struct {
 	reloadInterval time.Duration
 }
 
+// NewPolicyService initializes policy service with package defaults for this package's call path.
 func NewPolicyService(store PolicyStore, reloadInterval time.Duration) *PolicyService {
 	if reloadInterval <= 0 {
 		reloadInterval = 3 * time.Second
@@ -33,6 +37,7 @@ func NewPolicyService(store PolicyStore, reloadInterval time.Duration) *PolicySe
 	return &PolicyService{store: store, reloadInterval: reloadInterval}
 }
 
+// GetPolicy returns get policy state for the requested key.
 func (s *PolicyService) GetPolicy(ctx context.Context, req *aegisv1.GetPolicyRequest) (*aegisv1.PolicySnapshot, error) {
 	if err := security.AuthorizeControllerPrincipal(ctx, aegisv1.PolicyService_GetPolicy_FullMethodName, req); err != nil {
 		return nil, err
@@ -50,6 +55,7 @@ func (s *PolicyService) GetPolicy(ctx context.Context, req *aegisv1.GetPolicyReq
 	return proto.Clone(snapshot).(*aegisv1.PolicySnapshot), nil
 }
 
+// WatchPolicy streams policy changes to callers until the source or context closes.
 func (s *PolicyService) WatchPolicy(req *aegisv1.WatchPolicyRequest, stream aegisv1.PolicyService_WatchPolicyServer) error {
 	if err := security.AuthorizeControllerPrincipal(stream.Context(), aegisv1.PolicyService_WatchPolicy_FullMethodName, req); err != nil {
 		return err
@@ -88,6 +94,7 @@ func (s *PolicyService) WatchPolicy(req *aegisv1.WatchPolicyRequest, stream aegi
 
 const deletedPolicyRevision int64 = -1
 
+// sendIfChanged returns send if changed data for PolicyService callers without handing out mutable receiver state.
 func (s *PolicyService) sendIfChanged(service string, lastRevision *int64, stream aegisv1.PolicyService_WatchPolicyServer) error {
 	snapshot, ok := s.store.Get(service)
 	if !ok {

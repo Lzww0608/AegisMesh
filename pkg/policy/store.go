@@ -10,10 +10,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Store is the read-only policy snapshot source consumed by controller policy serving and SDK hot-apply.
 type Store interface {
 	Get(service string) (*aegisv1.PolicySnapshot, bool)
 }
 
+// FileStore loads YAML policy snapshots and caches file metadata so unchanged reads avoid reparsing.
 type FileStore struct {
 	mu       sync.RWMutex
 	path     string
@@ -21,10 +23,12 @@ type FileStore struct {
 	policies map[string]*aegisv1.PolicySnapshot
 }
 
+// fileConfig is the YAML root keyed by service name for local policy files.
 type fileConfig struct {
 	Services map[string]serviceConfig `yaml:"services"`
 }
 
+// serviceConfig groups service-level routing, retry, outlier, breaker, and method override settings.
 type serviceConfig struct {
 	RoutingPolicy    string                      `yaml:"routing_policy"`
 	Retry            retryConfig                 `yaml:"retry"`
@@ -33,6 +37,7 @@ type serviceConfig struct {
 	Methods          map[string]methodPolicyConf `yaml:"methods"`
 }
 
+// retryConfig mirrors YAML retry fields before they are normalized into policy snapshots.
 type retryConfig struct {
 	Enabled             bool    `yaml:"enabled"`
 	MaxAttempts         int32   `yaml:"max_attempts"`
@@ -42,6 +47,7 @@ type retryConfig struct {
 	PerTryTimeoutMillis int64   `yaml:"per_try_timeout_millis"`
 }
 
+// outlierDetectionConfig carries YAML thresholds used to build fault-state transition policy.
 type outlierDetectionConfig struct {
 	DegradedThreshold       float64 `yaml:"degraded_threshold"`
 	EjectThreshold          float64 `yaml:"eject_threshold"`
@@ -51,16 +57,19 @@ type outlierDetectionConfig struct {
 	ProbeSuccessThreshold   float64 `yaml:"probe_success_threshold"`
 }
 
+// circuitBreakerConfig captures the per-endpoint inflight cap exported into policy snapshots.
 type circuitBreakerConfig struct {
 	MaxInflightPerEndpoint int64 `yaml:"max_inflight_per_endpoint"`
 }
 
+// methodPolicyConf lets a method override idempotency, timeout, and retry settings from the service default.
 type methodPolicyConf struct {
 	Idempotent    bool        `yaml:"idempotent"`
 	TimeoutMillis int64       `yaml:"timeout_millis"`
 	Retry         retryConfig `yaml:"retry"`
 }
 
+// NewFileStore initializes file store with package defaults for this package's call path.
 func NewFileStore(path string) (*FileStore, error) {
 	store := &FileStore{
 		path:     path,
@@ -72,6 +81,7 @@ func NewFileStore(path string) (*FileStore, error) {
 	return store, nil
 }
 
+// Get returns get state for the requested key.
 func (s *FileStore) Get(service string) (*aegisv1.PolicySnapshot, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -83,6 +93,7 @@ func (s *FileStore) Get(service string) (*aegisv1.PolicySnapshot, bool) {
 	return proto.Clone(snapshot).(*aegisv1.PolicySnapshot), true
 }
 
+// List returns a point-in-time list of list visible to the caller.
 func (s *FileStore) List() []*aegisv1.PolicySnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -100,6 +111,7 @@ func (s *FileStore) List() []*aegisv1.PolicySnapshot {
 	return out
 }
 
+// ReloadIfChanged stats the policy file and reloads cached snapshots only when the mod time changes.
 func (s *FileStore) ReloadIfChanged() error {
 	info, err := os.Stat(s.path)
 	if err != nil {
@@ -111,6 +123,7 @@ func (s *FileStore) ReloadIfChanged() error {
 	return s.Reload()
 }
 
+// Reload reparses the policy file and atomically replaces the cached service snapshots.
 func (s *FileStore) Reload() error {
 	raw, err := os.ReadFile(s.path)
 	if err != nil {
@@ -156,12 +169,14 @@ func (s *FileStore) Reload() error {
 	return nil
 }
 
+// currentModTime returns current mod time data for FileStore callers without handing out mutable receiver state.
 func (s *FileStore) currentModTime() int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.modTime
 }
 
+// retryToProto provides the shared retry to proto helper for policy storage and hot-apply.
 func retryToProto(cfg retryConfig) *aegisv1.RetryPolicy {
 	return &aegisv1.RetryPolicy{
 		Enabled:             cfg.Enabled,
@@ -173,6 +188,7 @@ func retryToProto(cfg retryConfig) *aegisv1.RetryPolicy {
 	}
 }
 
+// outlierToProto provides the shared outlier to proto helper for policy storage and hot-apply.
 func outlierToProto(cfg outlierDetectionConfig) *aegisv1.OutlierDetectionPolicy {
 	return &aegisv1.OutlierDetectionPolicy{
 		DegradedThreshold:       cfg.DegradedThreshold,
@@ -184,6 +200,7 @@ func outlierToProto(cfg outlierDetectionConfig) *aegisv1.OutlierDetectionPolicy 
 	}
 }
 
+// circuitBreakerToProto provides the shared circuit breaker to proto helper for policy storage and hot-apply.
 func circuitBreakerToProto(cfg circuitBreakerConfig) *aegisv1.CircuitBreakerPolicy {
 	return &aegisv1.CircuitBreakerPolicy{MaxInflightPerEndpoint: cfg.MaxInflightPerEndpoint}
 }

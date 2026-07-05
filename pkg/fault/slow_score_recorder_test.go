@@ -7,6 +7,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/telemetry"
 )
 
+// TestScoreCalculatorFlagsSlowEndpointFromRecorderApproxP95 locks the score calculator flags slow endpoint from recorder approx p95 contract so future changes do not regress it.
 func TestScoreCalculatorFlagsSlowEndpointFromRecorderApproxP95(t *testing.T) {
 	now := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
 	recorder := telemetry.NewRecorderWithClock("frontend", nil, func() time.Time { return now })

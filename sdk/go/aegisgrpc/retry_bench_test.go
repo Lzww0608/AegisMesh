@@ -11,6 +11,7 @@ import (
 
 var benchmarkRetryInterceptorErr = status.Error(codes.Unavailable, "try again")
 
+// BenchmarkRetryUnaryInterceptorRetryableFailure reports latency and allocation cost for retry unary interceptor retryable failure.
 func BenchmarkRetryUnaryInterceptorRetryableFailure(b *testing.B) {
 	interceptor := newRetryUnaryInterceptor(RetryPolicy{
 		MaxAttempts:    2,

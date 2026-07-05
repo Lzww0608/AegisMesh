@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/serviceconfig"
 )
 
+// TestRegistryResolverNextWatchRetryDelayCapsBackoff locks the registry resolver next watch retry delay caps backoff contract so future changes do not regress it.
 func TestRegistryResolverNextWatchRetryDelayCapsBackoff(t *testing.T) {
 	r := &registryResolver{
 		refreshInterval: defaultRefreshInterval,
@@ -44,6 +45,7 @@ func TestRegistryResolverNextWatchRetryDelayCapsBackoff(t *testing.T) {
 	}
 }
 
+// TestTargetForServiceBuildsAegisTarget locks the target for service builds aegis target contract so future changes do not regress it.
 func TestTargetForServiceBuildsAegisTarget(t *testing.T) {
 	got := TargetForService("127.0.0.1:9000", "user-service")
 	if got != "aegis://127.0.0.1:9000/user-service" {
@@ -51,6 +53,7 @@ func TestTargetForServiceBuildsAegisTarget(t *testing.T) {
 	}
 }
 
+// TestParseTargetExtractsControllerAndService locks the parse target extracts controller and service contract so future changes do not regress it.
 func TestParseTargetExtractsControllerAndService(t *testing.T) {
 	u, err := url.Parse("aegis://127.0.0.1:9000/user-service")
 	if err != nil {
@@ -69,6 +72,7 @@ func TestParseTargetExtractsControllerAndService(t *testing.T) {
 	}
 }
 
+// TestInstancesToAddressesKeepsOnlyHealthyInstances locks the instances to addresses keeps only healthy instances contract so future changes do not regress it.
 func TestInstancesToAddressesKeepsOnlyHealthyInstances(t *testing.T) {
 	got := instancesToAddresses([]*aegisv1.ServiceInstance{
 		{Id: "user-a", Address: "127.0.0.1:7001", Status: "HEALTHY"},
@@ -84,6 +88,7 @@ func TestInstancesToAddressesKeepsOnlyHealthyInstances(t *testing.T) {
 	}
 }
 
+// TestInstancesToAddressesAttachesAegisAttributes locks the instances to addresses attaches aegis attributes contract so future changes do not regress it.
 func TestInstancesToAddressesAttachesAegisAttributes(t *testing.T) {
 	got := instancesToAddresses([]*aegisv1.ServiceInstance{
 		{Id: "user-a", Address: "127.0.0.1:7001", Status: "DEGRADED", SlowScore: 1.75},
@@ -103,6 +108,7 @@ func TestInstancesToAddressesAttachesAegisAttributes(t *testing.T) {
 	}
 }
 
+// TestInstancesToAddressesCachesEndpointIdentityForTelemetry locks the instances to addresses caches endpoint identity for telemetry contract so future changes do not regress it.
 func TestInstancesToAddressesCachesEndpointIdentityForTelemetry(t *testing.T) {
 	instancesToAddresses([]*aegisv1.ServiceInstance{
 		{Id: "user-a", Address: "127.0.0.1:7001", Status: "HEALTHY"},
@@ -113,6 +119,7 @@ func TestInstancesToAddressesCachesEndpointIdentityForTelemetry(t *testing.T) {
 	}
 }
 
+// TestRegistryResolverSkipsUnchangedVersion locks the registry resolver skips unchanged version contract so future changes do not regress it.
 func TestRegistryResolverSkipsUnchangedVersion(t *testing.T) {
 	cc := &recordingResolverClientConn{}
 	r := &registryResolver{cc: cc}
@@ -157,6 +164,7 @@ func TestRegistryResolverSkipsUnchangedVersion(t *testing.T) {
 	}
 }
 
+// TestRegistryResolverKeepsUpdatingWhenVersionIsMissing locks the registry resolver keeps updating when version is missing contract so future changes do not regress it.
 func TestRegistryResolverKeepsUpdatingWhenVersionIsMissing(t *testing.T) {
 	cc := &recordingResolverClientConn{}
 	r := &registryResolver{cc: cc}
@@ -175,26 +183,32 @@ func TestRegistryResolverKeepsUpdatingWhenVersionIsMissing(t *testing.T) {
 	}
 }
 
+// recordingResolverClientConn carries recording resolver client conn state for resolver, picker, and reporter state.
 type recordingResolverClientConn struct {
 	states []resolver.State
 	errors []error
 }
 
+// UpdateState records fake controller health updates without running the production state machine.
 func (c *recordingResolverClientConn) UpdateState(state resolver.State) error {
 	c.states = append(c.states, state)
 	return nil
 }
 
+// ReportError stores resolver errors so tests can assert reconnect and parse-failure paths.
 func (c *recordingResolverClientConn) ReportError(err error) {
 	c.errors = append(c.errors, err)
 }
 
+// NewAddress initializes address with package defaults for this package's call path.
 func (c *recordingResolverClientConn) NewAddress([]resolver.Address) {}
 
+// ParseServiceConfig decodes service config input into the package's typed representation.
 func (c *recordingResolverClientConn) ParseServiceConfig(string) *serviceconfig.ParseResult {
 	return nil
 }
 
+// updateCount applies the supplied count update to its owned state.
 func (c *recordingResolverClientConn) updateCount() int {
 	return len(c.states)
 }

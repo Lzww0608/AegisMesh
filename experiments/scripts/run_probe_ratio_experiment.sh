@@ -22,6 +22,7 @@ TRACE_LOG="${TRACE_LOG:-experiments/traces/frontend-adaptive.jsonl}"
 PROBING_PORT="${PROBING_PORT:-7002}"
 MAX_PROBE_RATIO="${MAX_PROBE_RATIO:-0.10}"
 
+# assert_recovery_rows checks that required experiment artifacts are present before continuing.
 assert_recovery_rows() {
   local path="$1"
   if [[ ! -s "$path" ]]; then

@@ -6,6 +6,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/status"
 )
 
+// EndpointState aliases status codes so fault transitions and routing health share one vocabulary.
 type EndpointState = status.Code
 
 const (
@@ -17,6 +18,7 @@ const (
 	StateDead        = status.Dead
 )
 
+// StateMachineConfig defines the thresholds and windows that gate degrade, eject, probe, and recovery transitions.
 type StateMachineConfig struct {
 	DegradedThreshold     float64
 	EjectThreshold        float64
@@ -26,6 +28,7 @@ type StateMachineConfig struct {
 	ProbeSuccessThreshold float64
 }
 
+// DefaultStateMachineConfig returns conservative transition thresholds shared by services without custom policy.
 func DefaultStateMachineConfig() StateMachineConfig {
 	return StateMachineConfig{
 		DegradedThreshold:     1.5,
@@ -37,6 +40,7 @@ func DefaultStateMachineConfig() StateMachineConfig {
 	}
 }
 
+// resolveStateMachineConfig refreshes resolver state from the controller.
 func resolveStateMachineConfig(base, override StateMachineConfig) StateMachineConfig {
 	base = defaultStateMachineConfig(base)
 	if override.DegradedThreshold > 0 {
@@ -60,6 +64,7 @@ func resolveStateMachineConfig(base, override StateMachineConfig) StateMachineCo
 	return base
 }
 
+// defaultStateMachineConfig keeps default state machine config rules consistent for fault-state scoring and recovery.
 func defaultStateMachineConfig(cfg StateMachineConfig) StateMachineConfig {
 	defaults := DefaultStateMachineConfig()
 	if cfg.DegradedThreshold <= 0 {
@@ -83,12 +88,14 @@ func defaultStateMachineConfig(cfg StateMachineConfig) StateMachineConfig {
 	return cfg
 }
 
+// StateInput carries state input state for fault-state scoring and recovery.
 type StateInput struct {
 	Now         time.Time
 	SlowScore   float64
 	SuccessRate float64
 }
 
+// EndpointHealth carries endpoint health state for fault-state scoring and recovery.
 type EndpointHealth struct {
 	Service                 string
 	InstanceID              string
@@ -103,6 +110,7 @@ type EndpointHealth struct {
 	UpdatedAt               time.Time
 }
 
+// NewEndpointHealth initializes endpoint health with package defaults for this package's call path.
 func NewEndpointHealth(service, instanceID, address string, registrationEpoch ...string) EndpointHealth {
 	epoch := ""
 	if len(registrationEpoch) > 0 {
@@ -117,14 +125,17 @@ func NewEndpointHealth(service, instanceID, address string, registrationEpoch ..
 	}
 }
 
+// StateMachine carries state machine state for fault-state scoring and recovery.
 type StateMachine struct {
 	cfg StateMachineConfig
 }
 
+// NewStateMachine initializes state machine with package defaults for this package's call path.
 func NewStateMachine(cfg StateMachineConfig) *StateMachine {
 	return &StateMachine{cfg: defaultStateMachineConfig(cfg)}
 }
 
+// Apply applies apply to the mutable target while preserving transition rules.
 func (m *StateMachine) Apply(health *EndpointHealth, input StateInput) {
 	if health == nil {
 		return
@@ -180,6 +191,7 @@ func (m *StateMachine) Apply(health *EndpointHealth, input StateInput) {
 	}
 }
 
+// transition applies a state change and resets counters so future windows start from the new state.
 func (m *StateMachine) transition(health *EndpointHealth, next EndpointState, now time.Time) {
 	if health.State == next {
 		return

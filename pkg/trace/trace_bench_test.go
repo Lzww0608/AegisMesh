@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// BenchmarkJSONLWriterWrite reports latency and allocation cost for jsonl writer write.
 func BenchmarkJSONLWriterWrite(b *testing.B) {
 	path := b.TempDir() + "/sync.jsonl"
 	writer, err := NewJSONLWriter(path)
@@ -14,17 +15,17 @@ func BenchmarkJSONLWriterWrite(b *testing.B) {
 	defer writer.Close()
 
 	record := Record{
-		TraceID:       "trace-bench",
-		SpanID:        "span-bench",
-		Source:        "frontend",
-		Destination:   "user-service",
-		Method:        "/demo.shop.v1.UserService/GetUser",
-		Route:         "user-service@127.0.0.1:7001",
-		Path:          []string{"frontend", "user-service@127.0.0.1:7001"},
-		Upstream:      "127.0.0.1:7001",
-		Attempt:       1,
-		RetryAttempts: 0,
-		Status:        "OK",
+		TraceID:            "trace-bench",
+		SpanID:             "span-bench",
+		Source:             "frontend",
+		Destination:        "user-service",
+		Method:             "/demo.shop.v1.UserService/GetUser",
+		Route:              "user-service@127.0.0.1:7001",
+		Path:               []string{"frontend", "user-service@127.0.0.1:7001"},
+		Upstream:           "127.0.0.1:7001",
+		Attempt:            1,
+		RetryAttempts:      0,
+		Status:             "OK",
 		TimestampUnixMilli: time.Now().UnixMilli(),
 	}
 
@@ -37,6 +38,7 @@ func BenchmarkJSONLWriterWrite(b *testing.B) {
 	}
 }
 
+// BenchmarkAsyncJSONLWriterWrite reports latency and allocation cost for async jsonl writer write.
 func BenchmarkAsyncJSONLWriterWrite(b *testing.B) {
 	path := b.TempDir() + "/async.jsonl"
 	cfg := DefaultAsyncConfig()
@@ -48,17 +50,17 @@ func BenchmarkAsyncJSONLWriterWrite(b *testing.B) {
 	defer writer.Close()
 
 	record := Record{
-		TraceID:       "trace-bench",
-		SpanID:        "span-bench",
-		Source:        "frontend",
-		Destination:   "user-service",
-		Method:        "/demo.shop.v1.UserService/GetUser",
-		Route:         "user-service@127.0.0.1:7001",
-		Path:          []string{"frontend", "user-service@127.0.0.1:7001"},
-		Upstream:      "127.0.0.1:7001",
-		Attempt:       1,
-		RetryAttempts: 0,
-		Status:        "OK",
+		TraceID:            "trace-bench",
+		SpanID:             "span-bench",
+		Source:             "frontend",
+		Destination:        "user-service",
+		Method:             "/demo.shop.v1.UserService/GetUser",
+		Route:              "user-service@127.0.0.1:7001",
+		Path:               []string{"frontend", "user-service@127.0.0.1:7001"},
+		Upstream:           "127.0.0.1:7001",
+		Attempt:            1,
+		RetryAttempts:      0,
+		Status:             "OK",
 		TimestampUnixMilli: time.Now().UnixMilli(),
 	}
 

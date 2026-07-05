@@ -24,14 +24,17 @@ const (
 	offComm             = 44
 )
 
+// EventType carries event type state for the eBPF telemetry path.
 type EventType uint32
 
 const (
+	// EventTypeUnspecified identifies the event type unspecified constant used by this package.
 	EventTypeUnspecified EventType = 0
 	EventTypeRetransmit  EventType = 1
 	EventTypeConnect     EventType = 2
 )
 
+// String formats the value as its stable string representation.
 func (t EventType) String() string {
 	switch t {
 	case EventTypeRetransmit:
@@ -43,6 +46,7 @@ func (t EventType) String() string {
 	}
 }
 
+// DecodeRawTCPEvent keeps decode raw tcp event rules consistent for the eBPF telemetry path.
 func DecodeRawTCPEvent(sample []byte) (TCPEvent, error) {
 	if len(sample) < rawTCPEventSize {
 		return TCPEvent{}, ErrShortSample
@@ -76,6 +80,7 @@ func DecodeRawTCPEvent(sample []byte) (TCPEvent, error) {
 	return event, nil
 }
 
+// commString provides the shared comm string helper for the eBPF telemetry path.
 func commString(comm [16]byte) string {
 	raw := string(comm[:])
 	if idx := strings.IndexByte(raw, 0); idx >= 0 {

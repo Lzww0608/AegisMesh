@@ -7,6 +7,7 @@ from pathlib import Path
 CSV_FILES = ["latency.csv", "retry.csv", "recovery.csv"]
 
 
+# main parses command-line options and runs the script workflow.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--inputs", nargs="+", required=True)
@@ -22,6 +23,7 @@ def main():
     print(f"merged {len(run_dirs)} run directory/directories into {out}")
 
 
+# discover_run_dirs keeps the discover run dirs helper near the workflow that consumes its formatted output.
 def discover_run_dirs(inputs, out):
     dirs = []
     seen = set()
@@ -41,6 +43,7 @@ def discover_run_dirs(inputs, out):
     return dirs
 
 
+# merge_csv merges merge csv files into the combined result set.
 def merge_csv(name, run_dirs, out_path):
     rows = []
     fieldnames = None
@@ -64,6 +67,7 @@ def merge_csv(name, run_dirs, out_path):
         writer.writerows(rows)
 
 
+# copy_latest_figures keeps the copy latest figures helper near the workflow that consumes its formatted output.
 def copy_latest_figures(run_dirs, out_dir):
     for run_dir in reversed(run_dirs):
         figures = run_dir / "figures"

@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 
 
+# main parses command-line options and runs the script workflow.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", required=True)
@@ -59,6 +60,7 @@ def main():
         writer.writerow(row)
 
 
+# request_once keeps the request once helper near the workflow that consumes its formatted output.
 def request_once(url):
     started = time.perf_counter()
     try:
@@ -71,6 +73,7 @@ def request_once(url):
     return elapsed_ms, ok
 
 
+# percentile keeps the percentile helper near the workflow that consumes its formatted output.
 def percentile(values, pct):
     if not values:
         return ""

@@ -21,6 +21,7 @@ const (
 
 var registerControllerResolverOnce sync.Once
 
+// DialController opens a gRPC connection using AegisMesh controller and security options.
 func DialController(ctx context.Context, controllerAddr string, cfg ClientConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	addresses := EffectiveControllerAddresses(controllerAddr)
 	if len(addresses) == 0 {
@@ -38,12 +39,14 @@ func DialController(ctx context.Context, controllerAddr string, cfg ClientConfig
 	return grpc.DialContext(ctx, controllerTarget(addresses), dialOptions...)
 }
 
+// EffectiveControllerAddresses provides the shared effective controller addresses helper for authorization checks.
 func EffectiveControllerAddresses(controllerAddr string) []string {
 	addresses := splitControllerAddresses(controllerAddr)
 	addresses = append(addresses, splitControllerAddresses(os.Getenv(ControllerAddressesEnv))...)
 	return dedupeControllerAddresses(addresses)
 }
 
+// controllerTarget provides the shared controller target helper for authorization checks.
 func controllerTarget(addresses []string) string {
 	values := url.Values{}
 	for _, address := range addresses {
@@ -52,10 +55,13 @@ func controllerTarget(addresses []string) string {
 	return (&url.URL{Scheme: controllerResolverScheme, Path: "/", RawQuery: values.Encode()}).String()
 }
 
+// controllerResolverBuilder carries controller resolver builder state for authorization checks.
 type controllerResolverBuilder struct{}
 
+// Scheme returns scheme data for controllerResolverBuilder callers without handing out mutable receiver state.
 func (controllerResolverBuilder) Scheme() string { return controllerResolverScheme }
 
+// Build builds build dependencies from validated configuration.
 func (controllerResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, _ resolver.BuildOptions) (resolver.Resolver, error) {
 	addresses := dedupeControllerAddresses(target.URL.Query()[controllerResolverAddressQueryKey])
 	if len(addresses) == 0 {
@@ -71,12 +77,16 @@ func (controllerResolverBuilder) Build(target resolver.Target, cc resolver.Clien
 	return controllerResolver{}, nil
 }
 
+// controllerResolver carries controller resolver state for authorization checks.
 type controllerResolver struct{}
 
+// ResolveNow refreshes resolver state from the controller.
 func (controllerResolver) ResolveNow(resolver.ResolveNowOptions) {}
 
+// Close closes owned resources and makes repeated calls safe.
 func (controllerResolver) Close() {}
 
+// splitControllerAddresses keeps split controller addresses rules consistent for authorization checks.
 func splitControllerAddresses(raw string) []string {
 	items := strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ';' })
 	out := make([]string, 0, len(items))
@@ -89,6 +99,7 @@ func splitControllerAddresses(raw string) []string {
 	return out
 }
 
+// dedupeControllerAddresses provides the shared dedupe controller addresses helper for authorization checks.
 func dedupeControllerAddresses(addresses []string) []string {
 	out := make([]string, 0, len(addresses))
 	seen := make(map[string]struct{}, len(addresses))

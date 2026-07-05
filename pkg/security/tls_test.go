@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+// TestServerAndClientTransportCredentials locks the server and client transport credentials contract so future changes do not regress it.
 func TestServerAndClientTransportCredentials(t *testing.T) {
 	dir := t.TempDir()
 	caCert, caKey := writeCertificateAuthority(t, dir)
@@ -48,6 +49,7 @@ func TestServerAndClientTransportCredentials(t *testing.T) {
 	}
 }
 
+// TestTransportCredentialsValidateRequiredFiles locks the transport credentials validate required files contract so future changes do not regress it.
 func TestTransportCredentialsValidateRequiredFiles(t *testing.T) {
 	if _, err := ServerTransportCredentials(TLSConfig{CertFile: "cert.pem"}); err == nil {
 		t.Fatalf("expected server TLS to require cert and key")
@@ -60,6 +62,7 @@ func TestTransportCredentialsValidateRequiredFiles(t *testing.T) {
 	}
 }
 
+// writeCertificateAuthority writes write certificate authority data to the configured output.
 func writeCertificateAuthority(t *testing.T, dir string) (*x509.Certificate, *rsa.PrivateKey) {
 	t.Helper()
 	key := newKey(t)
@@ -80,11 +83,13 @@ func writeCertificateAuthority(t *testing.T, dir string) (*x509.Certificate, *rs
 	return cert, key
 }
 
+// writeLeafCertificate writes write leaf certificate data to the configured output.
 func writeLeafCertificate(t *testing.T, dir, name string, caCert *x509.Certificate, caKey *rsa.PrivateKey, dnsNames []string) (string, string) {
 	t.Helper()
 	return writeLeafCertificateWithURIs(t, dir, name, caCert, caKey, dnsNames, nil)
 }
 
+// writeLeafCertificateWithURIs writes write leaf certificate with ur is data to the configured output.
 func writeLeafCertificateWithURIs(t *testing.T, dir, name string, caCert *x509.Certificate, caKey *rsa.PrivateKey, dnsNames []string, uriStrings []string) (string, string) {
 	t.Helper()
 	uris := make([]*url.URL, 0, len(uriStrings))
@@ -117,6 +122,7 @@ func writeLeafCertificateWithURIs(t *testing.T, dir, name string, caCert *x509.C
 	return certPath, keyPath
 }
 
+// newKey initializes key with package defaults for this package's call path.
 func newKey(t *testing.T) *rsa.PrivateKey {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -126,6 +132,7 @@ func newKey(t *testing.T) *rsa.PrivateKey {
 	return key
 }
 
+// writePEM writes write pem data to the configured output.
 func writePEM(t *testing.T, path, typ string, der []byte) {
 	t.Helper()
 	file, err := os.Create(path)

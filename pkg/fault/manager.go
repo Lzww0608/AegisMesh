@@ -9,6 +9,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/status"
 )
 
+// HealthManagerConfig wires score weights, SLOs, and per-service state-machine overrides into health evaluation.
 type HealthManagerConfig struct {
 	Weights              ScoreWeights
 	LatencySLO           time.Duration
@@ -17,12 +18,14 @@ type HealthManagerConfig struct {
 	Now                  func() time.Time
 }
 
+// EndpointIdentity carries endpoint identity state for fault-state scoring and recovery.
 type EndpointIdentity struct {
 	Service           string
 	InstanceID        string
 	RegistrationEpoch string
 }
 
+// HealthManager scores endpoint telemetry and publishes versioned health state.
 type HealthManager struct {
 	mu                   sync.RWMutex
 	now                  func() time.Time
@@ -35,6 +38,7 @@ type HealthManager struct {
 	notify               chan struct{}
 }
 
+// NewHealthManager initializes health manager with package defaults for this package's call path.
 func NewHealthManager(cfg HealthManagerConfig) *HealthManager {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
@@ -53,6 +57,7 @@ func NewHealthManager(cfg HealthManagerConfig) *HealthManager {
 	}
 }
 
+// SetServiceStateMachineConfig hot-applies one service override and resets affected counters.
 func (m *HealthManager) SetServiceStateMachineConfig(service string, cfg StateMachineConfig) bool {
 	if service == "" {
 		return false
@@ -74,6 +79,7 @@ func (m *HealthManager) SetServiceStateMachineConfig(service string, cfg StateMa
 	return true
 }
 
+// ReplaceServiceStateMachineConfigs replaces all service overrides and reports changed services.
 func (m *HealthManager) ReplaceServiceStateMachineConfigs(configs map[string]StateMachineConfig) int {
 	configs = cloneStateMachineConfigs(configs)
 
@@ -107,12 +113,14 @@ func (m *HealthManager) ReplaceServiceStateMachineConfigs(configs map[string]Sta
 	return len(changedServices)
 }
 
+// EffectiveStateMachineConfig returns the resolved per-service state-machine settings.
 func (m *HealthManager) EffectiveStateMachineConfig(service string) StateMachineConfig {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.stateMachineConfigLocked(service)
 }
 
+// Update folds telemetry samples into slow scores and endpoint state transitions.
 func (m *HealthManager) Update(samples []EndpointSample) []EndpointHealth {
 	now := m.now()
 	scores := m.calculator.Calculate(samples)
@@ -129,6 +137,7 @@ func (m *HealthManager) Update(samples []EndpointSample) []EndpointHealth {
 		key := ScoreKey(sample.Service, sample.InstanceID)
 		before, existed := m.health[key]
 		health := before
+		// Address or epoch changes create a new logical endpoint owner; old health counters must not carry across.
 		if health.Service == "" || endpointAddressChanged(health, sample.Address) || endpointRegistrationEpochChanged(health, sample.RegistrationEpoch) {
 			health = NewEndpointHealth(sample.Service, sample.InstanceID, sample.Address, sample.RegistrationEpoch)
 		}
@@ -156,6 +165,7 @@ func (m *HealthManager) Update(samples []EndpointSample) []EndpointHealth {
 	return m.listLocked("")
 }
 
+// Tick advances timers for endpoints that did not report a fresh sample.
 func (m *HealthManager) Tick() []EndpointHealth {
 	now := m.now()
 
@@ -181,6 +191,7 @@ func (m *HealthManager) Tick() []EndpointHealth {
 	return m.listLocked("")
 }
 
+// Get returns one endpoint health record by service and instance ID.
 func (m *HealthManager) Get(service, instanceID string) (EndpointHealth, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -189,6 +200,7 @@ func (m *HealthManager) Get(service, instanceID string) (EndpointHealth, bool) {
 	return health, ok
 }
 
+// HealthState returns only the routing state for registry overlays.
 func (m *HealthManager) HealthState(service, instanceID string) (EndpointState, bool) {
 	health, ok := m.Get(service, instanceID)
 	if !ok {
@@ -197,6 +209,7 @@ func (m *HealthManager) HealthState(service, instanceID string) (EndpointState, 
 	return health.State, true
 }
 
+// HealthVersion returns the service-specific revision observed by watchers.
 func (m *HealthManager) HealthVersion(service string) int64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -204,6 +217,7 @@ func (m *HealthManager) HealthVersion(service string) int64 {
 	return m.healthVersionLocked(service)
 }
 
+// WatchHealth streams monotonically increasing health revisions for one service.
 func (m *HealthManager) WatchHealth(ctx context.Context, service string, afterVersion int64) (<-chan int64, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -217,6 +231,7 @@ func (m *HealthManager) WatchHealth(ctx context.Context, service string, afterVe
 		for {
 			m.mu.RLock()
 			version := m.healthVersionLocked(service)
+			// Watchers capture the current notify channel under lock; bumpIfChangedLocked closes and replaces it.
 			notify := m.notify
 			m.mu.RUnlock()
 
@@ -238,16 +253,20 @@ func (m *HealthManager) WatchHealth(ctx context.Context, service string, afterVe
 	return updates, nil
 }
 
+// List returns a stable, sorted copy of endpoint health records.
 func (m *HealthManager) List(service string) []EndpointHealth {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	return m.listLocked(service)
 }
+
+// Snapshot returns a stable copy of all endpoint health records.
 func (m *HealthManager) Snapshot() []EndpointHealth {
 	return m.List("")
 }
 
+// MergeSnapshot restores persisted health while preserving newer in-memory revisions.
 func (m *HealthManager) MergeSnapshot(snapshot []EndpointHealth) int {
 	now := m.now()
 	changedServices := make(map[string]struct{})
@@ -284,6 +303,7 @@ func (m *HealthManager) MergeSnapshot(snapshot []EndpointHealth) int {
 	return len(changedServices)
 }
 
+// PruneMissing returns prune missing data for HealthManager callers without handing out mutable receiver state.
 func (m *HealthManager) PruneMissing(retain map[EndpointIdentity]string) int {
 	if retain == nil {
 		return 0
@@ -308,6 +328,7 @@ func (m *HealthManager) PruneMissing(retain map[EndpointIdentity]string) int {
 	return removed
 }
 
+// listLocked returns a point-in-time list of list locked visible to the caller.
 func (m *HealthManager) listLocked(service string) []EndpointHealth {
 	out := make([]EndpointHealth, 0, len(m.health))
 	for _, health := range m.health {
@@ -325,6 +346,7 @@ func (m *HealthManager) listLocked(service string) []EndpointHealth {
 	return out
 }
 
+// stateMachineForLocked returns state machine for locked data for HealthManager callers without handing out mutable receiver state.
 func (m *HealthManager) stateMachineForLocked(service string, cache map[string]*StateMachine) *StateMachine {
 	if machine := cache[service]; machine != nil {
 		return machine
@@ -334,10 +356,12 @@ func (m *HealthManager) stateMachineForLocked(service string, cache map[string]*
 	return machine
 }
 
+// stateMachineConfigLocked returns state machine config locked data for HealthManager callers without handing out mutable receiver state.
 func (m *HealthManager) stateMachineConfigLocked(service string) StateMachineConfig {
 	return resolveStateMachineConfig(m.baseStateMachine, m.serviceStateMachines[service])
 }
 
+// resetStateMachineCountersLocked clears slow/eject windows for all endpoints of a service after policy changes.
 func (m *HealthManager) resetStateMachineCountersLocked(service string) {
 	now := m.now()
 	for key, health := range m.health {
@@ -354,19 +378,24 @@ func (m *HealthManager) resetStateMachineCountersLocked(service string) {
 	}
 }
 
+// endpointHealthEqualIgnoringUpdatedAt compares snapshots while ignoring clock-only churn.
 func endpointHealthEqualIgnoringUpdatedAt(a, b EndpointHealth) bool {
 	a.UpdatedAt = time.Time{}
 	b.UpdatedAt = time.Time{}
 	return a == b
 }
 
+// endpointAddressChanged treats newly reported registry addresses as identity changes.
 func endpointAddressChanged(health EndpointHealth, address string) bool {
 	return address != "" && health.Address != "" && health.Address != address
 }
+
+// endpointRegistrationEpochChanged fences health state when a registry lease is replaced.
 func endpointRegistrationEpochChanged(health EndpointHealth, registrationEpoch string) bool {
 	return registrationEpoch != "" && health.RegistrationEpoch != "" && health.RegistrationEpoch != registrationEpoch
 }
 
+// retainedEndpointAddress keeps existing health only for endpoints retained by the registry snapshot.
 func retainedEndpointAddress(retain map[EndpointIdentity]string, health EndpointHealth) (string, bool) {
 	identity := EndpointIdentity{Service: health.Service, InstanceID: health.InstanceID, RegistrationEpoch: health.RegistrationEpoch}
 	if address, ok := retain[identity]; ok {
@@ -386,9 +415,12 @@ func retainedEndpointAddress(retain map[EndpointIdentity]string, health Endpoint
 	return "", false
 }
 
+// endpointAddressMatches allows legacy empty addresses but rejects conflicting modern ones.
 func endpointAddressMatches(healthAddress, registeredAddress string) bool {
 	return healthAddress == "" || registeredAddress == "" || healthAddress == registeredAddress
 }
+
+// cloneStateMachineConfigs returns an isolated copy of clone state machine configs input so callers cannot mutate shared state.
 func cloneStateMachineConfigs(src map[string]StateMachineConfig) map[string]StateMachineConfig {
 	out := make(map[string]StateMachineConfig, len(src))
 	for service, cfg := range src {
@@ -400,6 +432,7 @@ func cloneStateMachineConfigs(src map[string]StateMachineConfig) map[string]Stat
 	return out
 }
 
+// bumpIfChangedLocked advances revisions and coalesces watcher notifications.
 func (m *HealthManager) bumpIfChangedLocked(changedServices map[string]struct{}) {
 	if len(changedServices) == 0 {
 		return
@@ -412,6 +445,7 @@ func (m *HealthManager) bumpIfChangedLocked(changedServices map[string]struct{})
 	m.notify = make(chan struct{})
 }
 
+// healthVersionLocked returns health version locked data for HealthManager callers without handing out mutable receiver state.
 func (m *HealthManager) healthVersionLocked(service string) int64 {
 	if service == "" {
 		return m.revision
@@ -419,6 +453,7 @@ func (m *HealthManager) healthVersionLocked(service string) int64 {
 	return m.serviceRevisions[service]
 }
 
+// successRate reports zero when no requests exist so probes do not create NaN metrics.
 func successRate(sample EndpointSample) float64 {
 	if sample.RequestCount <= 0 {
 		return 1
@@ -430,6 +465,7 @@ func successRate(sample EndpointSample) float64 {
 	return float64(successes) / float64(sample.RequestCount)
 }
 
+// sendLatestVersion coalesces watch notifications by replacing stale pending versions.
 func sendLatestVersion(ctx context.Context, updates chan int64, version int64) bool {
 	select {
 	case <-ctx.Done():

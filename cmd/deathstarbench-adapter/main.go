@@ -15,6 +15,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/deathstarbench"
 )
 
+// main wires the command-line entry point and reports fatal setup or runtime errors.
 func main() {
 	configPath := flag.String("config", "experiments/deathstarbench/social-network.yaml", "DeathStarBench integration config")
 	run := flag.Bool("run", false, "execute the integration plan against a local DeathStarBench checkout")
@@ -71,6 +72,7 @@ func main() {
 	}
 }
 
+// printJSON provides the shared print json helper for the DeathStarBench runner contract.
 func printJSON(value any) {
 	out, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
@@ -79,10 +81,12 @@ func printJSON(value any) {
 	fmt.Println(string(out))
 }
 
+// defaultRunDir keeps default run dir rules consistent for the DeathStarBench runner contract.
 func defaultRunDir(benchmark string, now time.Time) string {
 	return "experiments/results/runs/deathstarbench-" + sanitize(benchmark) + "-" + now.Format("20060102-150405")
 }
 
+// sanitize keeps sanitize rules consistent for the DeathStarBench runner contract.
 func sanitize(value string) string {
 	value = strings.ToLower(value)
 	var b strings.Builder

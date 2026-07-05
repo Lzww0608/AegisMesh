@@ -62,6 +62,7 @@ type Executor interface {
 // ShellExecutor executes Command.Line through the host shell.
 type ShellExecutor struct{}
 
+// Run executes the configured DeathStarBench stack and records runner artifacts.
 func (ShellExecutor) Run(ctx context.Context, command Command) (CommandResult, error) {
 	args := shellArgs(command.Line)
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
@@ -88,6 +89,7 @@ func (ShellExecutor) Run(ctx context.Context, command Command) (CommandResult, e
 	return result, err
 }
 
+// shellArgs selects the host shell wrapper used by Executor.Run on Windows and POSIX hosts.
 func shellArgs(line string) []string {
 	if runtime.GOOS == "windows" {
 		return []string{"powershell.exe", "-NoProfile", "-Command", line}
@@ -111,6 +113,7 @@ type RunOptions struct {
 	Now            func() time.Time
 }
 
+// RunManifest records runner artifacts and stage status; it is not benchmark evidence by itself.
 type RunManifest struct {
 	Benchmark   string            `json:"benchmark"`
 	RepoDir     string            `json:"repo_dir"`
@@ -126,6 +129,7 @@ type RunManifest struct {
 	Stages      []StageResult     `json:"stages"`
 }
 
+// InjectionManifest describes how Aegis metadata or sidecars were attached to a run.
 type InjectionManifest struct {
 	Mode              string            `json:"mode"`
 	TrafficGovernance string            `json:"traffic_governance"`
@@ -135,12 +139,14 @@ type InjectionManifest struct {
 	Notes             []string          `json:"notes,omitempty"`
 }
 
+// InjectedService records one DeathStarBench service mapped into AegisMesh injection metadata.
 type InjectedService struct {
 	DeathStarBenchService string `json:"deathstarbench_service"`
 	AegisName             string `json:"aegis_name"`
 	Port                  int    `json:"port"`
 }
 
+// StageResult records one runner command boundary, including timestamps, exit status, and captured output for post-run audit.
 type StageResult struct {
 	Name      string `json:"name"`
 	Command   string `json:"command,omitempty"`
@@ -152,26 +158,31 @@ type StageResult struct {
 	Error     string `json:"error,omitempty"`
 }
 
+// ValidationOptions controls filesystem validation without changing the runner artifact schema.
 type ValidationOptions struct {
 	RequireGovernedTraffic bool
 }
 
+// RunValidation carries run validation state for the DeathStarBench runner contract.
 type RunValidation struct {
 	Status string            `json:"status"`
 	Checks []ValidationCheck `json:"checks"`
 }
 
+// ValidationCheck carries validation check state for the DeathStarBench runner contract.
 type ValidationCheck struct {
 	Name   string `json:"name"`
 	Pass   bool   `json:"pass"`
 	Detail string `json:"detail,omitempty"`
 }
 
-// Runner turns an IntegrationPlan into a concrete Docker Compose run with artifacts.
+// Runner turns an IntegrationPlan into an opt-in Docker Compose run with artifacts.
 type Runner struct{}
 
+// Run executes the configured DeathStarBench stack and records runner artifacts.
 func (Runner) Run(ctx context.Context, cfg Config, opts RunOptions) (RunManifest, error) {
 	opts = normalizeRunOptions(cfg, opts)
+	// The manifest documents runner work only; downstream docs must not treat it as measured governance results.
 	manifest := RunManifest{
 		Benchmark:   cfg.Benchmark,
 		RepoDir:     opts.RepoDir,
@@ -272,6 +283,7 @@ func (Runner) Run(ctx context.Context, cfg Config, opts RunOptions) (RunManifest
 	return finishRun(opts, manifest, runErr)
 }
 
+// normalizeRunOptions fills run-option defaults so downstream logic sees one canonical form.
 func normalizeRunOptions(cfg Config, opts RunOptions) RunOptions {
 	if opts.ProjectName == "" {
 		opts.ProjectName = "aegis-dsb-" + sanitizeName(cfg.Benchmark)
@@ -294,6 +306,7 @@ func normalizeRunOptions(cfg Config, opts RunOptions) RunOptions {
 	return opts
 }
 
+// normalizeRunPaths absolutizes run paths so subprocess and artifact code share one canonical form.
 func normalizeRunPaths(opts *RunOptions) error {
 	if opts.RepoDir != "" {
 		abs, err := filepath.Abs(opts.RepoDir)
@@ -312,6 +325,7 @@ func normalizeRunPaths(opts *RunOptions) error {
 	return nil
 }
 
+// preflight rejects incomplete runner config before creating compose artifacts or starting workloads.
 func preflight(cfg Config, opts RunOptions) error {
 	if cfg.ComposeFile == "" {
 		return errors.New("compose_file is required")
@@ -339,6 +353,7 @@ func preflight(cfg Config, opts RunOptions) error {
 	return nil
 }
 
+// finishRun tears down the compose stack unless the caller requested artifact-preserving keepalive.
 func finishRun(opts RunOptions, manifest RunManifest, runErr error) (RunManifest, error) {
 	if runErr != nil {
 		manifest.Status = "failed"
@@ -355,6 +370,7 @@ func finishRun(opts RunOptions, manifest RunManifest, runErr error) (RunManifest
 	return manifest, runErr
 }
 
+// runStage executes one external command and persists its stdout/stderr artifacts.
 func runStage(ctx context.Context, opts RunOptions, manifest *RunManifest, command Command, stdoutName, stderrName string) error {
 	stage := StageResult{
 		Name:      command.Name,
@@ -389,6 +405,7 @@ func runStage(ctx context.Context, opts RunOptions, manifest *RunManifest, comma
 	return nil
 }
 
+// waitReadyStage waits for wait ready stage to reach the expected state or timeout.
 func waitReadyStage(ctx context.Context, opts RunOptions, manifest *RunManifest, url string) error {
 	stage := StageResult{Name: "wait_frontend", StartedAt: opts.Now().UTC().Format(time.RFC3339Nano)}
 	err := opts.WaitReady(ctx, url, opts.StartupTimeout)
@@ -404,6 +421,7 @@ func waitReadyStage(ctx context.Context, opts RunOptions, manifest *RunManifest,
 	return nil
 }
 
+// waitHTTPReady waits for wait http ready to reach the expected state or timeout.
 func waitHTTPReady(ctx context.Context, url string, timeout time.Duration) error {
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
@@ -439,6 +457,7 @@ func waitHTTPReady(ctx context.Context, url string, timeout time.Duration) error
 	}
 }
 
+// writeLatencyCSVFromWorkload writes write latency csv from workload data to the configured output.
 func writeLatencyCSVFromWorkload(outDir string, cfg Config, now func() time.Time) error {
 	stdoutPath := filepath.Join(outDir, ArtifactWorkloadStdout)
 	raw, err := os.ReadFile(stdoutPath)
@@ -460,6 +479,7 @@ func writeLatencyCSVFromWorkload(outDir string, cfg Config, now func() time.Time
 	return writeLatencyCSV(filepath.Join(outDir, ArtifactLatencyCSV), row)
 }
 
+// LatencyRow carries latency row state for the DeathStarBench runner contract.
 type LatencyRow struct {
 	Experiment        string
 	Variant           string
@@ -480,6 +500,7 @@ var (
 	non2xxRE         = regexp.MustCompile(`(?m)Non-2xx or 3xx responses:\s*([0-9]+)`)
 )
 
+// ParseWrkOutput decodes wrk output input into the package's typed representation.
 func ParseWrkOutput(output string) (LatencyRow, error) {
 	row := LatencyRow{}
 	for _, match := range percentileLineRE.FindAllStringSubmatch(output, -1) {
@@ -524,6 +545,7 @@ func ParseWrkOutput(output string) (LatencyRow, error) {
 	return row, nil
 }
 
+// durationToMillis serializes durations into the millisecond units used by runner manifests.
 func durationToMillis(value float64, unit string) float64 {
 	switch unit {
 	case "us":
@@ -535,6 +557,7 @@ func durationToMillis(value float64, unit string) float64 {
 	}
 }
 
+// writeLatencyCSV writes write latency csv data to the configured output.
 func writeLatencyCSV(path string, row LatencyRow) error {
 	file, err := os.Create(path)
 	if err != nil {
@@ -563,6 +586,7 @@ func writeLatencyCSV(path string, row LatencyRow) error {
 	return writer.Error()
 }
 
+// ValidateRunDir validates run dir and returns a typed error for invalid input.
 func ValidateRunDir(dir string, opts ValidationOptions) (RunValidation, error) {
 	validation := RunValidation{Status: "pass"}
 	add := func(name string, pass bool, detail string) {
@@ -600,20 +624,24 @@ func ValidateRunDir(dir string, opts ValidationOptions) (RunValidation, error) {
 	return validation, nil
 }
 
+// validInjectionMode limits config acceptance to runner modes that this adapter can materialize.
 func validInjectionMode(mode string) bool {
 	return mode == InjectionModeComposeEnvironmentOverlay || mode == InjectionModeSidecarProxy
 }
 
+// fileExists treats any successful stat as enough for optional artifact presence checks.
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
 
+// fileNonEmpty requires an artifact to exist and contain bytes before validation accepts it.
 func fileNonEmpty(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Size() > 0
 }
 
+// validateLatencyCSV enforces the synthetic latency.csv contract written by the runner.
 func validateLatencyCSV(path string) (bool, string) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -657,6 +685,7 @@ func validateLatencyCSV(path string) (bool, string) {
 	return true, fmt.Sprintf("%s rows=%d", ArtifactLatencyCSV, len(rows)-1)
 }
 
+// sameStrings compares CSV headers exactly so validation catches reordered result columns.
 func sameStrings(left, right []string) bool {
 	if len(left) != len(right) {
 		return false
@@ -669,6 +698,7 @@ func sameStrings(left, right []string) bool {
 	return true
 }
 
+// buildInjectionManifest builds build injection manifest dependencies from validated configuration.
 func buildInjectionManifest(cfg Config) InjectionManifest {
 	plan := cfg.Plan()
 	services := make([]InjectedService, 0, len(cfg.Services))
@@ -691,6 +721,7 @@ func buildInjectionManifest(cfg Config) InjectionManifest {
 	}
 }
 
+// renderComposeOverlay renders render compose overlay into the external representation expected by callers.
 func renderComposeOverlay(cfg Config) string {
 	plan := cfg.Plan()
 	var b strings.Builder
@@ -721,6 +752,7 @@ func renderComposeOverlay(cfg Config) string {
 	return b.String()
 }
 
+// writeYAMLScalar writes write yaml scalar data to the configured output.
 func writeYAMLScalar(b *strings.Builder, key, value string) {
 	b.WriteString(key)
 	b.WriteString(": ")
@@ -728,6 +760,7 @@ func writeYAMLScalar(b *strings.Builder, key, value string) {
 	b.WriteByte('\n')
 }
 
+// frontendURL prefers the configured readiness URL and falls back to the local DeathStarBench frontend.
 func frontendURL(cfg Config) string {
 	if cfg.Frontend.URL != "" {
 		return cfg.Frontend.URL
@@ -735,6 +768,7 @@ func frontendURL(cfg Config) string {
 	return "http://localhost:8080"
 }
 
+// sanitizeName converts benchmark names into stable filesystem and compose-project slugs.
 func sanitizeName(value string) string {
 	value = strings.ToLower(value)
 	var b strings.Builder
@@ -757,6 +791,7 @@ func sanitizeName(value string) string {
 	return out
 }
 
+// shellQuote wraps compose arguments only when shell metacharacters require quoting.
 func shellQuote(value string) string {
 	if value == "" {
 		return "''"
@@ -767,6 +802,7 @@ func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
+// writeJSON writes write json data to the configured output.
 func writeJSON(path string, value any) error {
 	raw, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
@@ -776,6 +812,7 @@ func writeJSON(path string, value any) error {
 	return os.WriteFile(path, raw, 0o644)
 }
 
+// readJSON reads read json data from the supplied input.
 func readJSON(path string, value any) error {
 	raw, err := os.ReadFile(path)
 	if err != nil {

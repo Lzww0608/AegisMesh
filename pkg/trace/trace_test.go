@@ -7,6 +7,7 @@ import (
 	"github.com/aegismesh/aegismesh/pkg/verifier"
 )
 
+// TestJSONLWriterWritesVerifierCompatibleRecord locks the jsonl writer writes verifier compatible record contract so future changes do not regress it.
 func TestJSONLWriterWritesVerifierCompatibleRecord(t *testing.T) {
 	path := t.TempDir() + "/trace.jsonl"
 	writer, err := NewJSONLWriter(path)

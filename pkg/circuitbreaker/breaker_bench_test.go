@@ -2,6 +2,7 @@ package circuitbreaker
 
 import "testing"
 
+// BenchmarkBreakerSameEndpoint reports latency and allocation cost for breaker same endpoint.
 func BenchmarkBreakerSameEndpoint(b *testing.B) {
 	limiter := NewEndpointLimiter(1 << 60)
 
@@ -17,6 +18,7 @@ func BenchmarkBreakerSameEndpoint(b *testing.B) {
 	})
 }
 
+// BenchmarkBreakerManyEndpoint reports latency and allocation cost for breaker many endpoint.
 func BenchmarkBreakerManyEndpoint(b *testing.B) {
 	limiters := make([]*EndpointLimiter, 64)
 	for i := range limiters {
@@ -37,6 +39,8 @@ func BenchmarkBreakerManyEndpoint(b *testing.B) {
 		}
 	})
 }
+
+// BenchmarkBreakerAPISameEndpoint reports latency and allocation cost for breaker api same endpoint.
 func BenchmarkBreakerAPISameEndpoint(b *testing.B) {
 	breaker := NewBreaker(Config{MaxInflightPerEndpoint: 1 << 60})
 	if err := breaker.TryAcquire("user-service-1"); err != nil {
@@ -56,6 +60,7 @@ func BenchmarkBreakerAPISameEndpoint(b *testing.B) {
 	})
 }
 
+// BenchmarkBreakerAPIManyEndpoint reports latency and allocation cost for breaker api many endpoint.
 func BenchmarkBreakerAPIManyEndpoint(b *testing.B) {
 	endpoints := make([]string, 64)
 	breaker := NewBreaker(Config{MaxInflightPerEndpoint: 1 << 60})

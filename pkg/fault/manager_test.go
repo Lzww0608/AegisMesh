@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// TestHealthManagerEjectsSustainedSlowEndpoint locks the health manager ejects sustained slow endpoint contract so future changes do not regress it.
 func TestHealthManagerEjectsSustainedSlowEndpoint(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	manager := NewHealthManager(HealthManagerConfig{
@@ -44,6 +45,7 @@ func TestHealthManagerEjectsSustainedSlowEndpoint(t *testing.T) {
 	}
 }
 
+// TestHealthManagerMovesEjectedEndpointToProbingAfterTTL locks the health manager moves ejected endpoint to probing after ttl contract so future changes do not regress it.
 func TestHealthManagerMovesEjectedEndpointToProbingAfterTTL(t *testing.T) {
 	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
 	manager := NewHealthManager(HealthManagerConfig{
@@ -75,6 +77,7 @@ func TestHealthManagerMovesEjectedEndpointToProbingAfterTTL(t *testing.T) {
 	}
 }
 
+// TestHealthManagerServiceStateMachineConfigInheritsBaseAndResetsCounters locks the health manager service state machine config inherits base and resets counters contract so future changes do not regress it.
 func TestHealthManagerServiceStateMachineConfigInheritsBaseAndResetsCounters(t *testing.T) {
 	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
 	manager := NewHealthManager(HealthManagerConfig{
@@ -154,6 +157,7 @@ func TestHealthManagerServiceStateMachineConfigInheritsBaseAndResetsCounters(t *
 	}
 }
 
+// TestHealthManagerPruneMissingRemovesInactiveEndpoints locks the health manager prune missing removes inactive endpoints contract so future changes do not regress it.
 func TestHealthManagerPruneMissingRemovesInactiveEndpoints(t *testing.T) {
 	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
 	manager := NewHealthManager(HealthManagerConfig{Now: func() time.Time { return now }})
@@ -183,6 +187,7 @@ func TestHealthManagerPruneMissingRemovesInactiveEndpoints(t *testing.T) {
 	}
 }
 
+// TestHealthManagerAddressChangeResetsEndpointState locks the health manager address change resets endpoint state contract so future changes do not regress it.
 func TestHealthManagerAddressChangeResetsEndpointState(t *testing.T) {
 	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
 	manager := NewHealthManager(HealthManagerConfig{Now: func() time.Time { return now }})
@@ -215,6 +220,7 @@ func TestHealthManagerAddressChangeResetsEndpointState(t *testing.T) {
 	}
 }
 
+// TestHealthManagerPruneMissingRemovesAddressMismatches locks the health manager prune missing removes address mismatches contract so future changes do not regress it.
 func TestHealthManagerPruneMissingRemovesAddressMismatches(t *testing.T) {
 	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
 	manager := NewHealthManager(HealthManagerConfig{Now: func() time.Time { return now }})
